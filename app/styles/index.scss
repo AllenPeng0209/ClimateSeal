@@ -1,4 +1,4 @@
-@use 'variables.scss';
+@use '_variables.scss';
 @use 'z-index.scss';
 @use 'animations.scss';
 @use 'components/terminal.scss';
@@ -6,6 +6,7 @@
 @use 'components/code.scss';
 @use 'components/editor.scss';
 @use 'components/toast.scss';
+
 
 html,
 body {

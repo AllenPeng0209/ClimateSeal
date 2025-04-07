@@ -162,9 +162,19 @@ export default defineConfig((config) => {
     css: {
       preprocessorOptions: {
         scss: {
-          api: 'modern-compiler',
+          api: 'modern-compiler'
+        },
+        less: {
+          javascriptEnabled: true,
+          modifyVars: {
+            '@primary-color': '#1890ff',
+          },
         },
       },
+      modules: {
+        localsConvention: 'camelCase',
+        generateScopedName: '[name]__[local]___[hash:base64:5]'
+      }
     },
   };
 });
