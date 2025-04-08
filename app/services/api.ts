@@ -18,6 +18,12 @@ interface ApiError {
 interface LoginResponse {
   access_token: string;
   token_type: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    company?: string;
+  };
 }
 
 /**
@@ -70,7 +76,7 @@ export const authApi = {
   /**
    * 用戶登錄
    */
-  async login(email: string, password: string) {
+  async login(email: string, password: string): Promise<LoginResponse> {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -86,14 +92,18 @@ export const authApi = {
       throw new Error(userError.message);
     }
 
+    if (!user) {
+      throw new Error('登录失败：未获取到用户信息');
+    }
+
     return {
-      access_token: data.session?.access_token,
+      access_token: data.session?.access_token || '',
       token_type: 'bearer',
       user: {
-        id: user?.id,
-        email: user?.email,
-        name: user?.user_metadata?.full_name || user?.email?.split('@')[0],
-        company: user?.user_metadata?.company,
+        id: user.id,
+        email: user.email || '',
+        name: user.user_metadata?.full_name || user.email?.split('@')[0] || '',
+        company: user.user_metadata?.company,
       }
     };
   },
@@ -117,7 +127,18 @@ export const authApi = {
       throw new Error(error.message);
     }
 
-    return data;
+    if (!data.user) {
+      throw new Error('注册失败：未获取到用户信息');
+    }
+
+    return {
+      user: {
+        id: data.user.id,
+        email: data.user.email || '',
+        name: data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || '',
+        company: data.user.user_metadata?.company,
+      }
+    };
   },
 
   /**
@@ -143,7 +164,16 @@ export const authApi = {
       throw new Error(error.message);
     }
     
-    return user;
+    if (!user) {
+      return null;
+    }
+
+    return {
+      id: user.id,
+      email: user.email || '',
+      name: user.user_metadata?.full_name || user.email?.split('@')[0] || '',
+      company: user.user_metadata?.company,
+    };
   },
 
   /**
@@ -152,7 +182,7 @@ export const authApi = {
   async validateToken() {
     try {
       const user = await this.getCurrentUser();
-      return { valid: true, user };
+      return { valid: !!user, user };
     } catch (error) {
       return { valid: false, user: null };
     }

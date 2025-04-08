@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
 
 export interface AuthUser {
@@ -14,7 +14,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       console.log('开始验证用户状态...');
       const result = await api.auth.validateToken();
@@ -34,42 +34,49 @@ export function useAuth() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       setLoading(true);
       setError(null);
       const result = await api.auth.login(email, password);
-      setUser(result.user);
-      return { success: true };
+      if (result.user) {
+        setUser(result.user);
+        return { success: true };
+      }
+      throw new Error('登录失败：未获取到用户信息');
     } catch (err: any) {
       setError(err.message || '登录失败');
       return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const register = async (fullName: string, email: string, password: string, company?: string) => {
+  const register = useCallback(async (fullName: string, email: string, password: string, company?: string) => {
     try {
       setLoading(true);
       setError(null);
       const result = await api.auth.register(fullName, email, password, company);
-      return { success: true, data: result };
+      if (result.user) {
+        setUser(result.user);
+        return { success: true, data: result };
+      }
+      throw new Error('注册失败：未获取到用户信息');
     } catch (err: any) {
       setError(err.message || '注册失败');
       return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -82,9 +89,9 @@ export function useAuth() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -96,7 +103,7 @@ export function useAuth() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   return {
     user,

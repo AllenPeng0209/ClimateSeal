@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useMemo, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import type { AuthUser } from '../hooks/useAuth';
@@ -20,11 +20,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const auth = useAuth();
   
   // 使用useMemo优化性能，避免不必要的重渲染
-  const value = useMemo(() => auth, [
+  const value = useMemo(() => ({
+    ...auth,
+    checkAuth: auth.checkAuth,
+    login: auth.login,
+    logout: auth.logout,
+    register: auth.register,
+    loginWithGoogle: auth.loginWithGoogle,
+  }), [
     auth.user,
     auth.loading,
-    auth.error
+    auth.error,
+    auth.checkAuth,
+    auth.login,
+    auth.logout,
+    auth.register,
+    auth.loginWithGoogle,
   ]);
+
+  // 在组件挂载时检查认证状态
+  useEffect(() => {
+    auth.checkAuth();
+  }, []);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
