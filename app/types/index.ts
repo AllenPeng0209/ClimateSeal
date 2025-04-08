@@ -1,19 +1,3 @@
-export type WorkflowStatus = 'active' | 'pending' | 'completed' | 'failed';
-export type WorkflowType = 'assessment' | 'collection' | 'report';
-
-export interface Workflow {
-  id: string;
-  name: string;
-  status: WorkflowStatus;
-  industry: string;
-  type: WorkflowType;
-  createdAt: string;
-  updatedAt: string;
-  description?: string;
-  industry_type?: string;
-  total_carbon_footprint?: number;
-}
-
 export interface Product {
   id: string;
   name: string;
@@ -22,14 +6,6 @@ export interface Product {
   unit: string;
   reductionTarget: number;
   progress: number;
-}
-
-export interface VendorTask {
-  id: string;
-  name: string;
-  status: 'pending' | 'completed' | 'failed';
-  dueDate: string;
-  assignedTo: string;
 }
 
 export interface WorkflowTask {
@@ -51,7 +27,7 @@ export interface VendorDataTask {
   status: '已提交' | '待提交' | '逾期';
   deadline: string;
   submittedAt: string | null;
-  dataQuality?: string;
+  dataQuality: string;
 }
 
 export interface CarbonReductionTask {
@@ -80,13 +56,4 @@ export interface CarbonTrendData {
   industryAvg: number[];
   leadingAvg: number[];
   ourCompany: number[];
-}
-
-export interface DashboardData {
-  workflows: Workflow[];
-  products: Product[];
-  vendorTasks: VendorTask[];
-  workflowTasks: WorkflowTask[];
-  carbonReductionTasks: CarbonReductionTask[];
-  carbonTrendData: CarbonTrendData;
 } 

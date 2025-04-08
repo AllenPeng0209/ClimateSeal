@@ -1,0 +1,53 @@
+.enterprise-knowledge-container {
+  padding: 24px;
+}
+
+.knowledge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.ant-table-wrapper {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: #f5f5f5;
+}
+
+.ant-tag {
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.ant-upload-list {
+  margin-top: 8px;
+}
+
+.ant-form-item-label > label {
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .knowledge-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .knowledge-header .ant-input-search {
+    width: 100%;
+  }
+
+  .knowledge-header .ant-btn {
+    width: 100%;
+  }
+} 

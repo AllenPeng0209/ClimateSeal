@@ -1,0 +1,150 @@
+.carbon-company-profile {
+  background: linear-gradient(to right, rgba(250, 252, 254, 0.8), rgba(245, 250, 253, 0.4));
+  border: 1px solid var(--carbon-border);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.carbon-card {
+  background: var(--carbon-white);
+  border: 1px solid var(--carbon-border);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.carbon-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.carbon-statistic {
+  text-align: center;
+}
+
+.carbon-statistic .ant-statistic-title {
+  color: var(--carbon-text);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.carbon-statistic .ant-statistic-content {
+  color: var(--carbon-text-dark);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.carbon-icon {
+  font-size: 24px;
+  color: var(--carbon-green-primary);
+  margin-right: 8px;
+}
+
+.carbon-progress {
+  margin-top: 16px;
+}
+
+.carbon-progress .ant-progress-bg {
+  background: var(--carbon-green-primary);
+}
+
+.carbon-progress .ant-progress-text {
+  color: var(--carbon-text);
+}
+
+.chart-container {
+  background: linear-gradient(to bottom, rgba(250, 252, 254, 0.8), rgba(245, 250, 253, 0.4));
+  border-radius: 8px;
+  padding: 24px;
+  margin: -24px;
+}
+
+.carbon-tabs .ant-tabs-nav {
+  margin-bottom: 16px;
+}
+
+.carbon-tabs .ant-tabs-tab {
+  padding: 8px 16px;
+  transition: all 0.3s ease;
+}
+
+.carbon-tabs .ant-tabs-tab:hover {
+  color: var(--carbon-green-primary);
+}
+
+.carbon-tabs .ant-tabs-tab-active {
+  color: var(--carbon-green-primary);
+}
+
+.carbon-tabs .ant-tabs-ink-bar {
+  background: var(--carbon-green-primary);
+  height: 2px;
+}
+
+.carbon-tabs .ant-list-item {
+  padding: 16px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.carbon-tabs .ant-list-item:hover {
+  background: rgba(46, 139, 87, 0.05);
+}
+
+.carbon-tabs .ant-list-item-meta-title {
+  margin-bottom: 8px;
+}
+
+.carbon-tabs .ant-list-item-meta-description {
+  color: var(--carbon-text);
+}
+
+.carbon-tabs .ant-progress {
+  margin-top: 8px;
+}
+
+.carbon-tabs .ant-progress-bg {
+  background: var(--carbon-green-primary);
+}
+
+.carbon-tabs .ant-progress-text {
+  color: var(--carbon-text);
+}
+
+.carbon-tabs .ant-avatar {
+  background: rgba(46, 139, 87, 0.1);
+  color: var(--carbon-green-primary);
+}
+
+.carbon-tabs .ant-badge-status-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.carbon-tabs .ant-tag {
+  border-radius: 4px;
+  padding: 0 8px;
+  height: 20px;
+  line-height: 18px;
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .carbon-company-profile .ant-row {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .carbon-company-profile .ant-col-4 {
+    margin-bottom: 16px;
+  }
+
+  .carbon-statistic {
+    margin-bottom: 16px;
+  }
+
+  .chart-container {
+    margin: -16px;
+    padding: 16px;
+  }
+} 

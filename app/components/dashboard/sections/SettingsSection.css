@@ -1,0 +1,158 @@
+.settings-container {
+  padding: 24px;
+}
+
+.settings-collapse {
+  background: transparent;
+}
+
+.settings-collapse .ant-collapse-item {
+  border: none;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.panel-icon {
+  font-size: 20px;
+  color: var(--carbon-green-primary);
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--carbon-text);
+}
+
+.panel-description {
+  font-size: 14px;
+  margin-left: auto;
+}
+
+.ant-collapse-content {
+  background: #fff;
+  border-top: 1px solid var(--carbon-border);
+}
+
+.ant-collapse-content-box {
+  padding: 24px;
+}
+
+.ant-form-item-label {
+  font-weight: 500;
+}
+
+.ant-upload {
+  width: 100%;
+}
+
+.ant-upload .ant-btn {
+  width: 100%;
+}
+
+.ant-divider {
+  margin: 24px 0;
+}
+
+.ant-switch {
+  background-color: var(--carbon-border);
+}
+
+.ant-switch-checked {
+  background-color: var(--carbon-green-primary);
+}
+
+.ant-radio-group {
+  width: 100%;
+}
+
+.ant-radio-button-wrapper {
+  width: 50%;
+  text-align: center;
+}
+
+.api-key-input .ant-input-password {
+  background-color: var(--carbon-background);
+}
+
+.api-key-input .ant-input-password-icon {
+  color: var(--carbon-text-light);
+}
+
+.api-key-input .ant-input-password-icon:hover {
+  color: var(--carbon-green-primary);
+}
+
+.notification-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--carbon-border);
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item .ant-switch {
+  margin-left: 16px;
+}
+
+.notification-item .ant-typography {
+  margin-bottom: 0;
+}
+
+.notification-item .ant-typography-secondary {
+  font-size: 12px;
+}
+
+.ant-badge-status-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.ant-badge-status-text {
+  font-size: 12px;
+  color: var(--carbon-text-light);
+}
+
+.ant-tooltip-inner {
+  background-color: var(--carbon-background);
+  color: var(--carbon-text);
+}
+
+.ant-tooltip-arrow-content {
+  background-color: var(--carbon-background);
+}
+
+.ant-tooltip-arrow-content::before {
+  background-color: var(--carbon-background);
+}
+
+@media (max-width: 768px) {
+  .settings-container {
+    padding: 16px;
+  }
+
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .panel-description {
+    margin-left: 0;
+  }
+
+  .ant-collapse-content-box {
+    padding: 16px;
+  }
+
+  .ant-radio-button-wrapper {
+    width: 100%;
+  }
+} 

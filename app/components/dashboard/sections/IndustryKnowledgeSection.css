@@ -1,0 +1,155 @@
+.industry-knowledge-container {
+  padding: 24px;
+}
+
+.knowledge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.knowledge-tabs {
+  margin-bottom: 24px;
+}
+
+.ant-table-wrapper {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: #f5f5f5;
+}
+
+.ant-tag {
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.ant-form-item-label > label {
+  font-weight: 500;
+}
+
+.ant-tabs-nav {
+  margin-bottom: 16px;
+}
+
+.ant-tabs-tab {
+  padding: 8px 16px;
+}
+
+.ant-tabs-tab-active {
+  background: #f0f7ff;
+  border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+  .knowledge-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .knowledge-header .ant-input-search {
+    width: 100%;
+  }
+
+  .knowledge-header .ant-btn {
+    width: 100%;
+  }
+
+  .ant-tabs-nav {
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+.knowledge-base-container {
+  padding: 24px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.knowledge-search-container {
+  margin: 24px 0;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.knowledge-filter-container {
+  display: flex;
+  gap: 16px;
+}
+
+.knowledge-card {
+  height: 100%;
+  transition: all 0.3s ease;
+}
+
+.knowledge-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.knowledge-card-cover {
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  border-radius: 8px 8px 0 0;
+}
+
+.knowledge-card .ant-card-meta-title {
+  margin-bottom: 8px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.knowledge-card .ant-card-meta-description {
+  color: #666;
+}
+
+.knowledge-card .ant-tag {
+  margin-bottom: 8px;
+}
+
+.carbon-tabs {
+  margin-top: 24px;
+}
+
+.carbon-tabs .ant-tabs-nav {
+  margin-bottom: 24px;
+}
+
+.carbon-tabs .ant-tabs-tab {
+  padding: 12px 24px;
+  font-size: 16px;
+}
+
+.carbon-tabs .ant-tabs-tab-active {
+  font-weight: 500;
+}
+
+@media screen and (max-width: 768px) {
+  .knowledge-search-container {
+    flex-direction: column;
+  }
+
+  .knowledge-filter-container {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .knowledge-filter-container .ant-select {
+    width: 100% !important;
+  }
+} 
