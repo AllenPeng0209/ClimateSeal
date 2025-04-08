@@ -1,0 +1,256 @@
+.editor-layout {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  height: 64px;
+}
+
+.header-left, .header-right {
+  display: flex;
+  align-items: center;
+}
+
+.header-left {
+  flex: 1;
+}
+
+.header-right {
+  gap: 8px;
+}
+
+.workflow-title {
+  margin-left: 12px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.main-content {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  height: calc(100vh - 64px);
+  display: flex;
+}
+
+.editor-sider {
+  background: #fff;
+  border-right: 1px solid #f0f0f0;
+  overflow-y: auto;
+  padding: 16px;
+  position: relative;
+  overflow: visible !important;
+  z-index: 100;
+  transition: width 0.1s ease;
+}
+
+.editor-content {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  transition: width 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.reactflow-wrapper {
+  width: 100%;
+  height: 100%;
+  transition: width 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* 拖拽相關樣式 */
+.editor-content.drag-over,
+.editor-content[style*="background-color: rgba(0, 0, 0, 0.02)"] {
+  background-color: rgba(24, 144, 255, 0.08) !important;
+  box-shadow: inset 0 0 30px rgba(24, 144, 255, 0.15);
+  transition: all 0.3s;
+}
+
+/* 拖放指示器樣式 */
+.editor-content::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 10;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(24, 144, 255, 0.03),
+    rgba(24, 144, 255, 0.03) 10px,
+    rgba(24, 144, 255, 0.06) 10px,
+    rgba(24, 144, 255, 0.06) 20px
+  );
+}
+
+/* 拖放時顯示指示器 */
+.editor-content[style*="background-color: rgba(0, 0, 0, 0.02)"]::after {
+  opacity: 1;
+}
+
+/* 拖放消息樣式 */
+.drop-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 15px 30px;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 500;
+  z-index: 100;
+  animation: fadeInOut 2s infinite;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border: 1px dashed rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+}
+
+@keyframes fadeInOut {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* 可拖拽節點樣式 */
+.draggable-file {
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  margin: 4px 0;
+  background: #f5f5f5;
+  border: 1px solid #e8e8e8;
+}
+
+.draggable-file:hover {
+  background-color: rgba(24, 144, 255, 0.1);
+  border-color: #1890ff;
+}
+
+.draggable-file:active {
+  cursor: grabbing;
+  background-color: rgba(24, 144, 255, 0.2);
+}
+
+.drag-hint {
+  font-size: 12px;
+  color: #1890ff;
+  margin-left: 8px;
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.draggable-file:hover .drag-hint {
+  opacity: 1;
+}
+
+/* 調整器樣式 */
+.resizer {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1000;
+  background-color: transparent;
+  transition: background-color 0.2s;
+}
+
+.resizer:hover,
+.resizer:active {
+  background-color: rgba(24, 144, 255, 0.3);
+  width: 10px;
+  right: -5px;
+}
+
+body.resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.resizing * {
+  user-select: none !important;
+  pointer-events: none;
+}
+
+.resizer {
+  pointer-events: auto !important;
+}
+
+/* 調整器手柄樣式 */
+.resizer-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 50px;
+  background-color: rgba(24, 144, 255, 0.4);
+  border-radius: 2px;
+  pointer-events: none;
+  display: none;
+}
+
+.resizer:hover .resizer-handle,
+.resizer:active .resizer-handle {
+  display: block;
+}
+
+/* 節點類型列表樣式 */
+.node-types {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-manager h3 {
+  margin-bottom: 16px;
+  font-size: 16px;
+  color: #333;
+  font-weight: 500;
+}
+
+/* 增大連接點尺寸 */
+.react-flow__handle {
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 50%;
+  background-color: #1890ff;
+  border: 2px solid white;
+  transition: all 0.2s ease;
+}
+
+.react-flow__handle:hover {
+  width: 15px !important;
+  height: 15px !important;
+  background-color: #40a9ff;
+  box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.2);
+}
+
+/* 連接點激活時的樣式 */
+.react-flow__handle.connecting {
+  background-color: #52c41a !important;
+}
+
+/* 選中節點樣式 */
+.react-flow__node.selected {
+  box-shadow: 0 0 0 2px #1890ff, 0 0 15px rgba(24, 144, 255, 0.4);
+  z-index: 10;
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+} 

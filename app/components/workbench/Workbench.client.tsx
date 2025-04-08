@@ -22,6 +22,7 @@ import { cubicEasingFn } from '~/utils/easings';
 import { renderLogger } from '~/utils/logger';
 import { EditorPanel } from './EditorPanel';
 import { Preview } from './Preview';
+import { CarbonFlow } from './CarbonFlow';
 import useViewport from '~/lib/hooks';
 import { PushToGitHubDialog } from '~/components/@settings/tabs/connections/components/PushToGitHubDialog';
 
@@ -50,7 +51,11 @@ const sliderOptions: SliderOptions<WorkbenchViewType> = {
     value: 'preview',
     text: 'Preview',
   },
-};
+  carbonflow: {
+    value: 'carbonflow',
+    text: 'CarbonFlow',
+  },
+} as const;
 
 const workbenchVariants = {
   closed: {
@@ -441,6 +446,9 @@ export const Workbench = memo(
                   </View>
                   <View initial={{ x: '100%' }} animate={{ x: selectedView === 'preview' ? '0%' : '100%' }}>
                     <Preview />
+                  </View>
+                  <View initial={{ x: '100%' }} animate={{ x: selectedView === 'carbonflow' ? '0%' : '100%' }}>
+                    <CarbonFlow />
                   </View>
                 </div>
               </div>
