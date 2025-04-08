@@ -1,11 +1,13 @@
 import React from 'react';
 
 const EXAMPLE_PROMPTS = [
-  { text: 'Build a todo app in React using Tailwind' },
-  { text: 'Build a simple blog using Astro' },
-  { text: 'Create a cookie consent form using Material UI' },
-  { text: 'Make a space invaders game' },
-  { text: 'Make a Tic Tac Toe game in html, css and js only' },
+  { text: '如何制作澳洲牛肉的碳排放报告？需要考虑哪些环节？' },
+  { text: '请帮我分析电子产品的碳足迹，从原料到回收的完整生命週期' },
+  { text: '制作建筑材料的碳排放报告，需要收集哪些数据？' },
+  { text: '请帮我分析运输物流过程中的碳排放计算方法' },
+  { text: '如何制作农产品的碳足迹报告？' },
+  { text: '如何计算服务业的碳排放？以餐饮业为例' },
+  { text: '制作零售商品的碳排放报告，需要哪些数据支持？' }
 ];
 
 export function ExamplePrompts(sendMessage?: { (event: React.UIEvent, messageInput?: string): void | undefined }) {

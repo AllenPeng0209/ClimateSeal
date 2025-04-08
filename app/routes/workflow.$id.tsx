@@ -2,6 +2,13 @@ import { json, type LoaderFunction } from "@remix-run/cloudflare";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import { useEffect } from "react";
 import { message } from "antd";
+import { Chat } from "~/components/chat/Chat.client";
+import { useStore } from "@nanostores/react";
+import { themeStore } from "~/lib/stores/theme";
+
+import { ClientOnly } from 'remix-utils/client-only';
+import { BaseChat } from '~/components/chat/BaseChat';
+
 
 interface LoaderData {
   error?: string;
@@ -59,6 +66,7 @@ export const loader: LoaderFunction = async ({ params }) => {
 export default function WorkflowPage() {
   const { error, workflow } = useLoaderData<LoaderData>();
   const navigate = useNavigate();
+  const theme = useStore(themeStore);
 
   useEffect(() => {
     if (error) {
@@ -81,21 +89,8 @@ export default function WorkflowPage() {
   }
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>工作流详情</h1>
-      {workflow ? (
-        <div>
-          <h2>{workflow.name}</h2>
-          <p>{workflow.description}</p>
-          <p>碳足迹: {workflow.total_carbon_footprint}</p>
-          <p>创建时间: {new Date(workflow.created_at).toLocaleString()}</p>
-        </div>
-      ) : (
-        <div>
-          <h2>创建新工作流</h2>
-          {/* 这里可以添加工作流编辑器的组件 */}
-        </div>
-      )}
+    <div className="flex flex-col h-full w-full bg-bolt-elements-background-depth-1">
+      <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>
     </div>
   );
 } 

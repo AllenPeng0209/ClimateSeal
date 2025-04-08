@@ -2,6 +2,7 @@ import { redirect } from "@remix-run/node";
 import type { LoaderFunction } from "@remix-run/node";
 import { json, type MetaFunction } from '@remix-run/cloudflare';
 
+
 export const meta: MetaFunction = () => {
   return [
     { title: 'Bolt' }, 
@@ -12,13 +13,8 @@ export const meta: MetaFunction = () => {
 export const loader: LoaderFunction = async ({ request }) => {
   try {
     const url = new URL(request.url);
-    const pathname = url.pathname;
-
-    // 如果是工作流相关的路径，重定向到工作流页面
-    if (pathname === '/workflow') {
-      return redirect("/workflow/new");
-    }
-
+ 
+ 
     // 重定向到 landing 页面
     return redirect("/landing");
   } catch (error) {
@@ -36,6 +32,11 @@ export const loader: LoaderFunction = async ({ request }) => {
  * Do not add settings button/panel to this landing page as it was intentionally removed
  * to keep the UI clean and consistent with the design system.
  */
+// export default function Index() {
+//   return null;
+// }
+
+
 export default function Index() {
   return null;
 }

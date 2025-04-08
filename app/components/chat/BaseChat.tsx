@@ -323,12 +323,29 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
               <div id="intro" className="mt-[16vh] max-w-chat mx-auto text-center px-4 lg:px-0">
-                <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
-                  Where ideas begin
+                <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-6 animate-fade-in bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  AI碳咨询顾问
                 </h1>
-                <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
-                  Bring ideas to life in seconds or get help on existing projects.
+                <p className="text-md lg:text-xl mb-12 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
+                  让AI协助您进行碳足迹评估、减排规划与可持续发展咨询
                 </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                  <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-blue-500/50 transition-all duration-300">
+                    <div className="text-4xl mb-4 text-blue-500">1</div>
+                    <h3 className="text-lg font-semibold mb-2 text-bolt-elements-textPrimary">行业类型</h3>
+                    <p className="text-sm text-bolt-elements-textSecondary">请选择您所属的行业领域</p>
+                  </div>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-blue-500/50 transition-all duration-300">
+                    <div className="text-4xl mb-4 text-purple-500">2</div>
+                    <h3 className="text-lg font-semibold mb-2 text-bolt-elements-textPrimary">产品信息</h3>
+                    <p className="text-sm text-bolt-elements-textSecondary">提供产品详细信息</p>
+                  </div>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-blue-500/50 transition-all duration-300">
+                    <div className="text-4xl mb-4 text-indigo-500">3</div>
+                    <h3 className="text-lg font-semibold mb-2 text-bolt-elements-textPrimary">BOM清单</h3>
+                    <p className="text-sm text-bolt-elements-textSecondary">上传您的物料清单（如有）</p>
+                  </div>
+                </div>
               </div>
             )}
             <div
@@ -534,7 +551,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         minHeight: TEXTAREA_MIN_HEIGHT,
                         maxHeight: TEXTAREA_MAX_HEIGHT,
                       }}
-                      placeholder="How can Bolt help you today?"
+                      placeholder="您好, 我能帮你完成你的碳排放报告, 请你说出你的需求?"
                       translate="no"
                     />
                     <ClientOnly>

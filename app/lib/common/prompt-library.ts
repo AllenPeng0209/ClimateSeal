@@ -1,4 +1,4 @@
-import { getSystemPrompt } from './prompts/prompts';
+import { getSystemPrompt } from './prompts/prompts_chinese';
 import optimized from './prompts/optimized';
 
 export interface PromptOptions {
@@ -25,13 +25,13 @@ export class PromptLibrary {
     }
   > = {
     default: {
-      label: 'Default Prompt',
-      description: 'This is the battle tested default system Prompt',
+      label: '默认提示词',
+      description: '这是经过验证的默认系统提示词',
       get: (options) => getSystemPrompt(options.cwd, options.supabase),
     },
     optimized: {
-      label: 'Optimized Prompt (experimental)',
-      description: 'an Experimental version of the prompt for lower token usage',
+      label: '优化提示词（实验性）',
+      description: '一个实验性的提示词版本，用于降低 token 使用量',
       get: (options) => optimized(options),
     },
   };
@@ -49,7 +49,7 @@ export class PromptLibrary {
     const prompt = this.library[promptId];
 
     if (!prompt) {
-      throw 'Prompt Now Found';
+      throw '未找到提示词';
     }
 
     return this.library[promptId]?.get(options);

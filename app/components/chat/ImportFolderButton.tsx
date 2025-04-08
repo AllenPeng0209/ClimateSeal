@@ -119,7 +119,7 @@ export const ImportFolderButton: React.FC<ImportFolderButtonProps> = ({ classNam
           const input = document.getElementById('folder-import');
           input?.click();
         }}
-        title="Import Folder"
+        title="上传文件夹"
         variant="outline"
         size="lg"
         className={classNames(
@@ -134,7 +134,7 @@ export const ImportFolderButton: React.FC<ImportFolderButtonProps> = ({ classNam
         disabled={isLoading}
       >
         <span className="i-ph:upload-simple w-4 h-4" />
-        {isLoading ? 'Importing...' : 'Import Folder'}
+        {isLoading ? '上传中...' : '上传文件夹'}
       </Button>
     </>
   );
