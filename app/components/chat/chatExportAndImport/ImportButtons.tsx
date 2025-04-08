@@ -76,7 +76,7 @@ export function ImportButtons(importChat: ((description: string, messages: Messa
             )}
           >
             <span className="i-ph:upload-simple w-4 h-4" />
-            Import Chat
+            上传对话
           </Button>
           <ImportFolderButton
             importChat={importChat}
