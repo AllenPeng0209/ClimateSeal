@@ -105,38 +105,8 @@ export default defineConfig((config) => {
         define: {
           global: 'globalThis',
         },
-        plugins: [
-          {
-            name: 'node-modules-polyfill',
-            setup(build) {
-              // 模擬empty模塊
-              build.onResolve({ filter: /^util\/types$/ }, () => {
-                return { path: 'util-types-polyfill', namespace: 'file' };
-              });
-              
-              build.onLoad({ filter: /^util-types-polyfill$/, namespace: 'file' }, () => {
-                return {
-                  contents: `
-                    export function isArrayBuffer(value) {
-                      return value instanceof ArrayBuffer;
-                    }
-                    export function isArrayBufferView(value) {
-                      return ArrayBuffer.isView(value);
-                    }
-                    export function isDate(value) {
-                      return value instanceof Date;
-                    }
-                    export function isRegExp(value) {
-                      return value instanceof RegExp;
-                    }
-                  `,
-                  loader: 'js',
-                };
-              });
-            },
-          },
-        ],
       },
+      include: ['util'],
     },
     resolve: {
       alias: {
@@ -145,8 +115,8 @@ export default defineConfig((config) => {
         stream: 'stream-browserify',
         util: 'rollup-plugin-node-polyfills/polyfills/util',
         process: 'rollup-plugin-node-polyfills/polyfills/process-es6',
-        'node:util/types': '/app/virtual-modules/util-types.js',
-        'util/types': '/app/virtual-modules/util-types.js',
+        'node:util/types': join(process.cwd(), 'app', 'virtual-modules', 'util-types.js'),
+        'util/types': join(process.cwd(), 'app', 'virtual-modules', 'util-types.js'),
       },
     },
     plugins: [
@@ -154,11 +124,8 @@ export default defineConfig((config) => {
         include: ['buffer', 'process', 'util', 'stream', 'crypto', 'events'],
         globals: {
           Buffer: true,
-          process: true,
           global: true,
         },
-        protocolImports: true,
-        exclude: ['child_process', 'fs', 'path'],
       }),
       {
         name: 'buffer-polyfill',

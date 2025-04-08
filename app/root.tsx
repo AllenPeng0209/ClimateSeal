@@ -100,20 +100,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 import { logStore } from './lib/stores/logs';
 
 export default function App() {
-  const theme = useStore(themeStore);
-
-  useEffect(() => {
-    logStore.logSystem('Application initialized', {
-      theme,
-      platform: navigator.platform,
-      userAgent: navigator.userAgent,
-      timestamp: new Date().toISOString(),
-    });
-  }, []);
-
   return (
-    <Layout>
-      <Outlet />
-    </Layout>
+    <html lang="zh-CN">
+      <Head />
+      <body>
+        <Layout>
+          <Outlet />
+        </Layout>
+      </body>
+    </html>
   );
 }
