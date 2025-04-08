@@ -105,6 +105,37 @@ export default defineConfig((config) => {
         define: {
           global: 'globalThis',
         },
+        plugins: [
+          {
+            name: 'node-modules-polyfill',
+            setup(build) {
+              // 模擬empty模塊
+              build.onResolve({ filter: /^util\/types$/ }, () => {
+                return { path: 'util-types-polyfill', namespace: 'file' };
+              });
+              
+              build.onLoad({ filter: /^util-types-polyfill$/, namespace: 'file' }, () => {
+                return {
+                  contents: `
+                    export function isArrayBuffer(value) {
+                      return value instanceof ArrayBuffer;
+                    }
+                    export function isArrayBufferView(value) {
+                      return ArrayBuffer.isView(value);
+                    }
+                    export function isDate(value) {
+                      return value instanceof Date;
+                    }
+                    export function isRegExp(value) {
+                      return value instanceof RegExp;
+                    }
+                  `,
+                  loader: 'js',
+                };
+              });
+            },
+          },
+        ],
       },
     },
     resolve: {
@@ -112,11 +143,15 @@ export default defineConfig((config) => {
         buffer: 'vite-plugin-node-polyfills/polyfills/buffer',
         crypto: 'crypto-browserify',
         stream: 'stream-browserify',
+        util: 'rollup-plugin-node-polyfills/polyfills/util',
+        process: 'rollup-plugin-node-polyfills/polyfills/process-es6',
+        'node:util/types': '/app/virtual-modules/util-types.js',
+        'util/types': '/app/virtual-modules/util-types.js',
       },
     },
     plugins: [
       nodePolyfills({
-        include: ['buffer', 'process', 'util', 'stream', 'crypto'],
+        include: ['buffer', 'process', 'util', 'stream', 'crypto', 'events'],
         globals: {
           Buffer: true,
           process: true,
@@ -158,6 +193,8 @@ export default defineConfig((config) => {
       'OLLAMA_API_BASE_URL',
       'LMSTUDIO_API_BASE_URL',
       'TOGETHER_API_BASE_URL',
+      'SUPABASE_URL',
+      'SUPABASE_ANON_KEY',
     ],
     css: {
       preprocessorOptions: {

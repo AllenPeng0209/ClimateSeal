@@ -1,0 +1,62 @@
+.login-form .ant-form-item {
+  margin-bottom: 20px;
+}
+
+.login-form .ant-input,
+.login-form .ant-input-password {
+  height: 50px;
+  padding: 10px 15px;
+  font-size: 16px;
+  border-radius: 8px;
+}
+
+.login-form .ant-btn {
+  height: 50px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.login-form .ant-form-item-label > label {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.login-form .ant-divider {
+  margin: 24px 0;
+}
+
+.login-form .ant-btn-link {
+  font-size: 14px;
+  padding: 0;
+  margin-top: 8px;
+}
+
+.login-form .ant-alert {
+  margin-bottom: 24px;
+  border-radius: 8px;
+}
+
+/* Google按钮样式 */
+.google-login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white !important;
+  color: rgba(0, 0, 0, 0.85) !important;
+  border: 1px solid #d9d9d9 !important;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.02);
+  transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+.google-login-button:hover,
+.google-login-button:focus {
+  color: #1890ff !important;
+  border-color: #1890ff !important;
+}
+
+.google-login-button .anticon {
+  margin-right: 8px;
+  font-size: 18px;
+  color: #ea4335;
+} 
