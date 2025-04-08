@@ -6,9 +6,92 @@
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
   --background-end-rgb: 255, 255, 255;
+
+  /* 碳足迹主题变量 */
+  --carbon-green-primary: #2E8B57;
+  --carbon-green-light: #98FB98;
+  --carbon-green-dark: #006400;
+  --carbon-blue: #4682B4;
+  --carbon-blue-light: #87ceeb;
+  --carbon-earth: #8B4513;
+  --carbon-leaf: #32cd32;
+  --carbon-background: #F5F5F5;
+  --carbon-text: #333333;
+  --carbon-text-light: #666666;
+  --carbon-border: #E0E0E0;
+  --carbon-white: #ffffff;
+  --carbon-shadow: rgba(0, 0, 0, 0.05);
 }
 
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-end-rgb));
+}
+
+/* 全局 Ant Design 主要按钮样式 */
+.ant-btn-primary {
+  color: var(--carbon-white) !important;
+  background-color: var(--carbon-green-primary) !important;
+  border-color: var(--carbon-green-dark) !important;
+}
+
+.ant-btn-primary:hover {
+  background-color: var(--carbon-green-dark) !important;
+  border-color: var(--carbon-green-dark) !important;
+  color: var(--carbon-white) !important;
+}
+
+.ant-btn-primary:active {
+  background-color: var(--carbon-green-dark) !important;
+  border-color: var(--carbon-green-dark) !important;
+  color: var(--carbon-white) !important;
+}
+
+.create-workflow-btn {
+  color: var(--carbon-white) !important;
+}
+
+.create-workflow-btn:hover {
+  background-color: var(--carbon-green-dark) !important;
+  border-color: var(--carbon-green-dark) !important;
+  color: var(--carbon-white) !important;
+}
+
+.carbon-card-create-btn {
+  color: var(--carbon-white) !important;
+}
+
+.carbon-card-create-btn:hover {
+  background-color: var(--carbon-green-dark) !important;
+  border-color: var(--carbon-green-dark) !important;
+  color: var(--carbon-white) !important;
+}
+
+.carbon-card .carbon-card-create-btn {
+  color: var(--carbon-white) !important;
+}
+
+.carbon-card .carbon-card-create-btn:hover {
+  background-color: var(--carbon-green-dark) !important;
+  border-color: var(--carbon-green-dark) !important;
+  color: var(--carbon-white) !important;
+}
+
+/* 覆盖 Ant Design 按钮样式 */
+.ant-btn-primary.carbon-card-create-btn {
+  color: var(--carbon-white) !important;
+  background-color: var(--carbon-green-primary) !important;
+  border-color: var(--carbon-green-dark) !important;
+}
+
+.ant-btn-primary.carbon-card-create-btn:hover {
+  background-color: var(--carbon-green-dark) !important;
+  border-color: var(--carbon-green-dark) !important;
+  color: var(--carbon-white) !important;
+}
+
+.ant-btn-primary.carbon-card-create-btn:active {
+  background-color: var(--carbon-green-dark) !important;
+  border-color: var(--carbon-green-dark) !important;
+  color: var(--carbon-white) !important;
 } 

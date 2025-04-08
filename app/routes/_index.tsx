@@ -9,15 +9,22 @@ export const meta: MetaFunction = () => {
   ];
 };
 
-export const loader: LoaderFunction = async () => {
+export const loader: LoaderFunction = async ({ request }) => {
   try {
-    // 重定向到 landing 頁面
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+
+    // 如果是工作流相关的路径，重定向到工作流页面
+    if (pathname === '/workflow') {
+      return redirect("/workflow/new");
+    }
+
+    // 重定向到 landing 页面
     return redirect("/landing");
   } catch (error) {
-    console.error("重定向到 landing 頁面時發生錯誤:", error);
-    // 如果重定向失敗，返回一個錯誤響應
+    console.error("重定向时发生错误:", error);
     return json(
-      { error: "頁面加載失敗" },
+      { error: "页面加载失败" },
       { status: 500 }
     );
   }

@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
 import { Typography, Card, Input, Select, List, Tag, Button, Tabs } from 'antd';
-import { SearchOutlined, FilterOutlined, BookOutlined, FileTextOutlined, TeamOutlined } from '@ant-design/icons';
+import { 
+  SearchOutlined, 
+  FilterOutlined, 
+  BookOutlined, 
+  FileTextOutlined, 
+  TeamOutlined,
+  EyeOutlined,
+  DownloadOutlined,
+  StarOutlined,
+  UserOutlined,
+  CalendarOutlined
+} from '@ant-design/icons';
 import './IndustryKnowledgeSection.css';
 
 const { Title } = Typography;
@@ -89,112 +100,300 @@ const IndustryKnowledgeSection: React.FC = () => {
 
   return (
     <div className="knowledge-base-container">
-      <Title level={2}>行业知识库</Title>
+      <Title level={2} style={{ 
+        color: 'var(--carbon-green-dark)', 
+        borderBottom: '2px solid var(--carbon-border)', 
+        paddingBottom: '12px',
+        marginBottom: '24px'
+      }}>
+        <BookOutlined style={{ marginRight: 12, color: 'var(--carbon-green-primary)' }} />
+        行业知识库
+      </Title>
       
-      <div className="knowledge-search-container">
-        <Search
-          placeholder="搜索知识库内容"
-          allowClear
-          enterButton={<SearchOutlined />}
-          size="large"
-          value={searchText}
-          onChange={e => setSearchText(e.target.value)}
-        />
-        
-        <div className="knowledge-filter-container">
-          <Select
-            placeholder="选择行业"
+      <Card className="carbon-card" style={{ marginBottom: '24px' }}>
+        <div className="knowledge-search-container">
+          <Input.Search
+            placeholder="搜索知识库内容..."
             allowClear
-            style={{ width: 200 }}
-            options={industries}
-            value={industryFilter}
-            onChange={setIndustryFilter}
+            enterButton={
+              <Button 
+                type="primary" 
+                style={{ 
+                  backgroundColor: 'var(--carbon-green-primary)',
+                  borderColor: 'var(--carbon-green-dark)'
+                }}
+              >
+                搜索
+              </Button>
+            }
+            size="large"
+            style={{ marginBottom: '16px' }}
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
           />
-          <Select
-            placeholder="选择类型"
-            allowClear
-            style={{ width: 200 }}
-            options={knowledgeTypes}
-            value={typeFilter}
-            onChange={setTypeFilter}
-          />
+          
+          <div className="knowledge-filter-container">
+            <Select
+              placeholder="选择行业"
+              style={{ width: 200, marginRight: '16px' }}
+              options={industries}
+              value={industryFilter}
+              onChange={setIndustryFilter}
+            />
+            <Select
+              placeholder="选择知识类型"
+              style={{ width: 200, marginRight: '16px' }}
+              options={knowledgeTypes}
+              value={typeFilter}
+              onChange={setTypeFilter}
+            />
+            <Select
+              placeholder="选择时间范围"
+              style={{ width: 200 }}
+              defaultValue="all"
+            >
+              <Select.Option value="all">全部时间</Select.Option>
+              <Select.Option value="week">最近一周</Select.Option>
+              <Select.Option value="month">最近一月</Select.Option>
+              <Select.Option value="quarter">最近一季度</Select.Option>
+              <Select.Option value="year">最近一年</Select.Option>
+            </Select>
+          </div>
         </div>
-      </div>
+      </Card>
 
-      <Tabs defaultActiveKey="1" className="carbon-tabs">
-        <TabPane tab="最新发布" key="1">
-          <List
-            grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 3, xl: 4, xxl: 4 }}
-            dataSource={filteredItems}
-            renderItem={item => (
-              <List.Item>
-                <Card
-                  className="knowledge-card"
-                  cover={
-                    <div className="knowledge-card-cover">
-                      <BookOutlined style={{ fontSize: 32, color: '#1890ff' }} />
-                    </div>
-                  }
-                >
-                  <Card.Meta
-                    title={item.title}
-                    description={
-                      <div>
-                        <p>{item.summary}</p>
-                        <div style={{ marginTop: 8 }}>
-                          {item.tags.map(tag => (
-                            <Tag key={tag} color="blue">{tag}</Tag>
-                          ))}
-                        </div>
-                        <div style={{ marginTop: 8, color: '#999' }}>
-                          <span>{item.author}</span>
-                          <span style={{ marginLeft: 16 }}>{item.views} 次浏览</span>
-                        </div>
+      <Card className="carbon-card">
+        <Tabs defaultActiveKey="1" className="carbon-tabs">
+          <TabPane tab="研究报告" key="1">
+            <List
+              grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 3, xl: 3, xxl: 3 }}
+              dataSource={filteredItems}
+              renderItem={item => (
+                <List.Item>
+                  <Card
+                    hoverable
+                    className="knowledge-card"
+                    cover={
+                      <div className="knowledge-card-cover">
+                        <FileTextOutlined style={{ fontSize: 48, color: 'var(--carbon-green-primary)' }} />
                       </div>
                     }
-                  />
-                </Card>
-              </List.Item>
-            )}
-          />
-        </TabPane>
-        <TabPane tab="热门推荐" key="2">
-          <List
-            grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 3, xl: 4, xxl: 4 }}
-            dataSource={filteredItems.sort((a, b) => b.views - a.views)}
-            renderItem={item => (
-              <List.Item>
-                <Card
-                  className="knowledge-card"
-                  cover={
-                    <div className="knowledge-card-cover">
-                      <FileTextOutlined style={{ fontSize: 32, color: '#1890ff' }} />
-                    </div>
-                  }
-                >
-                  <Card.Meta
-                    title={item.title}
-                    description={
-                      <div>
-                        <p>{item.summary}</p>
-                        <div style={{ marginTop: 8 }}>
-                          {item.tags.map(tag => (
-                            <Tag key={tag} color="blue">{tag}</Tag>
-                          ))}
+                    actions={[
+                      <Button type="link" icon={<EyeOutlined />}>查看</Button>,
+                      <Button type="link" icon={<DownloadOutlined />}>下载</Button>,
+                      <Button type="link" icon={<StarOutlined />}>收藏</Button>
+                    ]}
+                  >
+                    <Card.Meta
+                      title={
+                        <div style={{ 
+                          fontSize: '16px', 
+                          fontWeight: 500,
+                          color: 'var(--carbon-green-dark)',
+                          marginBottom: '8px'
+                        }}>
+                          {item.title}
                         </div>
-                        <div style={{ marginTop: 8, color: '#999' }}>
-                          <span>{item.author}</span>
-                          <span style={{ marginLeft: 16 }}>{item.views} 次浏览</span>
+                      }
+                      description={
+                        <div>
+                          <div style={{ 
+                            color: 'var(--carbon-text)',
+                            marginBottom: '8px',
+                            height: '40px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                          }}>
+                            {item.summary}
+                          </div>
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            color: 'var(--carbon-text)',
+                            fontSize: '12px'
+                          }}>
+                            <span>
+                              <UserOutlined style={{ marginRight: 4 }} />
+                              {item.author}
+                            </span>
+                            <span>
+                              <CalendarOutlined style={{ marginRight: 4 }} />
+                              {new Date(item.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div style={{ marginTop: '8px' }}>
+                            {item.tags.map(tag => (
+                              <Tag key={tag} color="green" style={{ marginBottom: '4px' }}>
+                                {tag}
+                              </Tag>
+                            ))}
+                          </div>
                         </div>
+                      }
+                    />
+                  </Card>
+                </List.Item>
+              )}
+            />
+          </TabPane>
+          <TabPane tab="技术文档" key="2">
+            <List
+              grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 3, xl: 3, xxl: 3 }}
+              dataSource={filteredItems}
+              renderItem={item => (
+                <List.Item>
+                  <Card
+                    hoverable
+                    className="knowledge-card"
+                    cover={
+                      <div className="knowledge-card-cover">
+                        <FileTextOutlined style={{ fontSize: 48, color: 'var(--carbon-green-primary)' }} />
                       </div>
                     }
-                  />
-                </Card>
-              </List.Item>
-            )}
-          />
-        </TabPane>
-      </Tabs>
+                    actions={[
+                      <Button type="link" icon={<EyeOutlined />}>查看</Button>,
+                      <Button type="link" icon={<DownloadOutlined />}>下载</Button>,
+                      <Button type="link" icon={<StarOutlined />}>收藏</Button>
+                    ]}
+                  >
+                    <Card.Meta
+                      title={
+                        <div style={{ 
+                          fontSize: '16px', 
+                          fontWeight: 500,
+                          color: 'var(--carbon-green-dark)',
+                          marginBottom: '8px'
+                        }}>
+                          {item.title}
+                        </div>
+                      }
+                      description={
+                        <div>
+                          <div style={{ 
+                            color: 'var(--carbon-text)',
+                            marginBottom: '8px',
+                            height: '40px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                          }}>
+                            {item.summary}
+                          </div>
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            color: 'var(--carbon-text)',
+                            fontSize: '12px'
+                          }}>
+                            <span>
+                              <UserOutlined style={{ marginRight: 4 }} />
+                              {item.author}
+                            </span>
+                            <span>
+                              <CalendarOutlined style={{ marginRight: 4 }} />
+                              {new Date(item.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div style={{ marginTop: '8px' }}>
+                            {item.tags.map(tag => (
+                              <Tag key={tag} color="green" style={{ marginBottom: '4px' }}>
+                                {tag}
+                              </Tag>
+                            ))}
+                          </div>
+                        </div>
+                      }
+                    />
+                  </Card>
+                </List.Item>
+              )}
+            />
+          </TabPane>
+          <TabPane tab="案例分析" key="3">
+            <List
+              grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 3, xl: 3, xxl: 3 }}
+              dataSource={filteredItems}
+              renderItem={item => (
+                <List.Item>
+                  <Card
+                    hoverable
+                    className="knowledge-card"
+                    cover={
+                      <div className="knowledge-card-cover">
+                        <FileTextOutlined style={{ fontSize: 48, color: 'var(--carbon-green-primary)' }} />
+                      </div>
+                    }
+                    actions={[
+                      <Button type="link" icon={<EyeOutlined />}>查看</Button>,
+                      <Button type="link" icon={<DownloadOutlined />}>下载</Button>,
+                      <Button type="link" icon={<StarOutlined />}>收藏</Button>
+                    ]}
+                  >
+                    <Card.Meta
+                      title={
+                        <div style={{ 
+                          fontSize: '16px', 
+                          fontWeight: 500,
+                          color: 'var(--carbon-green-dark)',
+                          marginBottom: '8px'
+                        }}>
+                          {item.title}
+                        </div>
+                      }
+                      description={
+                        <div>
+                          <div style={{ 
+                            color: 'var(--carbon-text)',
+                            marginBottom: '8px',
+                            height: '40px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                          }}>
+                            {item.summary}
+                          </div>
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            color: 'var(--carbon-text)',
+                            fontSize: '12px'
+                          }}>
+                            <span>
+                              <UserOutlined style={{ marginRight: 4 }} />
+                              {item.author}
+                            </span>
+                            <span>
+                              <CalendarOutlined style={{ marginRight: 4 }} />
+                              {new Date(item.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div style={{ marginTop: '8px' }}>
+                            {item.tags.map(tag => (
+                              <Tag key={tag} color="green" style={{ marginBottom: '4px' }}>
+                                {tag}
+                              </Tag>
+                            ))}
+                          </div>
+                        </div>
+                      }
+                    />
+                  </Card>
+                </List.Item>
+              )}
+            />
+          </TabPane>
+        </Tabs>
+      </Card>
     </div>
   );
 };

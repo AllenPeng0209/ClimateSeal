@@ -26,8 +26,8 @@ export interface Product {
 
 export interface VendorTask {
   id: string;
-  name: string;
-  status: 'pending' | 'completed' | 'failed';
+  vendor: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | '已提交' | '待提交' | '逾期';
   dueDate: string;
   assignedTo: string;
 }

@@ -60,10 +60,6 @@ const WorkbenchSection: React.FC<WorkbenchSectionProps> = ({
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => navigateToWorkflow("new", "workflow")}
-            style={{ 
-              backgroundColor: 'var(--carbon-green-primary)',
-              borderColor: 'var(--carbon-green-dark)'
-            }}
           >
             创建新工作流
           </Button>

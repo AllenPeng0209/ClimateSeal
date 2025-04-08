@@ -11,15 +11,33 @@ import {
   Modal,
   Form,
   message,
+  Progress,
+  Divider,
+  List,
+  Spin,
+  Empty,
+  Tooltip,
+  Statistic,
+  Radio,
+  Segmented,
 } from 'antd';
 import {
   SearchOutlined,
   FilterOutlined,
   DownloadOutlined,
   InfoCircleOutlined,
+  DatabaseOutlined,
+  GlobalOutlined,
+  SyncOutlined,
+  BarChartOutlined,
+  ThunderboltOutlined,
+  BulbOutlined,
+  FileSearchOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
+import './CarbonFactorSearchSection.css';
 
-const { Title } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
@@ -33,6 +51,11 @@ interface CarbonFactor {
   year: string;
   region: string;
   description: string;
+  sourceType: 'database' | 'online';
+  reliability: number;
+  industry?: string;
+  locationScope?: string;
+  updateDate: string;
 }
 
 const CarbonFactorSearchSection: React.FC = () => {
@@ -42,6 +65,10 @@ const CarbonFactorSearchSection: React.FC = () => {
   const [searchText, setSearchText] = React.useState('');
   const [categoryFilter, setCategoryFilter] = React.useState<string>('all');
   const [regionFilter, setRegionFilter] = React.useState<string>('all');
+  const [searchMode, setSearchMode] = React.useState<'offline' | 'online' | 'hybrid'>('offline');
+  const [loading, setLoading] = React.useState(false);
+  const [onlineSearchProgress, setOnlineSearchProgress] = React.useState(0);
+  const [onlineSearchMessages, setOnlineSearchMessages] = React.useState<string[]>([]);
 
   // 模拟数据
   const mockData: CarbonFactor[] = [
@@ -55,6 +82,11 @@ const CarbonFactorSearchSection: React.FC = () => {
       year: '2023',
       region: '中国',
       description: '电网电力消耗的碳排放因子',
+      sourceType: 'database',
+      reliability: 4.5,
+      industry: '电力',
+      locationScope: '华东',
+      updateDate: '2023-12-31',
     },
     {
       id: '2',
@@ -66,8 +98,12 @@ const CarbonFactorSearchSection: React.FC = () => {
       year: '2023',
       region: '中国',
       description: '天然气燃烧的碳排放因子',
+      sourceType: 'online',
+      reliability: 4.0,
+      industry: '能源',
+      locationScope: '全国',
+      updateDate: '2023-12-31',
     },
-    // 可以添加更多模拟数据
   ];
 
   const columns = [
@@ -75,6 +111,20 @@ const CarbonFactorSearchSection: React.FC = () => {
       title: '因子名称',
       dataIndex: 'name',
       key: 'name',
+      render: (text: string, record: CarbonFactor) => (
+        <Space>
+          {text}
+          {record.sourceType === 'database' ? (
+            <Tooltip title="离线数据库">
+              <DatabaseOutlined style={{ color: '#1890ff' }} />
+            </Tooltip>
+          ) : (
+            <Tooltip title="在线搜索">
+              <GlobalOutlined style={{ color: '#722ed1' }} />
+            </Tooltip>
+          )}
+        </Space>
+      ),
     },
     {
       title: '类别',
@@ -93,6 +143,12 @@ const CarbonFactorSearchSection: React.FC = () => {
       title: '数值',
       dataIndex: 'value',
       key: 'value',
+      render: (value: number, record: CarbonFactor) => (
+        <Space>
+          <Text strong>{value}</Text>
+          <Text type="secondary">{record.unit}</Text>
+        </Space>
+      ),
     },
     {
       title: '来源',
@@ -139,15 +195,64 @@ const CarbonFactorSearchSection: React.FC = () => {
   });
 
   return (
-    <>
-      <Title level={2} style={{ color: 'var(--carbon-green-dark)', borderBottom: '2px solid var(--carbon-border)', paddingBottom: '12px' }}>
-        <FilterOutlined style={{ marginRight: 12, color: 'var(--carbon-green-primary)' }} />
-        碳排放因子搜索
-      </Title>
-
-      <Card className="carbon-card">
-        <div style={{ marginBottom: 16 }}>
+    <div className="carbon-factor-search">
+      <Card 
+        title={
           <Space>
+            <BarChartOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+            <Title level={3} style={{ margin: 0 }}>碳排放因子搜索</Title>
+          </Space>
+        }
+        bordered={false}
+        style={{ marginBottom: 24, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+        extra={
+          <Space className="search-mode-selector">
+            <Text type="secondary">搜索模式：</Text>
+            <Segmented
+              value={searchMode}
+              onChange={value => setSearchMode(value as any)}
+              options={[
+                {
+                  label: (
+                    <div className="search-segment-option">
+                      <DatabaseOutlined style={{ marginRight: 4 }} />
+                      <span>离线搜索</span>
+                    </div>
+                  ),
+                  value: 'offline',
+                },
+                {
+                  label: (
+                    <div className="search-segment-option">
+                      <GlobalOutlined style={{ marginRight: 4 }} />
+                      <span>在线搜索</span>
+                    </div>
+                  ),
+                  value: 'online',
+                },
+                {
+                  label: (
+                    <div className="search-segment-option">
+                      <SyncOutlined style={{ marginRight: 4 }} />
+                      <span>混合搜索</span>
+                    </div>
+                  ),
+                  value: 'hybrid',
+                },
+              ]}
+            />
+          </Space>
+        }
+      >
+        <Paragraph type="secondary">
+          {searchMode === 'offline' && '离线搜索可快速匹配本地数据库中的碳排因子数据。'}
+          {searchMode === 'online' && '在线搜索会连接全球碳排放数据库，提供更全面的结果。'}
+          {searchMode === 'hybrid' && '混合搜索先在本地查找，结果不足时自动触发在线查询。'}
+          输入关键词即可开始搜索，系统会自动匹配最合适的结果。
+        </Paragraph>
+
+        <div className="carbon-card">
+          <Space style={{ marginBottom: 16 }}>
             <Search
               placeholder="搜索因子名称"
               allowClear
@@ -179,18 +284,18 @@ const CarbonFactorSearchSection: React.FC = () => {
             </Select>
             <Button icon={<DownloadOutlined />}>导出数据</Button>
           </Space>
-        </div>
 
-        <Table
-          columns={columns}
-          dataSource={filteredData}
-          rowKey="id"
-          pagination={{
-            total: filteredData.length,
-            pageSize: 10,
-            showTotal: (total) => `共 ${total} 条记录`,
-          }}
-        />
+          <Table
+            columns={columns}
+            dataSource={filteredData}
+            rowKey="id"
+            pagination={{
+              total: filteredData.length,
+              pageSize: 10,
+              showTotal: (total) => `共 ${total} 条记录`,
+            }}
+          />
+        </div>
       </Card>
 
       <Modal
@@ -202,18 +307,65 @@ const CarbonFactorSearchSection: React.FC = () => {
       >
         {selectedFactor && (
           <div>
-            <p><strong>名称：</strong>{selectedFactor.name}</p>
-            <p><strong>类别：</strong>{selectedFactor.category}</p>
-            <p><strong>单位：</strong>{selectedFactor.unit}</p>
-            <p><strong>数值：</strong>{selectedFactor.value}</p>
-            <p><strong>来源：</strong>{selectedFactor.source}</p>
-            <p><strong>年份：</strong>{selectedFactor.year}</p>
-            <p><strong>地区：</strong>{selectedFactor.region}</p>
-            <p><strong>描述：</strong>{selectedFactor.description}</p>
+            <div style={{ 
+              background: '#f5f5f5', 
+              padding: '16px', 
+              borderRadius: '8px', 
+              textAlign: 'center',
+              marginBottom: '24px'
+            }}>
+              <Title level={2} style={{ margin: 0, color: '#f5222d' }}>
+                {selectedFactor.value} <Text type="secondary" style={{ fontSize: '16px' }}>{selectedFactor.unit}</Text>
+              </Title>
+              <Text type="secondary">碳排放因子值</Text>
+            </div>
+
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <div>
+                <Text strong>名称：</Text>
+                <Text>{selectedFactor.name}</Text>
+              </div>
+              <div>
+                <Text strong>类别：</Text>
+                <Tag color="blue">{selectedFactor.category}</Tag>
+              </div>
+              <div>
+                <Text strong>单位：</Text>
+                <Text>{selectedFactor.unit}</Text>
+              </div>
+              <div>
+                <Text strong>数值：</Text>
+                <Text>{selectedFactor.value}</Text>
+              </div>
+              <div>
+                <Text strong>来源：</Text>
+                <Text>{selectedFactor.source}</Text>
+              </div>
+              <div>
+                <Text strong>年份：</Text>
+                <Text>{selectedFactor.year}</Text>
+              </div>
+              <div>
+                <Text strong>地区：</Text>
+                <Text>{selectedFactor.region}</Text>
+              </div>
+              <div>
+                <Text strong>描述：</Text>
+                <Text>{selectedFactor.description}</Text>
+              </div>
+              <div>
+                <Text strong>可靠性评分：</Text>
+                <Text>{selectedFactor.reliability}/5</Text>
+              </div>
+              <div>
+                <Text strong>更新日期：</Text>
+                <Text>{selectedFactor.updateDate}</Text>
+              </div>
+            </Space>
           </div>
         )}
       </Modal>
-    </>
+    </div>
   );
 };
 

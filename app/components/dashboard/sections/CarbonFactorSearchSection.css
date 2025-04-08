@@ -1,1 +1,94 @@
- 
+.carbon-factor-search .perplexity-search-card {
+  margin-bottom: 24px;
+  border-radius: 8px;
+  border: 1px solid #1890ff;
+  box-shadow: 0 2px 12px rgba(24, 144, 255, 0.1);
+}
+
+.carbon-factor-search .ant-segmented {
+  background-color: #f0f5ff;
+}
+
+.carbon-factor-search .ant-segmented-item-selected {
+  background-color: #1890ff;
+  color: white;
+}
+
+.carbon-factor-search .ant-segmented-item-selected .anticon {
+  color: white;
+}
+
+.carbon-factor-search .search-stage-message {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.carbon-factor-search .search-stage-icon {
+  margin-right: 12px;
+  color: #1890ff;
+  margin-top: 4px;
+}
+
+.carbon-factor-search .search-segment-option {
+  padding: 4px 8px;
+}
+
+.carbon-factor-search .search-result-streaming-container {
+  margin-top: 20px;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.carbon-factor-search .search-mode-selector {
+  margin-bottom: 16px;
+}
+
+.carbon-factor-search .search-progress {
+  transition: all 0.3s;
+}
+
+.carbon-factor-search .search-message-container {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.carbon-factor-search .carbon-card {
+  margin-bottom: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.09);
+}
+
+.carbon-factor-search .ant-card-head-title {
+  display: flex;
+  align-items: center;
+}
+
+.carbon-factor-search .ant-card-head-title .anticon {
+  margin-right: 8px;
+  color: #1890ff;
+}
+
+.carbon-factor-search .ant-table-wrapper {
+  margin-top: 16px;
+}
+
+.carbon-factor-search .ant-tag {
+  margin-right: 8px;
+}
+
+.carbon-factor-search .ant-space {
+  margin-bottom: 16px;
+}
+
+.carbon-factor-search .ant-input-search {
+  max-width: 400px;
+}
+
+.carbon-factor-search .ant-select {
+  min-width: 120px;
+} 

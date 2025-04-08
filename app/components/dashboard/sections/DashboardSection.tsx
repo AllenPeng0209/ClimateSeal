@@ -24,8 +24,7 @@ import {
   CalendarOutlined,
   CheckCircleOutlined,
 } from '@ant-design/icons';
-import type { Product, WorkflowTask, VendorDataTask, CarbonReductionTask, CarbonTrendData } from '~/types';
-import './DashboardSection.css';
+import type { Product, WorkflowTask, VendorDataTask, CarbonReductionTask } from '~/types';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
@@ -35,7 +34,13 @@ interface DashboardSectionProps {
   workflowTasks: WorkflowTask[];
   vendorDataTasks: VendorDataTask[];
   carbonReductionTasks: CarbonReductionTask[];
-  carbonTrendData: CarbonTrendData;
+  carbonTrendData: {
+    months: string[];
+    values: number[];
+    industryAvg: number[];
+    leadingAvg: number[];
+    ourCompany: number[];
+  };
 }
 
 const DashboardSection: React.FC<DashboardSectionProps> = ({
@@ -46,16 +51,10 @@ const DashboardSection: React.FC<DashboardSectionProps> = ({
   carbonTrendData
 }) => {
   // 计算平均碳足迹
-  const avgCarbonFootprint = products.reduce((acc, product) => acc + product.carbonFootprint, 0) / products.length;
+  const avgCarbonFootprint = products.reduce((acc, product) => acc + (product.carbonFootprint || 0), 0) / products.length;
 
   // 计算碳减排潜力（模拟数据）
   const carbonReductionPotential = avgCarbonFootprint * 0.25;
-  
-  // 行业对标数据（模拟）
-  const industryBenchmarkData = {
-    industries: ['行业平均', '领先企业', '当前企业'],
-    values: [42.5, 30.2, 35.8]
-  };
 
   return (
     <>
@@ -210,8 +209,8 @@ const DashboardSection: React.FC<DashboardSectionProps> = ({
         }
         className="carbon-card carbon-tabs"
       >
-        <Tabs defaultActiveKey="1">
-          <TabPane tab="工作流任务" key="1">
+        <Tabs defaultActiveKey="workflow">
+          <TabPane tab="工作流任务" key="workflow">
             <List
               itemLayout="horizontal"
               dataSource={workflowTasks}
@@ -239,7 +238,7 @@ const DashboardSection: React.FC<DashboardSectionProps> = ({
                     }
                     title={
                       <span>
-                        {item.name}{" "}
+                        {item.title}{" "}
                         <Badge
                           color={
                             item.priority === "high"
@@ -272,15 +271,6 @@ const DashboardSection: React.FC<DashboardSectionProps> = ({
                             </span>
                           </span>
                         </div>
-                        {item.progress > 0 && (
-                          <Progress 
-                            percent={item.progress} 
-                            size="small" 
-                            status="active"
-                            strokeColor="var(--carbon-green-primary)" 
-                            trailColor="var(--carbon-border)"
-                          />
-                        )}
                       </>
                     }
                   />
@@ -289,7 +279,7 @@ const DashboardSection: React.FC<DashboardSectionProps> = ({
             />
           </TabPane>
 
-          <TabPane tab="供应商收数任务" key="2">
+          <TabPane tab="供应商收数任务" key="vendor">
             <List
               itemLayout="horizontal"
               dataSource={vendorDataTasks}
@@ -309,7 +299,7 @@ const DashboardSection: React.FC<DashboardSectionProps> = ({
                           item.status === "逾期" ? 'var(--carbon-earth)' : 
                           'var(--carbon-blue)' 
                       }}>
-                        {item.vendor.substring(0, 1)}
+                        {item.vendor?.substring(0, 1) || '?'}
                       </Avatar>
                     }
                     title={
@@ -345,7 +335,7 @@ const DashboardSection: React.FC<DashboardSectionProps> = ({
             />
           </TabPane>
 
-          <TabPane tab="减碳任务" key="3">
+          <TabPane tab="减碳任务" key="reduction">
             <List
               itemLayout="horizontal"
               dataSource={carbonReductionTasks}
@@ -369,7 +359,7 @@ const DashboardSection: React.FC<DashboardSectionProps> = ({
                     }
                     title={
                       <span>
-                        {item.name}{" "}
+                        {item.title}{" "}
                         <Tag color="green" style={{ fontWeight: 'normal' }}>
                           {item.target}
                         </Tag>

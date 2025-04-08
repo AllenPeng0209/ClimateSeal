@@ -1,11 +1,11 @@
 import { json, type LoaderFunctionArgs, type MetaFunction } from "@remix-run/node";
 import { useLoaderData, useSearchParams, useRevalidator, useNavigate } from "@remix-run/react";
-import { useState, useEffect } from "react";
-import { Modal, message, Layout, Menu, Button, Typography, Card, Row, Col, Statistic, Avatar, Dropdown, Space } from "antd";
+import { useState } from "react";
+import { Modal, message, Layout, Menu, Button, Typography, Space, Dropdown, Avatar } from "antd";
 import { ensureUUID } from "~/utils/uuid";
-import type { Workflow, VendorTask } from "~/types/dashboard";
+import type { Workflow, VendorTask, VendorDataTask } from "~/types/dashboard";
 import { workflowTasks, vendorDataTasks, carbonReductionTasks, carbonTrendData } from "~/utils/mockData";
-import DashboardSection from "~/components/dashboard/DashboardSection";
+import DashboardSection from "~/components/dashboard/sections/DashboardSection";
 import WorkbenchSection from "~/components/dashboard/sections/WorkbenchSection";
 import PolicyKnowledgeSection from "~/components/dashboard/sections/PolicyKnowledgeSection";
 import SettingsSection from "~/components/dashboard/sections/SettingsSection";
@@ -74,23 +74,40 @@ export async function loader({ request }: LoaderFunctionArgs) {
       id: "p-1",
       name: "产品A",
       carbonFootprint: 100,
-      unit: "tCO2e"
+      unit: "tCO2e",
+      category: "电子产品",
+      reductionTarget: 20,
+      progress: 65
     },
     {
       id: "p-2",
       name: "产品B",
       carbonFootprint: 150,
-      unit: "tCO2e"
+      unit: "tCO2e",
+      category: "机械设备",
+      reductionTarget: 15,
+      progress: 45
     }
   ];
 
-  const vendorTasks: VendorTask[] = [
+  const vendorTasks: VendorDataTask[] = [
     {
       id: "vt-1",
-      name: "收集供应商A的排放数据",
-      status: "pending",
-      dueDate: "2024-04-15",
-      assignedTo: "张三"
+      vendor: "供应商A",
+      product: "原材料X",
+      status: "待提交",
+      deadline: "2024-04-15",
+      submittedAt: null,
+      dataQuality: null
+    },
+    {
+      id: "vt-2",
+      vendor: "供应商B",
+      product: "原材料Y",
+      status: "已提交",
+      deadline: "2024-04-10",
+      submittedAt: "2024-04-08",
+      dataQuality: "良好"
     }
   ];
 
@@ -140,8 +157,14 @@ export default function Dashboard() {
   };
 
   const navigateToWorkflow = (id: string, route: "workflow" | "report") => {
+    // 如果是创建新工作流，直接导航
+    if (id === "new") {
+      navigate(`/${route}/new`);
+      return;
+    }
+
+    // 对于其他情况，验证UUID格式
     const formattedId = ensureUUID(id);
-    
     if (!formattedId) {
       message.error("无效的工作流ID格式");
       return;
@@ -273,73 +296,13 @@ export default function Dashboard() {
     switch (selectedKey) {
       case "dashboard":
         return (
-          <>
-            <Row gutter={[16, 16]} style={{ marginBottom: "24px" }}>
-              <Col xs={24} sm={12} lg={6}>
-                <Card>
-                  <Statistic
-                    title="本月碳排放量"
-                    value={125.8}
-                    precision={1}
-                    valueStyle={{ color: '#3f8600' }}
-                    suffix="吨CO₂e"
-                    prefix={<BarChartOutlined />}
-                  />
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <Card>
-                  <Statistic
-                    title="同比上月"
-                    value={-12.3}
-                    precision={1}
-                    valueStyle={{ color: '#3f8600' }}
-                    suffix="%"
-                    prefix={<BarChartOutlined />}
-                  />
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <Card>
-                  <Statistic
-                    title="完成的碳盘查任务"
-                    value={8}
-                    prefix={<FileTextOutlined />}
-                  />
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <Card>
-                  <Statistic
-                    title="待办事项"
-                    value={5}
-                    prefix={<FileTextOutlined />}
-                  />
-                </Card>
-              </Col>
-            </Row>
-
-            <Card style={{ marginBottom: "24px" }}>
-              <Title level={4}>系统公告</Title>
-              <Paragraph>
-                1. 系统已更新到最新版本，包含多项功能改进和bug修复。
-              </Paragraph>
-              <Paragraph>
-                2. 新增产品碳足迹计算模块将于下周上线。
-              </Paragraph>
-              <Paragraph>
-                3. 请及时更新您的企业信息，以便我们提供更精准的服务。
-              </Paragraph>
-            </Card>
-
-            <DashboardSection 
-              products={products}
-              workflowTasks={workflowTasks}
-              vendorDataTasks={vendorTasks}
-              carbonReductionTasks={carbonReductionTasks}
-              carbonTrendData={carbonTrendData}
-            />
-          </>
+          <DashboardSection 
+            products={products}
+            workflowTasks={workflowTasks}
+            vendorDataTasks={vendorTasks}
+            carbonReductionTasks={carbonReductionTasks}
+            carbonTrendData={carbonTrendData}
+          />
         );
       case "workbench-main":
         return (
