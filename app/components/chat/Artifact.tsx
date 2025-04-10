@@ -187,16 +187,30 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                 <div className={classNames('text-lg', getIconColor(action.status))}>
                   {status === 'running' ? (
                     <>
-                      {type !== 'start' ? (
-                        <div className="i-svg-spinners:90-ring-with-bg"></div>
-                      ) : (
+                      {type === 'start' ? (
                         <div className="i-ph:terminal-window-duotone"></div>
+                      ) : type === 'carbonflow' ? (
+                        <div className="i-svg-spinners:180-ring-with-bg text-emerald-500"></div>
+                      ) : (
+                        <div className="i-svg-spinners:90-ring-with-bg"></div>
                       )}
                     </>
                   ) : status === 'pending' ? (
-                    <div className="i-ph:circle-duotone"></div>
+                    <>
+                      {type === 'carbonflow' ? (
+                        <div className="i-ph:flow-arrow text-emerald-400"></div>
+                      ) : (
+                        <div className="i-ph:circle-duotone"></div>
+                      )}
+                    </>
                   ) : status === 'complete' ? (
-                    <div className="i-ph:check"></div>
+                    <>
+                      {type === 'carbonflow' ? (
+                        <div className="i-ph:graph text-emerald-500"></div>
+                      ) : (
+                        <div className="i-ph:check"></div>
+                      )}
+                    </>
                   ) : status === 'failed' || status === 'aborted' ? (
                     <div className="i-ph:x"></div>
                   ) : null}
@@ -225,6 +239,28 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   >
                     <span className="flex-1">Start Application</span>
                   </a>
+                ) : type === 'carbonflow' ? (
+                  <a
+                    onClick={(e) => {
+                      e.preventDefault();
+                      workbenchStore.currentView.set('carbonflow');
+                    }}
+                    className="flex items-center w-full min-h-[28px] text-emerald-600 hover:text-emerald-700 transition-colors"
+                  >
+                    <span className="flex-1">
+                      <span className="font-medium">CarbonFlow:</span> {
+                        // 显示简化的操作类型
+                        (action as any).operation === 'add' ? 
+                          `添加${(action as any).nodeType}节点` :
+                        (action as any).operation === 'connect' ? 
+                          `连接节点` :
+                        (action as any).operation === 'calculate' ? 
+                          `计算碳足迹` :
+                        (action as any).operation || '操作'
+                      }
+                    </span>
+                    <div className="i-ph:flow-arrow-duotone text-lg ml-2"></div>
+                  </a>
                 ) : null}
               </div>
               {(type === 'shell' || type === 'start') && (
@@ -234,6 +270,62 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   })}
                   code={content}
                 />
+              )}
+              {type === 'carbonflow' && (
+                <div className={classNames(
+                  'mt-1 px-3 py-1.5 rounded-md text-xs bg-emerald-50 text-emerald-800 border border-emerald-100',
+                  { 'mb-3.5': !isLast }
+                )}>
+                 
+                  {content && content.includes('{') && (
+                    (() => {
+                      try {
+                        // 尝试解析JSON
+                        const jsonData = JSON.parse(content.substring(
+                          content.indexOf('{'),
+                          content.lastIndexOf('}') + 1
+                        ));
+                        
+                        // 提取组件信息
+                        if (jsonData.components && jsonData.components.length > 0) {
+                          const component = jsonData.components[0];
+                          return (
+                            <div className="mt-2 border-t border-emerald-100 pt-2">
+                              {component.name && (
+                                <div className="ml-4">• 节点名称: <span className="font-medium">{component.name}</span></div>
+                              )}
+                              
+                              {component.lifecycleStage && (
+                                <div className="ml-4">• 生命周期阶段: <span className="font-medium">{component.lifecycleStage}</span></div>
+                              )}
+                              
+                              {component.emissionType && (
+                                <div className="ml-4">• 排放类型: <span className="font-medium">{component.emissionType}</span></div>
+                              )}
+                              
+                              {component.quantity && (
+                                <div className="ml-4">• 数量: <span className="font-medium">{component.quantity}</span></div>
+                              )}
+                            </div>
+                          );
+                        }
+                        return null;
+                      } catch (e) {
+                        // JSON解析失败，显示普通文本
+                        return null;
+                      }
+                    })()
+                  )}
+                  {(action as any).operation === 'add' && (action as any).nodeType && (
+                    <div className="ml-4">• 添加 <span className="font-medium">{(action as any).nodeType}</span> 类型节点</div>
+                  )}
+                  {(action as any).operation === 'connect' && (action as any).source && (action as any).target && (
+                    <div className="ml-4">• 连接 <span className="font-medium">{(action as any).source}</span> 到 <span className="font-medium">{(action as any).target}</span></div>
+                  )}
+                  {(action as any).operation === 'calculate' && (
+                    <div className="ml-4">• 计算碳足迹值</div>
+                  )}
+                </div>
               )}
             </motion.li>
           );

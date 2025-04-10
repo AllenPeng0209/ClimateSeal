@@ -1,7 +1,7 @@
 import type { WebContainer } from '@webcontainer/api';
 import { path as nodePath } from '~/utils/path';
 import { atom, map, type MapStore } from 'nanostores';
-import type { ActionAlert, BoltAction, FileHistory, SupabaseAction, SupabaseAlert } from '~/types/actions';
+import type { ActionAlert, BoltAction, FileHistory, SupabaseAction, SupabaseAlert, CarbonFlowAction } from '~/types/actions';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
@@ -171,6 +171,42 @@ export class ActionRunner {
             });
 
             // Return early without re-throwing
+            return;
+          }
+          break;
+        }
+        case 'carbonflow': {
+          try {
+            // 直接处理CarbonFlow操作，无需更新action状态
+            if (typeof window !== 'undefined') {
+              const cfAction = action as unknown as CarbonFlowAction & { 
+                status: string; 
+                abort: () => void; 
+                executed: boolean; 
+                abortSignal: AbortSignal 
+              };
+              
+              const enrichedAction = {
+                ...cfAction,
+                traceId: `cf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+              };
+              
+              const event = new CustomEvent('carbonflow-action', { detail: enrichedAction });
+              window.dispatchEvent(event);
+              
+              logger.debug('[CarbonFlow Action] 已分发事件');
+            } else {
+              logger.warn('[CarbonFlow Action] 无法在服务器端分发事件');
+            }
+            
+            // 更新操作状态为完成
+            this.#updateAction(actionId, { status: 'complete' });
+          } catch (error: any) {
+            // Update action status
+            this.#updateAction(actionId, {
+              status: 'failed',
+              error: error instanceof Error ? error.message : 'CarbonFlow action failed',
+            });
             return;
           }
           break;

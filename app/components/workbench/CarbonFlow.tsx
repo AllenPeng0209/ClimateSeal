@@ -348,6 +348,12 @@ const CarbonFlowInner = () => {
       setEdges
     });
     setActionHandler(handler);
+    
+    // 设置全局标识，表示CarbonFlow已初始化
+    if (typeof window !== 'undefined') {
+      (window as any).carbonFlowInitialized = true;
+      console.log('[CarbonFlow] 组件已初始化');
+    }
   }, [nodes, edges, setNodes, setEdges]);
   
   // 处理 CarbonFlow 操作
@@ -358,6 +364,37 @@ const CarbonFlowInner = () => {
       console.warn('CarbonFlow 操作处理器尚未初始化');
     }
   }, [actionHandler]);
+  
+  // 添加全局事件监听器，处理来自桥接器的操作
+  useEffect(() => {
+    if (!actionHandler) return;
+    
+    const handleActionEvent = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const action = customEvent.detail as CarbonFlowAction & { traceId?: string };
+      
+      console.log('[CarbonFlow] 收到操作:', action);
+      handleCarbonFlowAction(action);
+      
+      // 发送操作结果事件
+      window.dispatchEvent(new CustomEvent('carbonflow-action-result', { 
+        detail: { success: true, traceId: action.traceId, nodeId: action.nodeId } 
+      }));
+    };
+    
+    // 添加事件监听器
+    window.addEventListener('carbonflow-action', handleActionEvent);
+    
+    // 清理函数
+    return () => {
+      window.removeEventListener('carbonflow-action', handleActionEvent);
+      
+      // 清除初始化标记
+      if (typeof window !== 'undefined') {
+        (window as any).carbonFlowInitialized = false;
+      }
+    };
+  }, [actionHandler, handleCarbonFlowAction]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),

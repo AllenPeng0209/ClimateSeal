@@ -1,6 +1,17 @@
 import type { Node, Edge } from 'reactflow';
 import type { CarbonFlowAction } from '~/types/actions';
-import type { NodeData } from '../CarbonFlow';
+
+interface NodeData {
+  label: string;
+  nodeName: string;
+  lifecycleStage: string;
+  emissionType: string;
+  carbonFactor: number;
+  activitydataSource: string;
+  activityScore: number;
+  carbonFootprint: number;
+  [key: string]: any; // 允許其他屬性
+}
 
 export interface CarbonFlowActionHandlerProps {
   nodes: Node<NodeData>[];
@@ -40,12 +51,21 @@ export class CarbonFlowActionHandler {
     });
     
     // 记录操作内容
+    if (action.description) {
+      // 如果存在描述字段，优先使用描述
+      console.log(`[CARBONFLOW_CONTENT] ${action.description}`);
+    } 
+    
     if (action.content) {
       try {
+        // 尝试解析content为JSON对象
         const contentObj = JSON.parse(action.content);
         console.log(`[CARBONFLOW_CONTENT]`, contentObj);
       } catch (e) {
-        console.log(`[CARBONFLOW_CONTENT] ${action.content}`);
+        // 如果解析失败且没有描述字段，则输出原始内容
+        if (!action.description) {
+          console.log(`[CARBONFLOW_CONTENT] ${action.content}`);
+        }
       }
     }
 
@@ -86,7 +106,34 @@ export class CarbonFlowActionHandler {
     }
 
     try {
-      const nodeData = action.content ? JSON.parse(action.content) : {};
+      // 改进JSON解析逻辑
+      let nodeData: Record<string, any> = {}; // 使用Record<string, any>類型
+      
+      if (action.content) {
+        try {
+          // 尝试解析纯JSON内容
+          nodeData = JSON.parse(action.content);
+        } catch (e) {
+          // 如果解析失败，检查是否存在JSON部分
+          const jsonStart = action.content.indexOf('{');
+          const jsonEnd = action.content.lastIndexOf('}');
+          
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            try {
+              // 提取JSON部分并尝试解析
+              const jsonPart = action.content.substring(jsonStart, jsonEnd + 1);
+              nodeData = JSON.parse(jsonPart);
+            } catch (innerError) {
+              console.error('JSON提取和解析失败:', innerError);
+              return;
+            }
+          } else {
+            console.error('内容格式错误，找不到有效的JSON部分');
+            return;
+          }
+        }
+      }
+      
       let position = { x: 100, y: 100 }; // 默认位置
       
       // 解析位置信息
@@ -190,11 +237,12 @@ export class CarbonFlowActionHandler {
 
   /**
    * 查询节点
+   * @returns 找到的节点或null
    */
-  private handleQueryNode(action: CarbonFlowAction): void {
+  private handleQueryNode(action: CarbonFlowAction): Node<NodeData> | null {
     if (!action.nodeId) {
       console.error('查询节点操作缺少 nodeId');
-      return;
+      return null;
     }
 
     try {

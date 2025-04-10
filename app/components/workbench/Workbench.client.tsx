@@ -25,6 +25,7 @@ import { Preview } from './Preview';
 import { CarbonFlow } from './CarbonFlow';
 import useViewport from '~/lib/hooks';
 import { PushToGitHubDialog } from '~/components/@settings/tabs/connections/components/PushToGitHubDialog';
+import { CarbonFlowBridge } from './CarbonFlow/carbonflow-bridge';
 
 interface WorkspaceProps {
   chatStarted?: boolean;
@@ -287,8 +288,7 @@ export const Workbench = memo(
     const [isSyncing, setIsSyncing] = useState(false);
     const [isPushDialogOpen, setIsPushDialogOpen] = useState(false);
     const [fileHistory, setFileHistory] = useState<Record<string, FileHistory>>({});
-
-    // const modifiedFiles = Array.from(useStore(workbenchStore.unsavedFiles).keys());
+    const [carbonFlowBridgeInitialized, setCarbonFlowBridgeInitialized] = useState(false);
 
     const hasPreview = useStore(computed(workbenchStore.previews, (previews) => previews.length > 0));
     const showWorkbench = useStore(workbenchStore.showWorkbench);
@@ -355,6 +355,20 @@ export const Workbench = memo(
       workbenchStore.setSelectedFile(filePath);
       workbenchStore.currentView.set('diff');
     }, []);
+
+    // 初始化CarbonFlowBridge
+    useEffect(() => {
+      if (actionRunner && !carbonFlowBridgeInitialized) {
+        try {
+          const bridge = CarbonFlowBridge.getInstance();
+          bridge.initialize(actionRunner);
+          setCarbonFlowBridgeInitialized(true);
+          console.log('[Workbench] CarbonFlowBridge 初始化成功');
+        } catch (error) {
+          console.error('[Workbench] CarbonFlowBridge 初始化失败:', error);
+        }
+      }
+    }, [actionRunner, carbonFlowBridgeInitialized]);
 
     return (
       chatStarted && (

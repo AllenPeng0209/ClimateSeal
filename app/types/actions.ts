@@ -39,6 +39,7 @@ export interface CarbonFlowAction extends BaseAction {
   target?: string;
   position?: string;
   content: string;
+  description?: string;
 }
 
 export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction;

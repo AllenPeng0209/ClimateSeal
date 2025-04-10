@@ -324,6 +324,11 @@ export class StreamingMessageParser {
     } else if (actionType === 'carbonflow') {
       const operation = this.#extractAttribute(actionTag, 'operation');
       
+      // 添加日志，记录CarbonFlow操作解析开始
+      console.log(`[PARSER_CARBONFLOW] 开始解析CarbonFlow操作: ${operation}`, {
+        tag: actionTag
+      });
+      
       if (!operation || !['add', 'update', 'delete', 'query', 'connect', 'layout', 'calculate'].includes(operation)) {
         logger.warn(`Invalid or missing operation for CarbonFlow action: ${operation}`);
         throw new Error(`Invalid CarbonFlow operation: ${operation}`);
@@ -343,16 +348,43 @@ export class StreamingMessageParser {
         
         (actionAttributes as CarbonFlowAction).nodeType = nodeType;
         (actionAttributes as CarbonFlowAction).position = position;
+        
+        // 为content字段添加更详细的操作说明
+        if (!actionAttributes.content || actionAttributes.content.trim() === '') {
+          (actionAttributes as CarbonFlowAction).description = `Add ${nodeType} node to CarbonFlow diagram${position ? ` at position ${position}` : ''}`;
+          // 不再設置content字段，這樣它將保持為空或原始JSON
+        }
+        
+        // 添加日志，记录add操作的关键属性
+        console.log(`[PARSER_CARBONFLOW_ADD] 解析到添加节点操作:`, {
+          nodeType,
+          position
+        });
       } 
       else if (operation === 'update' || operation === 'delete' || operation === 'query') {
         const nodeId = this.#extractAttribute(actionTag, 'nodeId');
+        // 如果nodeId不存在，尝试使用nodeName作为替代
+        const nodeName = !nodeId ? this.#extractAttribute(actionTag, 'nodeName') : undefined;
         
-        if (!nodeId) {
+        if (!nodeId && !nodeName) {
           logger.warn(`Node ID required for ${operation} operation`);
           throw new Error(`Node ID required for ${operation} operation`);
         }
         
-        (actionAttributes as CarbonFlowAction).nodeId = nodeId;
+        // 使用nodeId或nodeName
+        (actionAttributes as CarbonFlowAction).nodeId = nodeId || nodeName;
+        
+        // 为content字段添加更详细的操作说明
+        if (!actionAttributes.content || actionAttributes.content.trim() === '') {
+          (actionAttributes as CarbonFlowAction).description = `CarbonFlow ${operation} operation on node ${nodeId || nodeName}`;
+          // 不再設置content字段
+        }
+        
+        // 添加日志，记录操作的关键属性
+        console.log(`[PARSER_CARBONFLOW_${operation.toUpperCase()}] 解析到${operation}操作:`, {
+          nodeId: nodeId || nodeName,
+          source: nodeName ? '来自nodeName属性' : '来自nodeId属性'
+        });
       }
       else if (operation === 'connect') {
         const source = this.#extractAttribute(actionTag, 'source');
@@ -365,16 +397,51 @@ export class StreamingMessageParser {
         
         (actionAttributes as CarbonFlowAction).source = source;
         (actionAttributes as CarbonFlowAction).target = target;
+        
+        // 为content字段添加更详细的操作说明
+        if (!actionAttributes.content || actionAttributes.content.trim() === '') {
+          (actionAttributes as CarbonFlowAction).description = `Connect node "${source}" to "${target}"`;
+          // 不再設置content字段
+        }
+        
+        // 添加日志，记录connect操作的关键属性
+        console.log(`[PARSER_CARBONFLOW_CONNECT] 解析到连接节点操作:`, {
+          source,
+          target
+        });
       }
       else if (operation === 'layout') {
         // 布局操作不需要额外属性
+        console.log(`[PARSER_CARBONFLOW_LAYOUT] 解析到布局操作`);
+        
+        // 为content字段添加更详细的操作说明
+        if (!actionAttributes.content || actionAttributes.content.trim() === '') {
+          (actionAttributes as CarbonFlowAction).description = `Arrange layout of CarbonFlow diagram`;
+          // 不再設置content字段
+        }
       }
       else if (operation === 'calculate') {
         const target = this.#extractAttribute(actionTag, 'target');
         if (target) {
           (actionAttributes as CarbonFlowAction).target = target;
         }
+        
+        // 为content字段添加更详细的操作说明
+        if (!actionAttributes.content || actionAttributes.content.trim() === '') {
+          (actionAttributes as CarbonFlowAction).description = target 
+            ? `Calculate carbon footprint for "${target}"`
+            : `Calculate carbon footprint for all nodes`;
+          // 不再設置content字段
+        }
+        
+        // 添加日志，记录calculate操作的关键属性
+        console.log(`[PARSER_CARBONFLOW_CALCULATE] 解析到计算操作:`, {
+          target: target || '未指定目标'
+        });
       }
+      
+      // 最后记录完整的解析结果
+      console.log(`[PARSER_CARBONFLOW_RESULT] CarbonFlow操作解析完成:`, actionAttributes);
     } else if (!['shell', 'start'].includes(actionType)) {
       logger.warn(`Unknown action type '${actionType}'`);
     }
@@ -384,7 +451,14 @@ export class StreamingMessageParser {
 
   #extractAttribute(tag: string, attributeName: string): string | undefined {
     const match = tag.match(new RegExp(`${attributeName}="([^"]*)"`, 'i'));
-    return match ? match[1] : undefined;
+    const result = match ? match[1] : undefined;
+    
+    // 为CarbonFlow操作添加额外的属性提取日志
+    if (tag.includes('type="carbonflow"')) {
+      console.log(`[PARSER_ATTR] 提取属性 ${attributeName}: ${result}`);
+    }
+    
+    return result;
   }
 }
 
