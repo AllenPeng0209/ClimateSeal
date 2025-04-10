@@ -1,6 +1,6 @@
 import type { Change } from 'diff';
 
-export type ActionType = 'file' | 'shell' | 'supabase';
+export type ActionType = 'file' | 'shell' | 'start' | 'supabase' | 'carbonflow';
 
 export interface BaseAction {
   content: string;
@@ -30,7 +30,18 @@ export interface SupabaseAction extends BaseAction {
   projectId?: string;
 }
 
-export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction;
+export interface CarbonFlowAction extends BaseAction {
+  type: 'carbonflow';
+  operation: 'add' | 'update' | 'delete' | 'query' | 'connect' | 'layout' | 'calculate';
+  nodeType?: string;
+  nodeId?: string;
+  source?: string;
+  target?: string;
+  position?: string;
+  content: string;
+}
+
+export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction;
 
 export type BoltActionData = BoltAction | BaseAction;
 

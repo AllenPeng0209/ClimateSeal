@@ -1,4 +1,4 @@
-import type { ActionType, BoltAction, BoltActionData, FileAction, ShellAction, SupabaseAction } from '~/types/actions';
+import type { ActionType, BoltAction, BoltActionData, FileAction, ShellAction, SupabaseAction, CarbonFlowAction } from '~/types/actions';
 import type { BoltArtifactData } from '~/types/artifact';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
@@ -321,11 +321,65 @@ export class StreamingMessageParser {
       }
 
       (actionAttributes as FileAction).filePath = filePath;
+    } else if (actionType === 'carbonflow') {
+      const operation = this.#extractAttribute(actionTag, 'operation');
+      
+      if (!operation || !['add', 'update', 'delete', 'query', 'connect', 'layout', 'calculate'].includes(operation)) {
+        logger.warn(`Invalid or missing operation for CarbonFlow action: ${operation}`);
+        throw new Error(`Invalid CarbonFlow operation: ${operation}`);
+      }
+      
+      (actionAttributes as CarbonFlowAction).operation = operation as 'add' | 'update' | 'delete' | 'query' | 'connect' | 'layout' | 'calculate';
+      
+      // 根据操作类型提取不同属性
+      if (operation === 'add') {
+        const nodeType = this.#extractAttribute(actionTag, 'nodeType');
+        const position = this.#extractAttribute(actionTag, 'position');
+        
+        if (!nodeType) {
+          logger.warn('Node type required for add operation');
+          throw new Error('Node type required for add operation');
+        }
+        
+        (actionAttributes as CarbonFlowAction).nodeType = nodeType;
+        (actionAttributes as CarbonFlowAction).position = position;
+      } 
+      else if (operation === 'update' || operation === 'delete' || operation === 'query') {
+        const nodeId = this.#extractAttribute(actionTag, 'nodeId');
+        
+        if (!nodeId) {
+          logger.warn(`Node ID required for ${operation} operation`);
+          throw new Error(`Node ID required for ${operation} operation`);
+        }
+        
+        (actionAttributes as CarbonFlowAction).nodeId = nodeId;
+      }
+      else if (operation === 'connect') {
+        const source = this.#extractAttribute(actionTag, 'source');
+        const target = this.#extractAttribute(actionTag, 'target');
+        
+        if (!source || !target) {
+          logger.warn('Source and target required for connect operation');
+          throw new Error('Source and target required for connect operation');
+        }
+        
+        (actionAttributes as CarbonFlowAction).source = source;
+        (actionAttributes as CarbonFlowAction).target = target;
+      }
+      else if (operation === 'layout') {
+        // 布局操作不需要额外属性
+      }
+      else if (operation === 'calculate') {
+        const target = this.#extractAttribute(actionTag, 'target');
+        if (target) {
+          (actionAttributes as CarbonFlowAction).target = target;
+        }
+      }
     } else if (!['shell', 'start'].includes(actionType)) {
       logger.warn(`Unknown action type '${actionType}'`);
     }
 
-    return actionAttributes as FileAction | ShellAction;
+    return actionAttributes as FileAction | ShellAction | CarbonFlowAction;
   }
 
   #extractAttribute(tag: string, attributeName: string): string | undefined {

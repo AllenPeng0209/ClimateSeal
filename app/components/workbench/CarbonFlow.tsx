@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import type { DragEvent } from 'react';
 import ReactFlow, {
   type Node,
@@ -27,6 +27,10 @@ import { UsageNode } from './CarbonFlow/nodes/UsageNode';
 import { DisposalNode } from './CarbonFlow/nodes/DisposalNode';
 import { NodeProperties } from './CarbonFlow/NodeProperties';
 import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
+import { CarbonFlowActionHandler } from './CarbonFlow/CarbonFlowActions';
+import type { CarbonFlowAction } from '~/types/actions';
+
+
 
 interface BaseNodeData {
   label: string;
@@ -331,6 +335,29 @@ const CarbonFlowInner = () => {
     },
     expandedSection: null,
   });
+
+  // 创建 CarbonFlow 操作处理器
+  const [actionHandler, setActionHandler] = useState<CarbonFlowActionHandler | null>(null);
+  
+  // 初始化操作处理器
+  useEffect(() => {
+    const handler = new CarbonFlowActionHandler({
+      nodes,
+      edges,
+      setNodes,
+      setEdges
+    });
+    setActionHandler(handler);
+  }, [nodes, edges, setNodes, setEdges]);
+  
+  // 处理 CarbonFlow 操作
+  const handleCarbonFlowAction = useCallback((action: CarbonFlowAction) => {
+    if (actionHandler) {
+      actionHandler.handleAction(action);
+    } else {
+      console.warn('CarbonFlow 操作处理器尚未初始化');
+    }
+  }, [actionHandler]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
