@@ -48,3 +48,4 @@ docs/instructions/Roadmap.md
 .cursorrules
 *.md
 .qodo
+.vercel
