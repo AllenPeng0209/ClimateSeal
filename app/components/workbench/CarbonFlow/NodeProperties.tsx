@@ -42,7 +42,13 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
     
     console.log('更新后数据:', updatedData);
     
-    // 更新节点列表中的对应节点
+    // 先更新选中节点状态，确保属性面板实时更新
+    setSelectedNode((prev) => ({
+      ...prev,
+      data: updatedData
+    }));
+    
+    // 然后更新节点列表中的对应节点
     setNodes((nds) => {
       const newNodes = nds.map((n) => {
         if (n.id === node.id) {
@@ -57,13 +63,6 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
       console.log('更新后的节点列表:', newNodes);
       return newNodes;
     });
-    // 同时更新选中节点状态，确保属性面板实时更新
-    setSelectedNode({
-      ...selectedNode,
-      data: updatedData
-    });
-    
-    
 
     // 数据来源或碳足迹相关时，更新AI总结
     if (['completionStatus', 'dataSource', 'carbonFootprint', 'weight', 'carbonFactor', 
@@ -609,6 +608,7 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
               </Form.Item>
               <Form.Item label="碳排放因子名称">
                       <Input
+                        className="node-properties-input"
                         value={node?.data.carbonFactorName}
                         onChange={(e) => updateNodeData('carbonFactorName', e.target.value)}
                       />
@@ -617,10 +617,12 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
                       <InputNumber
                         className="node-properties-input"
                         value={node?.data.unitConversion}
-                        style={{ width: '100%' }}
                         onChange={(value) => updateNodeData('unitConversion', value)}
                       />
               </Form.Item>
+    
+
+              
               <Form.Item label="因子来源" className="form-item">
                   <Select
                     value={node?.data.carbonFactordataSource}

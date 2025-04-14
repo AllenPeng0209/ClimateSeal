@@ -539,8 +539,8 @@
   width: 100%;
   background: rgba(10, 25, 47, 0.8);
   border: 1px solid rgba(100, 255, 218, 0.3);
-  border-radius: px;
-  color: #e6f1ff;
+  border-radius: 8px;
+  color: #e6f1ff !important;
   font-size: 16px;
   transition: all 0.2s;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -550,13 +550,15 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
+  padding: 0 16px;
 }
 
 .node-properties-input:hover,
 .node-properties-select:hover,
 .node-properties-textarea:hover {
   border-color: rgba(100, 255, 218, 0.5);
-  box-shadow: 0 0 10px rgba(100, 255, 218, 0.2);
+  background: rgba(16, 32, 61, 0.9);
+  color: #64ffda !important;
 }
 
 .node-properties-input:focus,
@@ -564,14 +566,53 @@
 .node-properties-textarea:focus {
   outline: none;
   border-color: #64ffda;
+  background: rgba(16, 32, 61, 0.95);
+  color: #64ffda !important;
   box-shadow: 0 0 15px rgba(100, 255, 218, 0.3);
 }
 
-.node-properties-textarea {
-  min-height: 100px;
-  height: auto;
-  resize: vertical;
-  align-items: flex-start;
+/* 修复数字输入框特定样式 */
+input[type="number"].node-properties-input {
+  color: #e6f1ff !important;
+}
+
+input[type="number"].node-properties-input:hover {
+  color: #64ffda !important;
+}
+
+input[type="number"].node-properties-input:focus {
+  color: #64ffda !important;
+}
+
+/* 修复Ant Design数字输入框样式 */
+.ant-input-number {
+  background: rgba(10, 25, 47, 0.8) !important;
+  border: 1px solid rgba(100, 255, 218, 0.3) !important;
+  border-radius: 8px !important;
+  color: #e6f1ff !important;
+}
+
+.ant-input-number:hover {
+  background: rgba(16, 32, 61, 0.9) !important;
+  border-color: #64ffda !important;
+}
+
+.ant-input-number:hover .ant-input-number-input {
+  color: #64ffda !important;
+}
+
+.ant-input-number-focused {
+  border-color: #64ffda !important;
+  box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
+}
+
+.ant-input-number-input {
+  background: transparent !important;
+  color: #e6f1ff !important;
+}
+
+.ant-input-number-input:hover {
+  color: #64ffda !important;
 }
 
 .node-properties-actions {
@@ -694,6 +735,7 @@
 
 .ant-select-item:hover {
   background: rgba(100, 255, 218, 0.1) !important;
+  color: #64ffda !important;
 }
 
 .ant-select-item-option-selected {
@@ -742,11 +784,15 @@
 
 .ant-select:not(.ant-select-disabled):hover {
   border-color: rgba(100, 255, 218, 0.5) !important;
+  background: rgba(16, 32, 61, 0.9) !important;
+  color: #64ffda !important;
 }
 
 .ant-select-focused:not(.ant-select-disabled).ant-select:not(.ant-select-customize-input) .ant-select-selector {
   border-color: #64ffda !important;
   box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
+  background: rgba(16, 32, 61, 0.95) !important;
+  color: #64ffda !important;
 }
 
 .ant-select-selector {
@@ -793,6 +839,17 @@
   display: flex !important;
   align-items: center !important;
   width: 100% !important;
+}
+
+.ant-picker:hover {
+  border-color: rgba(100, 255, 218, 0.5) !important;
+  background: rgba(16, 32, 61, 0.9) !important;
+}
+
+.ant-picker-focused {
+  border-color: #64ffda !important;
+  box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
+  background: rgba(16, 32, 61, 0.95) !important;
 }
 
 .ant-picker-input {
@@ -844,6 +901,7 @@
 
 .ant-picker-cell:hover:not(.ant-picker-cell-selected):not(.ant-picker-cell-range-start):not(.ant-picker-cell-range-end):not(.ant-picker-cell-range-hover-start):not(.ant-picker-cell-range-hover-end) .ant-picker-cell-inner {
   background: rgba(100, 255, 218, 0.1) !important;
+  color: #64ffda !important;
 }
 
 .ant-picker-cell-selected .ant-picker-cell-inner {
@@ -874,13 +932,25 @@
   width: 100% !important;
 }
 
-.ant-input:hover {
-  border-color: rgba(100, 255, 218, 0.5) !important;
+.ant-input:hover,
+.ant-select:hover .ant-select-selector,
+.ant-picker:hover {
+  background: rgba(16, 32, 61, 0.9) !important;
+  border-color: #64ffda !important;
+  color: #64ffda !important;
 }
 
-.ant-input:focus {
+.ant-input:focus,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused {
+  background: rgba(16, 32, 61, 0.95) !important;
   border-color: #64ffda !important;
+  color: #64ffda !important;
   box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
+}
+
+.ant-input::placeholder {
+  color: rgba(230, 241, 255, 0.5) !important;
 }
 
 /* 修复Form样式 */
@@ -905,17 +975,20 @@
   background: rgba(16, 32, 61, 0.9) !important;
   border-color: rgba(100, 255, 218, 0.5) !important;
   box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
+  color: #64ffda !important;
 }
 
 .ant-btn-primary {
   background: rgba(100, 255, 218, 0.1) !important;
   border-color: rgba(100, 255, 218, 0.5) !important;
   box-shadow: 0 0 10px rgba(100, 255, 218, 0.2) !important;
+  color: #64ffda !important;
 }
 
 .ant-btn-primary:hover {
   background: rgba(100, 255, 218, 0.3) !important;
   box-shadow: 0 0 20px rgba(100, 255, 218, 0.4) !important;
+  color: #940000 !important;
 }
 
 /* 基于activityScore的节点背景颜色 */
@@ -961,4 +1034,28 @@
   background: rgba(140, 140, 140, 0.1);
   border: 1px solid rgba(140, 140, 140, 0.3);
   box-shadow: 0 4px 12px rgba(140, 140, 140, 0.2);
+}
+
+/* 全局文字颜色 */
+* {
+  color: #e6f1ff !important;
+}
+
+/* 特殊文字颜色 */
+.node-title,
+.workflow-section-title,
+.node-properties-title {
+  color: #64ffda !important;
+}
+
+.node-type {
+  color: #40a9ff !important;
+}
+
+.info-item .label {
+  color: #64ffda !important;
+}
+
+.info-item .value {
+  color: #e6f1ff !important;
 } 
