@@ -420,8 +420,8 @@
 .node-properties {
   position: absolute;
   top: 30px;
-  left: -500px;
-  width: 900px;
+  left: -300px;
+  width: 800px;
   height: 700px;
   background: linear-gradient(135deg, rgba(10, 25, 47, 0.98), rgba(17, 34, 64, 0.98));
   backdrop-filter: blur(20px);

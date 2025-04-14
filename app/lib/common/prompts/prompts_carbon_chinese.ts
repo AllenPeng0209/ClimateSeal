@@ -123,7 +123,7 @@ export const getSystemPromptCarbonChinese = (
 // interface CarbonFlowAction {
 //   type: 'carbonflow';
 //   operation: 'add' | 'update' | 'delete' | 'query' | 'connect' | 'layout' | 'calculate';
-//   nodeType?: string;  // 节点类型
+//   nodeType?: string;  // 节点类型 ex.原材料获取 原材料使用 生产制造 运输分销 使用阶段 废弃处置 最终产品
 //   nodeId?: string;    // 节点ID
 //   source?: string;    // 源节点
 //   target?: string;    // 目标节点
@@ -371,20 +371,28 @@ export const getSystemPromptCarbonChinese = (
 
 8. CarbonFlow操作示例
    - 添加节点示例：
-     <boltAction type="carbonflow" operation="add" nodeType="product" nodeData='{"position":{"x":100,"y":100},"properties":{"name":"原材料A","lifecycleStage":"原材料获取","emissionType":"直接排放"}}'>
-     </boltAction>
+     <boltArtifact id="add-node-example" title="添加节点示例">
+       <boltAction type="carbonflow" operation="add" nodeType="product" position='{"x":100,"y":100}' content='{"label":"原材料A","nodeName":"raw_material_A","lifecycleStage":"原材料获取","emissionType":"直接排放","carbonFactor":0.5,"activitydataSource":"供应商数据","activityScore":8,"carbonFootprint":0}'>
+       </boltAction>
+     </boltArtifact>
    
    - 更新节点示例：
-     <boltAction type="carbonflow" operation="update" nodeId="node123" nodeData='{"properties":{"name":"原材料A更新","carbonFactor":0.5,"activityData":100}}'>
-     </boltAction>
+     <boltArtifact id="update-node-example" title="更新节点示例">
+       <boltAction type="carbonflow" operation="update" nodeId="node123" content='{"carbonFactor":0.5,"activityScore":100}'>
+       </boltAction>
+     </boltArtifact>
    
    - 连接节点示例：
-     <boltAction type="carbonflow" operation="connect" connectionData='{"sourceId":"node123","targetId":"node456","flowType":"material"}'>
-     </boltAction>
+     <boltArtifact id="connect-nodes-example" title="连接节点示例">
+       <boltAction type="carbonflow" operation="connect" source="node123" target="node456">
+       </boltAction>
+     </boltArtifact>
    
    - 计算碳足迹示例：
-     <boltAction type="carbonflow" operation="calculate" nodeId="node123">
-     </boltAction>
+     <boltArtifact id="calculate-footprint-example" title="计算碳足迹示例">
+       <boltAction type="carbonflow" operation="calculate" target="node123">
+       </boltAction>
+     </boltArtifact>
 
 专业提示：
 - 始终使用专业但易懂的语言
@@ -406,49 +414,49 @@ export const getSystemPromptCarbonChinese = (
       好的，我将帮您创建一个简单的电池产品碳足迹模型。我们将使用CarbonFlow模型来表示电池的生命周期，包括原材料获取、生产制造、分销、使用和废弃处置阶段。
 
       <boltArtifact id="battery-carbon-footprint" title="电池产品碳足迹模型">
-        <boltAction type="carbonflow" operation="add" nodeType="product" nodeData='{"position":{"x":100,"y":100},"properties":{"name":"锂矿石","lifecycleStage":"原材料获取","emissionType":"直接排放","carbonFactor":0.5,"activityData":100,"dataSource":"供应商数据","dataQualityScore":8}}'>
+        <boltAction type="carbonflow" operation="add" nodeType="product" position='{"x":100,"y":100}' content='{"label":"锂矿石","nodeName":"lithium_ore","lifecycleStage":"原材料获取","emissionType":"直接排放","carbonFactor":0.5,"activitydataSource":"供应商数据","activityScore":8,"carbonFootprint":0}'>
         </boltAction>
         
-        <boltAction type="carbonflow" operation="add" nodeType="product" nodeData='{"position":{"x":250,"y":100},"properties":{"name":"钴矿石","lifecycleStage":"原材料获取","emissionType":"直接排放","carbonFactor":0.7,"activityData":50,"dataSource":"供应商数据","dataQualityScore":7}}'>
+        <boltAction type="carbonflow" operation="add" nodeType="product" position='{"x":250,"y":100}' content='{"label":"钴矿石","nodeName":"cobalt_ore","lifecycleStage":"原材料获取","emissionType":"直接排放","carbonFactor":0.7,"activitydataSource":"供应商数据","activityScore":7,"carbonFootprint":0}'>
         </boltAction>
         
-        <boltAction type="carbonflow" operation="add" nodeType="manufacturing" nodeData='{"position":{"x":400,"y":100},"properties":{"name":"电池生产","lifecycleStage":"生产制造","emissionType":"直接排放","energyConsumption":500,"processEfficiency":0.85,"wasteGeneration":20,"waterConsumption":200,"dataSource":"工厂数据","dataQualityScore":9}}'>
+        <boltAction type="carbonflow" operation="add" nodeType="manufacturing" position='{"x":400,"y":100}' content='{"label":"电池生产","nodeName":"battery_production","lifecycleStage":"生产制造","emissionType":"直接排放","carbonFactor":0.3,"activitydataSource":"工厂数据","activityScore":9,"carbonFootprint":0,"energyConsumption":500,"processEfficiency":0.85,"wasteGeneration":20,"waterConsumption":200}'>
         </boltAction>
         
-        <boltAction type="carbonflow" operation="add" nodeType="distribution" nodeData='{"position":{"x":550,"y":100},"properties":{"name":"电池运输","lifecycleStage":"分销和储存","emissionType":"间接排放","transportMode":"卡车","distance":500,"vehicleType":"重型卡车","fuelType":"柴油","dataSource":"物流数据","dataQualityScore":8}}'>
+        <boltAction type="carbonflow" operation="add" nodeType="distribution" position='{"x":550,"y":100}' content='{"label":"电池运输","nodeName":"battery_transport","lifecycleStage":"分销和储存","emissionType":"间接排放","carbonFactor":0.2,"activitydataSource":"物流数据","activityScore":8,"carbonFootprint":0,"transportMode":"卡车","distance":500,"vehicleType":"重型卡车","fuelType":"柴油"}'>
         </boltAction>
         
-        <boltAction type="carbonflow" operation="add" nodeType="usage" nodeData='{"position":{"x":700,"y":100},"properties":{"name":"电池使用","lifecycleStage":"产品使用","emissionType":"间接排放","lifespan":5,"energyConsumption":200,"usageFrequency":"每日","maintenanceFrequency":"每年","dataSource":"用户数据","dataQualityScore":6}}'>
+        <boltAction type="carbonflow" operation="add" nodeType="usage" position='{"x":700,"y":100}' content='{"label":"电池使用","nodeName":"battery_usage","lifecycleStage":"产品使用","emissionType":"间接排放","carbonFactor":0.1,"activitydataSource":"用户数据","activityScore":6,"carbonFootprint":0,"lifespan":5,"energyConsumption":200,"usageFrequency":"每日","maintenanceFrequency":"每年"}'>
         </boltAction>
         
-        <boltAction type="carbonflow" operation="add" nodeType="disposal" nodeData='{"position":{"x":850,"y":100},"properties":{"name":"电池废弃","lifecycleStage":"废弃处置","emissionType":"间接排放","recyclingRate":0.7,"landfillRate":0.2,"incinerationRate":0.1,"dataSource":"回收数据","dataQualityScore":7}}'>
+        <boltAction type="carbonflow" operation="add" nodeType="disposal" position='{"x":850,"y":100}' content='{"label":"电池废弃","nodeName":"battery_disposal","lifecycleStage":"废弃处置","emissionType":"间接排放","carbonFactor":0.4,"activitydataSource":"回收数据","activityScore":7,"carbonFootprint":0,"recyclingRate":0.7,"landfillRate":0.2,"incinerationRate":0.1}'>
         </boltAction>
         
-        <boltAction type="carbonflow" operation="add" nodeType="finalProduct" nodeData='{"position":{"x":1000,"y":100},"properties":{"name":"电池产品","lifecycleStage":"全生命周期","emissionType":"综合排放","dataSource":"系统计算","dataQualityScore":8}}'>
+        <boltAction type="carbonflow" operation="add" nodeType="finalProduct" position='{"x":1000,"y":100}' content='{"label":"电池产品","nodeName":"battery_product","lifecycleStage":"全生命周期","emissionType":"综合排放","carbonFactor":0,"activitydataSource":"系统计算","activityScore":8,"carbonFootprint":0}'>
         </boltAction>
         
-        <boltAction type="carbonflow" operation="connect" connectionData='{"sourceId":"node1","targetId":"node3","flowType":"material"}'>
+        <boltAction type="carbonflow" operation="connect" source="lithium_ore" target="battery_production">
         </boltAction>
         
-        <boltAction type="carbonflow" operation="connect" connectionData='{"sourceId":"node2","targetId":"node3","flowType":"material"}'>
+        <boltAction type="carbonflow" operation="connect" source="cobalt_ore" target="battery_production">
         </boltAction>
         
-        <boltAction type="carbonflow" operation="connect" connectionData='{"sourceId":"node3","targetId":"node4","flowType":"product"}'>
+        <boltAction type="carbonflow" operation="connect" source="battery_production" target="battery_transport">
         </boltAction>
         
-        <boltAction type="carbonflow" operation="connect" connectionData='{"sourceId":"node4","targetId":"node5","flowType":"product"}'>
+        <boltAction type="carbonflow" operation="connect" source="battery_transport" target="battery_usage">
         </boltAction>
         
-        <boltAction type="carbonflow" operation="connect" connectionData='{"sourceId":"node5","targetId":"node6","flowType":"waste"}'>
+        <boltAction type="carbonflow" operation="connect" source="battery_usage" target="battery_disposal">
         </boltAction>
         
-        <boltAction type="carbonflow" operation="connect" connectionData='{"sourceId":"node3","targetId":"node7","flowType":"summary"}'>
+        <boltAction type="carbonflow" operation="connect" source="battery_production" target="battery_product">
         </boltAction>
         
-        <boltAction type="carbonflow" operation="layout" nodeData='{"algorithm":"hierarchical"}'>
+        <boltAction type="carbonflow" operation="layout">
         </boltAction>
         
-        <boltAction type="carbonflow" operation="calculate" nodeId="node7">
+        <boltAction type="carbonflow" operation="calculate" target="battery_product">
         </boltAction>
       </boltArtifact>
 
@@ -468,14 +476,15 @@ export const getSystemPromptCarbonChinese = (
       好的，我将帮您更新电池生产节点的数据。根据最新的工厂数据，我们将更新能源消耗、工艺效率和废物产生量等信息。
 
       <boltArtifact id="update-battery-production" title="更新电池生产节点数据">
-        <boltAction type="carbonflow" operation="update" nodeId="node3" nodeData='{"properties":{"name":"电池生产","lifecycleStage":"生产制造","emissionType":"直接排放","energyConsumption":450,"processEfficiency":0.88,"wasteGeneration":15,"waterConsumption":180,"dataSource":"工厂数据2023","dataQualityScore":9}}'>
+        <boltAction type="carbonflow" operation="update" nodeId="battery_production" content='{"carbonFactor":0.25,"activityScore":9,"energyConsumption":450,"processEfficiency":0.88,"wasteGeneration":15,"waterConsumption":180,"activitydataSource":"工厂数据2023"}'>
         </boltAction>
         
-        <boltAction type="carbonflow" operation="calculate" nodeId="node7">
+        <boltAction type="carbonflow" operation="calculate" target="battery_product">
         </boltAction>
       </boltArtifact>
 
       我已经更新了电池生产节点的数据。主要变化包括：
+      - 碳因子从0.3降至0.25，表明生产过程的碳排放强度有所降低
       - 能源消耗从500降至450，表明生产能效有所提高
       - 工艺效率从0.85提高到0.88，表示生产过程中的资源利用更加高效
       - 废物产生量从20降至15，表明废物管理有所改善
@@ -493,16 +502,16 @@ export const getSystemPromptCarbonChinese = (
       好的，我将帮您添加一个回收节点，并将其连接到废弃节点，以表示电池废弃后的回收过程。
 
       <boltArtifact id="add-recycling-node" title="添加电池回收节点">
-        <boltAction type="carbonflow" operation="add" nodeType="manufacturing" nodeData='{"position":{"x":850,"y":200},"properties":{"name":"电池回收","lifecycleStage":"废弃处置","emissionType":"间接排放","energyConsumption":100,"processEfficiency":0.75,"recyclingRate":0.7,"dataSource":"回收厂数据","dataQualityScore":8}}'>
+        <boltAction type="carbonflow" operation="add" nodeType="manufacturing" position='{"x":850,"y":200}' content='{"label":"电池回收","nodeName":"battery_recycling","lifecycleStage":"废弃处置","emissionType":"间接排放","carbonFactor":0.2,"activitydataSource":"回收厂数据","activityScore":8,"carbonFootprint":0,"energyConsumption":100,"processEfficiency":0.75,"recyclingRate":0.7}'>
         </boltAction>
         
-        <boltAction type="carbonflow" operation="connect" connectionData='{"sourceId":"node6","targetId":"node8","flowType":"waste"}'>
+        <boltAction type="carbonflow" operation="connect" source="battery_disposal" target="battery_recycling">
         </boltAction>
         
-        <boltAction type="carbonflow" operation="layout" nodeData='{"algorithm":"hierarchical"}'>
+        <boltAction type="carbonflow" operation="layout">
         </boltAction>
         
-        <boltAction type="carbonflow" operation="calculate" nodeId="node7">
+        <boltAction type="carbonflow" operation="calculate" target="battery_product">
         </boltAction>
       </boltArtifact>
 

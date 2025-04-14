@@ -136,7 +136,10 @@ export class CarbonFlowActionHandler {
         }
       }
       
-      let position = { x: 100, y: 100 }; // 默认位置
+      // 補一個100 100附近的 random的範圍
+      const randomX = Math.random() * 300 + 100;
+      const randomY = Math.random() * 300 + 100;
+      let position = { x: randomX, y: randomY }; // 默认位置
       
       // 解析位置信息
       if (action.position) {

@@ -276,7 +276,6 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   'mt-1 px-3 py-1.5 rounded-md text-xs bg-emerald-50 text-emerald-800 border border-emerald-100',
                   { 'mb-3.5': !isLast }
                 )}>
-                 
                   {content && content.includes('{') && (
                     (() => {
                       try {
@@ -306,6 +305,61 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                               {component.quantity && (
                                 <div className="ml-4">• 数量: <span className="font-medium">{component.quantity}</span></div>
                               )}
+
+                              {component.carbonFactor && (
+                                <div className="ml-4">• 碳因子: <span className="font-medium">{component.carbonFactor}</span></div>
+                              )}
+
+                              {component.activitydataSource && (
+                                <div className="ml-4">• 数据来源: <span className="font-medium">{component.activitydataSource}</span></div>
+                              )}
+
+                              {component.activityScore && (
+                                <div className="ml-4">• 活动评分: <span className="font-medium">{component.activityScore}</span></div>
+                              )}
+
+                              {component.carbonFootprint && (
+                                <div className="ml-4">• 碳足迹: <span className="font-medium">{component.carbonFootprint}</span></div>
+                              )}
+
+                              {/* 制造节点特有属性 */}
+                              {component.energyConsumption && (
+                                <div className="ml-4">• 能源消耗: <span className="font-medium">{component.energyConsumption}</span></div>
+                              )}
+
+                              {component.energyType && (
+                                <div className="ml-4">• 能源类型: <span className="font-medium">{component.energyType}</span></div>
+                              )}
+
+                              {component.processEfficiency && (
+                                <div className="ml-4">• 工艺效率: <span className="font-medium">{component.processEfficiency}</span></div>
+                              )}
+
+                              {/* 运输节点特有属性 */}
+                              {component.transportationMode && (
+                                <div className="ml-4">• 运输方式: <span className="font-medium">{component.transportationMode}</span></div>
+                              )}
+
+                              {component.transportationDistance && (
+                                <div className="ml-4">• 运输距离: <span className="font-medium">{component.transportationDistance}</span></div>
+                              )}
+
+                              {component.vehicleType && (
+                                <div className="ml-4">• 车辆类型: <span className="font-medium">{component.vehicleType}</span></div>
+                              )}
+
+                              {/* 使用节点特有属性 */}
+                              {component.lifespan && (
+                                <div className="ml-4">• 使用寿命: <span className="font-medium">{component.lifespan}</span></div>
+                              )}
+
+                              {component.energyConsumptionPerUse && (
+                                <div className="ml-4">• 每次使用能耗: <span className="font-medium">{component.energyConsumptionPerUse}</span></div>
+                              )}
+
+                              {component.usageFrequency && (
+                                <div className="ml-4">• 使用频率: <span className="font-medium">{component.usageFrequency}</span></div>
+                              )}
                             </div>
                           );
                         }
@@ -324,6 +378,24 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   )}
                   {(action as any).operation === 'calculate' && (
                     <div className="ml-4">• 计算碳足迹值</div>
+                  )}
+                  {(action as any).operation === 'update' && (
+                    <div className="ml-4">• 更新节点信息</div>
+                  )}
+                  {(action as any).operation === 'delete' && (
+                    <div className="ml-4">• 删除节点</div>
+                  )}
+                  {(action as any).operation === 'query' && (
+                    <div className="ml-4">• 查询节点信息</div>
+                  )}
+                  {(action as any).operation === 'layout' && (
+                    <div className="ml-4">• 调整节点布局</div>
+                  )}
+                  {(action as any).position && (
+                    <div className="ml-4">• 节点位置: <span className="font-medium">{(action as any).position}</span></div>
+                  )}
+                  {(action as any).description && (
+                    <div className="ml-4 mt-1 text-emerald-600">• 描述: <span className="font-medium">{(action as any).description}</span></div>
                   )}
                 </div>
               )}
