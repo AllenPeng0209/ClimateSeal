@@ -1,7 +1,7 @@
 import type { Node, Edge } from 'reactflow';
 import type { CarbonFlowAction } from '~/types/actions';
 
-interface NodeData {
+export interface NodeData {
   label: string;
   nodeName: string;
   lifecycleStage: string;
@@ -12,6 +12,8 @@ interface NodeData {
   carbonFootprint: number;
   [key: string]: any; // 允許其他屬性
 }
+
+type NodeType = 'product' | 'manufacturing' | 'distribution' | 'usage' | 'disposal' | 'finalProduct';
 
 export interface CarbonFlowActionHandlerProps {
   nodes: Node<NodeData>[];
@@ -316,7 +318,10 @@ export class CarbonFlowActionHandler {
       const layoutConfig = action.content ? JSON.parse(action.content) : {};
       const layoutType = layoutConfig.type || 'vertical';
       
-      if (layoutType === 'vertical') {
+
+      if (layoutType === 'normal') {
+        this.applyNormalLayout();
+      } else if (layoutType === 'vertical') {
         this.applyVerticalLayout();
       } else if (layoutType === 'horizontal') {
         this.applyHorizontalLayout();
@@ -328,6 +333,125 @@ export class CarbonFlowActionHandler {
     } catch (error) {
       console.error('应用布局失败:', error);
     }
+  }
+
+  private applyNormalLayout(): void {
+    const NODE_WIDTH = 250;
+    const NODE_HEIGHT = 150;
+    const HORIZONTAL_SPACING = 600;
+    const VERTICAL_SPACING = 650;
+    const PADDING = 400;
+
+    // 定义节点类型的顺序（不包括最终产品节点）
+    const nodeTypeOrder: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal'];
+    
+    // 根据节点类型分组
+    const nodesByType: Record<NodeType, Node<NodeData>[]> = {
+      product: [],
+      manufacturing: [],
+      distribution: [],
+      usage: [],
+      disposal: [],
+      finalProduct: [],
+    };
+    
+    // 填充节点分组
+    this.nodes.forEach(node => {
+      const nodeType = node.type as NodeType;
+      if (nodeType in nodesByType) {
+        nodesByType[nodeType].push(node);
+      }
+    });
+
+    // 确保有最终产品节点
+    let finalProductNode = nodesByType.finalProduct[0];
+    if (!finalProductNode) {
+      finalProductNode = {
+        id: 'final-product-1',
+        type: 'finalProduct',
+        position: { x: 0, y: 0 },
+        data: {
+          label: '最终产品',
+          nodeName: 'final_product_1',
+          lifecycleStage: 'finalProduct',
+          emissionType: 'total',
+          carbonFactor: 0,
+          activitydataSource: 'calculated',
+          activityScore: 0,
+          carbonFootprint: 0,
+          certificationMaterials: '',
+          emissionFactor: '',
+          calculationMethod: '',
+          verificationStatus: 'pending',
+          applicableStandard: '',
+          completionStatus: 'incomplete',
+          carbonFactorName: '',
+          unitConversion: 1,
+          emissionFactorQuality: 0,
+          finalProductName: '最终产品',
+          totalCarbonFootprint: 0,
+          certificationStatus: 'pending',
+          environmentalImpact: '待评估',
+          sustainabilityScore: 0,
+          productCategory: '未分类',
+          marketSegment: '未指定',
+          targetRegion: '未指定',
+          complianceStatus: '待验证',
+          carbonLabel: '待认证',
+        },
+      };
+      nodesByType.finalProduct.push(finalProductNode);
+    }
+
+    // 计算新的节点位置
+    const newNodes = [...this.nodes];
+    if (!nodesByType.finalProduct.length) {
+      newNodes.push(finalProductNode);
+    }
+
+    // 计算所有非最终产品节点的位置
+    const positionedNodes = newNodes.filter(node => node.type !== 'finalProduct').map(node => {
+      const nodeType = node.type as NodeType;
+      const typeIndex = nodeTypeOrder.indexOf(nodeType);
+      const typeNodes = nodesByType[nodeType] || [];
+      const nodeIndex = typeNodes.indexOf(node);
+      
+      // 计算水平位置（根据节点类型）
+      const x = PADDING + typeIndex * HORIZONTAL_SPACING;
+      
+      // 计算垂直位置（根据同类型节点的顺序）
+      const y = PADDING + nodeIndex * VERTICAL_SPACING;
+
+      return {
+        ...node,
+        position: { x, y },
+        style: {    
+          width: NODE_WIDTH,
+          height: NODE_HEIGHT,
+        },  
+      };
+    });
+
+    // 计算最终产品节点的位置（放在最右侧）
+    const finalProductNodes = newNodes.filter(node => node.type === 'finalProduct').map(node => {
+      const x = PADDING + (nodeTypeOrder.length + 1) * HORIZONTAL_SPACING;
+      const y = PADDING + (VERTICAL_SPACING / 2); // 垂直居中
+
+      return {
+        ...node,
+        position: { x, y },
+        style: {    
+          width: NODE_WIDTH,
+          height: NODE_HEIGHT,
+        },  
+      };
+    });
+
+    // 更新节点位置
+    this.nodes = [...positionedNodes, ...finalProductNodes];
+    
+    // 更新边
+    this.updateEdges();
   }
 
   /**
@@ -542,5 +666,9 @@ export class CarbonFlowActionHandler {
     });
     
     this.setNodes(updatedNodes);
+  }
+
+  private updateEdges(): void {
+    // 实现更新边的逻辑
   }
 } 

@@ -1,29 +1,50 @@
 import { Handle, Position } from 'reactflow';
-import { Card } from 'antd';
 import type { NodeData } from '../CarbonFlow';
 
 interface DistributionNodeProps {
-  data: NodeData;
+  data: {
+    label: string;
+    nodeName: string;
+    lifecycleStage: string;
+    emissionType: string;
+    quantity: number;
+    carbonFactor: number;
+    carbonFootprint: number;
+    activityScorelevel?: '高' | '中' | '低' | '空';
+  };
 }
 
 export const DistributionNode = ({ data }: DistributionNodeProps) => {
+  const getActivityScore = (level?: string) => {
+    switch (level) {
+      case '高': return 'high';
+      case '中': return 'medium';
+      case '低': return 'low';
+      case '空': return 'very-low';
+      default: return 'very-low';
+    }
+  };
+
   return (
-    <Card
-      className="distribution-node"
-      title={data.label}
-      size="small"
-      style={{ 
-        width: 250,
-        backgroundColor: '#e6f7ff',
-        borderColor: '#91d5ff',
-      }}
+    <div 
+      className="node distribution-node"
+      data-activity-score={getActivityScore(data.activityScorelevel)}
     >
-      <Handle type="target" position={Position.Top} style={{ background: '#91d5ff' }} />
+      <Handle type="target" position={Position.Top} />
       
+
       <div className="node-content">
+        <div className="node-header">
+          <div className="node-title">{data.label}</div>
+          <div className="node-type">分销节点</div>
+        </div>
         <div className="node-info">
           <div className="info-item">
-            <span className="label">阶段:</span>
+            <span className="label">分销动作名称:</span>
+            <span className="value">{data.nodeName}</span>
+          </div>
+          <div className="info-item">
+            <span className="label">生命週期阶段:</span>
             <span className="value">{data.lifecycleStage}</span>
           </div>
           <div className="info-item">
@@ -31,29 +52,22 @@ export const DistributionNode = ({ data }: DistributionNodeProps) => {
             <span className="value">{data.emissionType}</span>
           </div>
           <div className="info-item">
-            <span className="label">碳因子:</span>
+            <span className="label">数量:</span>
+            <span className="value">{data.quantity}</span>
+          </div>  
+          <div className="info-item">
+            <span className="label">碳排放因子:</span>
             <span className="value">{data.carbonFactor}</span>
           </div>
+          
           <div className="info-item">
-            <span className="label">数据来源:</span>
-            <span className="value">{data.activitydataSource}</span>
-          </div>
-          <div className="info-item">
-            <span className="label">评分:</span>
-            <span className="value">{data.activityScore}</span>
-          </div>
-          <div className="info-item">
-            <span className="label">碳足迹:</span>
+            <span className="label">碳排放量:</span>
             <span className="value">{data.carbonFootprint}</span>
-          </div>
-          <div className="info-item">
-            <span className="label">状态:</span>
-            <span className="value">{data.verificationStatus}</span>
           </div>
         </div>
       </div>
 
-      <Handle type="source" position={Position.Bottom} style={{ background: '#91d5ff' }} />
-    </Card>
+      <Handle type="source" position={Position.Bottom} />
+    </div>
   );
 }; 

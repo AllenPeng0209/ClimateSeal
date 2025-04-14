@@ -2,6 +2,8 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background: linear-gradient(135deg, #0a192f, #112240);
+  color: #e6f1ff;
 }
 
 .editor-header {
@@ -9,10 +11,12 @@
   justify-content: space-between;
   align-items: center;
   padding: 0 16px;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  background: rgba(16, 32, 61, 0.8);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   z-index: 100;
   height: 64px;
+  border-bottom: 1px solid rgba(64, 169, 255, 0.2);
 }
 
 .header-left, .header-right {
@@ -30,8 +34,11 @@
 
 .workflow-title {
   margin-left: 12px;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 500;
+  color: #64ffda;
+  text-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+  letter-spacing: 1px;
 }
 
 .main-content {
@@ -39,17 +46,36 @@
   transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
   height: calc(100vh - 64px);
   display: flex;
+  background: linear-gradient(135deg, #0a192f, #112240);
+  position: relative;
+  overflow: hidden;
+}
+
+.main-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 10% 20%, rgba(100, 255, 218, 0.05) 0%, transparent 20%),
+    radial-gradient(circle at 90% 80%, rgba(64, 169, 255, 0.05) 0%, transparent 20%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .editor-sider {
-  background: #fff;
-  border-right: 1px solid #f0f0f0;
+  background: rgba(16, 32, 61, 0.7);
+  backdrop-filter: blur(10px);
+  border-right: 1px solid rgba(64, 169, 255, 0.2);
   overflow-y: auto;
   padding: 16px;
   position: relative;
   overflow: visible !important;
   z-index: 100;
   transition: width 0.1s ease;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
 }
 
 .editor-content {
@@ -57,19 +83,20 @@
   height: 100%;
   width: 100%;
   transition: width 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  background: linear-gradient(135deg, #0a192f, #112240);
 }
 
 .reactflow-wrapper {
   width: 100%;
-  height: 100%;
+  height: 93%;
   transition: width 0.3s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* 拖拽相關樣式 */
 .editor-content.drag-over,
 .editor-content[style*="background-color: rgba(0, 0, 0, 0.02)"] {
-  background-color: rgba(24, 144, 255, 0.08) !important;
-  box-shadow: inset 0 0 30px rgba(24, 144, 255, 0.15);
+  background-color: rgba(100, 255, 218, 0.08) !important;
+  box-shadow: inset 0 0 30px rgba(100, 255, 218, 0.15);
   transition: all 0.3s;
 }
 
@@ -87,10 +114,10 @@
   z-index: 10;
   background: repeating-linear-gradient(
     45deg,
-    rgba(24, 144, 255, 0.03),
-    rgba(24, 144, 255, 0.03) 10px,
-    rgba(24, 144, 255, 0.06) 10px,
-    rgba(24, 144, 255, 0.06) 20px
+    rgba(100, 255, 218, 0.03),
+    rgba(100, 255, 218, 0.03) 10px,
+    rgba(100, 255, 218, 0.06) 10px,
+    rgba(100, 255, 218, 0.06) 20px
   );
 }
 
@@ -125,33 +152,39 @@
 
 /* 可拖拽節點樣式 */
 .draggable-file {
-  cursor: grab;
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 4px;
+  background: rgba(16, 32, 61, 0.8);
+  border: 1px solid rgba(64, 169, 255, 0.3);
+  border-radius: 6px;
+  padding: 12px;
+  cursor: move;
   transition: all 0.2s;
-  margin: 4px 0;
-  background: #f5f5f5;
-  border: 1px solid #e8e8e8;
+  position: relative;
+  overflow: hidden;
+  color: #e6f1ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .draggable-file:hover {
-  background-color: rgba(24, 144, 255, 0.1);
-  border-color: #1890ff;
+  background: rgba(16, 32, 61, 0.9);
+  border-color: rgba(100, 255, 218, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 15px rgba(100, 255, 218, 0.2);
 }
 
 .draggable-file:active {
-  cursor: grabbing;
-  background-color: rgba(24, 144, 255, 0.2);
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .drag-hint {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 12px;
-  color: #1890ff;
-  margin-left: 8px;
-  opacity: 0.7;
-  font-weight: 500;
+  color: rgba(230, 241, 255, 0.5);
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
 .draggable-file:hover .drag-hint {
@@ -161,96 +194,465 @@
 /* 調整器樣式 */
 .resizer {
   position: absolute;
+  right: 0;
   top: 0;
-  right: -5px;
-  width: 10px;
-  height: 100%;
+  bottom: 0;
+  width: 4px;
   cursor: col-resize;
-  z-index: 1000;
-  background-color: transparent;
-  transition: background-color 0.2s;
+  background: transparent;
+  transition: background 0.2s;
+  z-index: 101;
 }
 
 .resizer:hover,
-.resizer:active {
-  background-color: rgba(24, 144, 255, 0.3);
-  width: 10px;
-  right: -5px;
+.resizer.active {
+  background: rgba(100, 255, 218, 0.5);
+  box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
 }
 
 body.resizing {
-  cursor: col-resize !important;
-  user-select: none !important;
+  cursor: col-resize;
+  user-select: none;
 }
 
 .resizing * {
-  user-select: none !important;
-  pointer-events: none;
+  cursor: col-resize !important;
 }
 
-.resizer {
-  pointer-events: auto !important;
-}
-
-/* 調整器手柄樣式 */
 .resizer-handle {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 4px;
-  height: 50px;
-  background-color: rgba(24, 144, 255, 0.4);
-  border-radius: 2px;
-  pointer-events: none;
-  display: none;
+  width: 8px;
+  height: 24px;
+  background: rgba(100, 255, 218, 0.3);
+  border-radius: 4px;
+  transition: all 0.2s;
 }
 
 .resizer:hover .resizer-handle,
-.resizer:active .resizer-handle {
-  display: block;
+.resizer.active .resizer-handle {
+  background: rgba(100, 255, 218, 0.8);
+  box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+}
+
+/* ReactFlow 節點樣式 */
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: #64ffda;
+  border: 2px solid #0a192f;
+  box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+  transition: all 0.2s;
+}
+
+.react-flow__handle:hover {
+  background: #40a9ff;
+  box-shadow: 0 0 15px rgba(64, 169, 255, 0.7);
+  transform: scale(1.2);
+}
+
+.react-flow__handle.connecting {
+  background: #40a9ff;
+  box-shadow: 0 0 20px rgba(64, 169, 255, 0.8);
+}
+
+.react-flow__node.selected {
+  box-shadow: 0 0 0 2px #64ffda, 0 0 15px rgba(100, 255, 218, 0.5);
+}
+
+/* 按鈕樣式 */
+.header-right button {
+  background: rgba(16, 32, 61, 0.8);
+  border: 1px solid rgba(64, 169, 255, 0.3);
+  color: #e6f1ff;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.header-right button:hover {
+  background: rgba(16, 32, 61, 0.9);
+  border-color: rgba(100, 255, 218, 0.5);
+  box-shadow: 0 0 15px rgba(100, 255, 218, 0.3);
+  transform: translateY(-1px);
+}
+
+.header-right button:last-child {
+  background: linear-gradient(135deg, #64ffda, #40a9ff);
+  border: none;
+  color: #0a192f;
+  font-weight: 500;
+  box-shadow: 0 2px 10px rgba(100, 255, 218, 0.3);
+}
+
+.header-right button:last-child:hover {
+  box-shadow: 0 0 20px rgba(100, 255, 218, 0.5);
+  transform: translateY(-1px);
 }
 
 /* 節點類型列表樣式 */
 .node-types {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .file-manager h3 {
-  margin-bottom: 16px;
+  color: #64ffda;
   font-size: 16px;
-  color: #333;
+  margin-bottom: 16px;
+  text-shadow: 0 0 10px rgba(100, 255, 218, 0.3);
+  border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+  padding-bottom: 8px;
+} 
+
+
+/* AI总结浮动容器 */
+.ai-summary-floating-container {
+  position: absolute;
+  left: calc(220px); /* 默认左侧Sider宽度 */
+  width: 160px; /* 缩小30%: 280px * 0.7 = 196px */
+  z-index: 90;
+  transition: left 0.1s ease;
+}
+
+/* 当左侧面板宽度变化时，AI总结容器位置同步变化 */
+@media (min-width: 768px) {
+  .editor-sider[style*="width"] + .ai-summary-floating-container {
+    left: calc(var(--sider-width, 210px) + 1px);
+  }
+}
+
+/* AI总结模块样式 */
+.ai-summary-module {
+  margin: 0;
+  background-color: rgba(16, 32, 61, 0.85);
+  backdrop-filter: blur(10px);
+  border-radius: 6px; /* 缩小30%: 8px * 0.75 = 6px */
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.3); /* 缩小阴影 */
+  border: 1px solid rgba(100, 255, 218, 0.2);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  width: 245px; /* 缩小30%: 350px * 0.7 = 245px */
+  max-height: 56vh; /* 缩小30%: 80vh * 0.7 = 56vh */
+  display: flex;
+  flex-direction: column;
+  
+}
+
+.ai-summary-module.expanded {
+  max-height: 56vh; /* 缩小30%: 80vh * 0.7 = 56vh */
+}
+
+.ai-summary-module.collapsed {
+  max-height: 28px; /* 缩小30%: 40px * 0.7 = 28px */
+}
+
+.ai-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 11px; /* 缩小30%: 12px 16px * 0.7 = 8px 11px */
+  background-color: rgba(16, 32, 61, 0.9);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+  flex-shrink: 0; /* 防止头部被压缩 */
+}
+
+.ai-summary-header:hover {
+  background-color: rgba(16, 32, 61, 1);
+  border-bottom: 1px solid rgba(100, 255, 218, 0.4);
+}
+
+.ai-summary-header h4 {
+  margin: 0;
+  font-size: 10px; /* 缩小30%: 14px * 0.7 = 10px */
+  color: #64ffda;
+  font-weight: 600;
+  text-align: center;
+  text-shadow: 0 0 7px rgba(100, 255, 218, 0.3); /* 缩小阴影 */
+}
+
+.ai-summary-content {
+  padding: 11px; /* 缩小30%: 16px * 0.7 = 11px */
+  overflow-y: auto; /* 添加垂直滚动 */
+  flex: 1; /* 让内容区域占据剩余空间 */
+  min-height: 0; /* 确保flex子元素可以正确滚动 */
+  color: #e6f1ff;
+  background-color: rgba(16, 32, 61, 0.7); /* 添加深色背景 */
+}
+
+/* 总分展示区样式 */
+.summary-score-section {
+  text-align: center;
+  padding: 11px 0; /* 缩小30%: 16px * 0.7 = 11px */
+  margin-bottom: 11px; /* 缩小30%: 16px * 0.7 = 11px */
+  border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+  background-color: rgba(16, 32, 61, 0.5); /* 添加深色背景 */
+  border-radius: 4px; /* 添加圆角 */
+  padding: 11px; /* 添加内边距 */
+}
+
+.total-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.score-circle {
+  font-size: 34px; /* 缩小30%: 48px * 0.7 = 34px */
+  font-weight: bold;
+  line-height: 1;
+  margin-bottom: 6px; /* 缩小30%: 8px * 0.75 = 6px */
+  position: relative;
+  color: #64ffda;
+  text-shadow: 0 0 11px rgba(100, 255, 218, 0.5); /* 缩小阴影 */
+}
+
+.score-unit {
+  font-size: 11px; /* 缩小30%: 16px * 0.7 = 11px */
+  position: absolute;
+  top: 6px; /* 缩小30%: 8px * 0.75 = 6px */
+  right: -17px; /* 缩小30%: -24px * 0.7 = -17px */
+  color: #64ffda;
+  opacity: 0.8;
+}
+
+.score-label {
+  font-size: 10px; /* 缩小30%: 14px * 0.7 = 10px */
+  color: #a8b2d1;
+  margin-bottom: 6px; /* 缩小30%: 8px * 0.75 = 6px */
+}
+
+/* 主容器样式 */
+.score-details-collapse {
+  margin-top: 11px; /* 缩小30%: 16px * 0.7 = 11px */
+  background-color: rgba(16, 32, 61, 0.5); /* 添加深色背景 */
+  border-radius: 4px; /* 添加圆角 */
+  border: 1px solid rgba(100, 255, 218, 0.1); /* 添加边框 */
+  overflow: hidden; /* 确保内容不会溢出 */
+}
+
+/* 面板标题样式 */
+.score-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  color: #64ffda;
+  font-weight: 500;
+  margin-bottom: 8px; /* 缩小30%: 12px * 0.7 = 8px */
+  font-size: 10px; /* 缩小字体 */
+  padding: 8px 11px; /* 添加内边距 */
+  background-color: rgba(16, 32, 61, 0.7); /* 添加深色背景 */
+  border-bottom: 1px solid rgba(100, 255, 218, 0.1); /* 添加底部边框 */
+}
+
+/* 面板内容样式 */
+.score-detail-content {
+  padding: 11px; /* 缩小30%: 16px * 0.7 = 11px */
+  background-color: rgba(16, 32, 61, 0.5);
+  border-radius: 0; /* 移除圆角，因为父元素已有圆角 */
+  border: none; /* 移除边框，因为父元素已有边框 */
+  color: #e6f1ff; /* 确保文字颜色一致 */
+}
+
+/* 评分总结区域样式 */
+.score-summary {
+  margin: 11px 0; /* 缩小30%: 16px * 0.7 = 11px */
+  padding: 11px; /* 缩小30%: 16px * 0.7 = 11px */
+  background: rgba(16, 32, 61, 0.7);
+  border-radius: 6px; /* 缩小30%: 8px * 0.75 = 6px */
+  border: 1px solid rgba(100, 255, 218, 0.15);
+}
+
+/* 评分项样式 */
+.score-item {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0; /* 缩小30%: 8px * 0.75 = 6px */
+  padding: 6px 0; /* 缩小30%: 8px * 0.75 = 6px */
+  border-bottom: 1px solid rgba(100, 255, 218, 0.1);
+  font-size: 9px; /* 缩小字体 */
+  color: #e6f1ff; /* 确保文字颜色一致 */
+}
+
+.score-item:last-child {
+  border-bottom: none;
+}
+
+/* 优化节点列表样式 */
+.optimization-nodes {
+  margin-top: 11px; /* 缩小30%: 16px * 0.7 = 11px */
+  background-color: rgba(16, 32, 61, 0.5); /* 添加深色背景 */
+  border-radius: 6px; /* 缩小30%: 8px * 0.75 = 6px */
+  padding: 11px; /* 缩小30%: 16px * 0.7 = 11px */
+}
+
+/* 单个节点项样式 */
+.node-item {
+  margin-bottom: 11px; /* 缩小30%: 16px * 0.7 = 11px */
+  padding: 8px; /* 缩小30%: 12px * 0.7 = 8px */
+  border: 1px solid rgba(100, 255, 218, 0.2);
+  border-radius: 3px; /* 缩小30%: 4px * 0.75 = 3px */
+  background-color: rgba(16, 32, 61, 0.5);
+  color: #e6f1ff; /* 确保文字颜色一致 */
+}
+
+/* 节点详情样式 */
+.node-details {
+  margin-top: 6px; /* 缩小30%: 8px * 0.75 = 6px */
+  padding: 8px; /* 缩小30%: 12px * 0.7 = 8px */
+  background-color: rgba(16, 32, 61, 0.7); /* 添加深色背景 */
+  border-radius: 3px; /* 缩小30%: 4px * 0.75 = 3px */
+  border: 1px solid rgba(100, 255, 218, 0.15);
+}
+
+/* 缺失字段标签样式 */
+.missing-field-label {
+  display: inline-block;
+  margin: 3px 6px 3px 0; /* 缩小30%: 4px 8px 4px 0 * 0.75 = 3px 6px 3px 0 */
+  padding: 3px 6px; /* 缩小30%: 4px 8px * 0.75 = 3px 6px */
+  background-color: rgba(100, 255, 218, 0.1);
+  border-radius: 3px; /* 缩小30%: 4px * 0.75 = 3px */
+  font-size: 8px; /* 缩小字体 */
+  color: #64ffda; /* 使用主题色 */
+}
+
+/* 进度条样式覆盖 */
+.score-detail-content .ant-progress {
+  background-color: rgba(16, 32, 61, 0.5);
+}
+
+.score-detail-content .ant-progress-inner {
+  background-color: rgba(16, 32, 61, 0.7);
+}
+
+.score-detail-content .ant-progress-text {
+  color: #e6f1ff;
+}
+
+/* 折叠面板样式覆盖 */
+.score-details-collapse .ant-collapse-content {
+  background-color: rgba(16, 32, 61, 0.5);
+  border-top: 1px solid rgba(100, 255, 218, 0.1);
+}
+
+.score-details-collapse .ant-collapse-item {
+  border-bottom: 1px solid rgba(100, 255, 218, 0.1);
+}
+
+.score-details-collapse .ant-collapse-header {
+  color: #e6f1ff !important;
+}
+
+.score-details-collapse .ant-collapse-content-box {
+  background-color: rgba(16, 32, 61, 0.5);
+  color: #e6f1ff;
+}
+
+/* 添加模型完整度相关样式 */
+.model-completeness {
+  margin-top: 11px;
+  padding: 11px;
+  background-color: rgba(16, 32, 61, 0.5);
+  border-radius: 4px;
+  border: 1px solid rgba(100, 255, 218, 0.1);
+}
+
+.model-completeness-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #64ffda;
+  font-size: 10px;
   font-weight: 500;
 }
 
-/* 增大連接點尺寸 */
-.react-flow__handle {
-  width: 12px !important;
-  height: 12px !important;
-  border-radius: 50%;
-  background-color: #1890ff;
-  border: 2px solid white;
-  transition: all 0.2s ease;
+.completeness-bar {
+  height: 6px;
+  background-color: rgba(16, 32, 61, 0.8);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
 }
 
-.react-flow__handle:hover {
-  width: 15px !important;
-  height: 15px !important;
-  background-color: #40a9ff;
-  box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.2);
+.completeness-progress {
+  height: 100%;
+  background: linear-gradient(90deg, #64ffda, #40a9ff);
+  border-radius: 3px;
+  transition: width 0.3s ease;
 }
 
-/* 連接點激活時的樣式 */
-.react-flow__handle.connecting {
-  background-color: #52c41a !important;
+.completeness-percentage {
+  font-size: 9px;
+  color: #a8b2d1;
+  text-align: right;
 }
 
-/* 選中節點樣式 */
-.react-flow__node.selected {
-  box-shadow: 0 0 0 2px #1890ff, 0 0 15px rgba(24, 144, 255, 0.4);
-  z-index: 10;
-  transform: scale(1.02);
-  transition: all 0.2s ease;
-} 
+.completeness-details {
+  margin-top: 8px;
+  font-size: 9px;
+  color: #e6f1ff;
+}
+
+.completeness-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(100, 255, 218, 0.1);
+}
+
+.completeness-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.completeness-label {
+  color: #a8b2d1;
+}
+
+.completeness-value {
+  color: #64ffda;
+  font-weight: 500;
+}
+
+/* AI总结模块样式 */
+
+.react-flow__minimap {
+  background-color: rgba(16, 32, 61, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(64, 169, 255, 0.2);
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.react-flow__minimap-mask {
+  fill: rgba(16, 32, 61, 0.8);
+}
+
+.react-flow__minimap-node {
+  fill: rgba(100, 255, 218, 0.2);
+  stroke: rgba(100, 255, 218, 0.5);
+  stroke-width: 1;
+}
+
+.react-flow__minimap-node.selected {
+  fill: rgba(100, 255, 218, 0.4);
+  stroke: rgba(100, 255, 218, 0.8);
+}
+
+.react-flow__minimap-edge {
+  stroke: rgba(64, 169, 255, 0.5);
+  stroke-width: 1;
+}

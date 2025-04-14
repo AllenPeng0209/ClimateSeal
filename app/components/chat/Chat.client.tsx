@@ -232,6 +232,7 @@ export const ChatImpl = memo(
     const { parsedMessages, parseMessages } = useMessageParser();
 
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
+    const TEXTAREA_MIN_HEIGHT = 48;
 
     useEffect(() => {
       chatStore.setKey('started', initialMessages.length > 0);
@@ -275,8 +276,7 @@ export const ChatImpl = memo(
         textarea.style.height = 'auto';
 
         const scrollHeight = textarea.scrollHeight;
-
-        textarea.style.height = `${Math.min(scrollHeight, TEXTAREA_MAX_HEIGHT)}px`;
+        textarea.style.height = `${Math.max(TEXTAREA_MIN_HEIGHT, Math.min(scrollHeight, TEXTAREA_MAX_HEIGHT))}px`;
         textarea.style.overflowY = scrollHeight > TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden';
       }
     }, [input, textareaRef]);

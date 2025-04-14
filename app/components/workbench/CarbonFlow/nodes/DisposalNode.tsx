@@ -1,5 +1,5 @@
 import { Handle, Position } from 'reactflow';
-import { Card } from 'antd';
+import type { NodeData } from '~/components/workbench/CarbonFlow/CarbonFlow';
 
 interface DisposalNodeProps {
   data: {
@@ -7,62 +7,67 @@ interface DisposalNodeProps {
     nodeName: string;
     lifecycleStage: string;
     emissionType: string;
+    quantity: number;
     carbonFactor: number;
-    activitydataSource: string;
-    activityScore: number;
     carbonFootprint: number;
-    recyclingRate: number;
-    landfillPercentage: number;
-    incinerationPercentage: number;
-    compostPercentage: number;
-    reusePercentage: number;
+    activityScorelevel?: '高' | '中' | '低' | '空';
   };
 }
 
 export const DisposalNode = ({ data }: DisposalNodeProps) => {
+  const getActivityScore = (level?: string) => {
+    switch (level) {
+      case '高': return 'high';
+      case '中': return 'medium';
+      case '低': return 'low';
+      case '空': return 'very-low';
+      default: return 'very-low';
+    }
+  };
+
   return (
-    <Card
-      className="disposal-node"
-      title={data.label}
-      size="small"
-      style={{ width: 200 }}
+    <div 
+      className="node disposal-node"
+      data-activity-score={getActivityScore(data.activityScorelevel)}
     >
       <Handle type="target" position={Position.Top} />
       
+
       <div className="node-content">
+        <div className="node-header">
+          <div className="node-title">{data.label}</div>
+          <div className="node-type">废弃节点</div>
+        </div>
         <div className="node-info">
           <div className="info-item">
-            <span className="label">阶段:</span>
+            <span className="label">废弃动作名称:</span>
+            <span className="value">{data.nodeName}</span>
+          </div>
+          <div className="info-item">
+            <span className="label">生命週期阶段:</span>
             <span className="value">{data.lifecycleStage}</span>
           </div>
           <div className="info-item">
-            <span className="label">回收率:</span>
-            <span className="value">{data.recyclingRate}%</span>
+            <span className="label">排放类型:</span>
+            <span className="value">{data.emissionType}</span>
           </div>
           <div className="info-item">
-            <span className="label">填埋比例:</span>
-            <span className="value">{data.landfillPercentage}%</span>
-          </div>
+            <span className="label">数量:</span>
+            <span className="value">{data.quantity}</span>
+          </div>  
           <div className="info-item">
-            <span className="label">焚烧比例:</span>
-            <span className="value">{data.incinerationPercentage}%</span>
+            <span className="label">碳排放因子:</span>
+            <span className="value">{data.carbonFactor}</span>
           </div>
+          
           <div className="info-item">
-            <span className="label">堆肥比例:</span>
-            <span className="value">{data.compostPercentage}%</span>
-          </div>
-          <div className="info-item">
-            <span className="label">重复使用比例:</span>
-            <span className="value">{data.reusePercentage}%</span>
-          </div>
-          <div className="info-item">
-            <span className="label">碳足迹:</span>
+            <span className="label">碳排放量:</span>
             <span className="value">{data.carbonFootprint}</span>
           </div>
         </div>
       </div>
 
       <Handle type="source" position={Position.Bottom} />
-    </Card>
+    </div>
   );
 }; 

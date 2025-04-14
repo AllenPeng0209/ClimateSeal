@@ -15,7 +15,6 @@ import ReactFlow, {
   useReactFlow,
   ReactFlowProvider,
 } from 'reactflow';
-import type { PanelPosition } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './CarbonFlow.css';
 import './CarbonFlow/styles.css';
@@ -29,26 +28,26 @@ import { NodeProperties } from './CarbonFlow/NodeProperties';
 import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
 import { CarbonFlowActionHandler } from './CarbonFlow/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
-
-
+import { Tag, Collapse, Progress, message } from 'antd';
+import { UpOutlined, DownOutlined, ReloadOutlined } from '@ant-design/icons';
 
 interface BaseNodeData {
   label: string;
-  nodeName: string;
-  lifecycleStage: string;
-  emissionType: string;
-  carbonFactor: number;
+  nodeName?: string;
+  lifecycleStage?: string;
+  emissionType?: string;
+  carbonFactor?: number;
   quantity?: string;
-  activitydataSource: string;
-  activityScore: number;
-  certificationMaterials: string;
-  emissionFactor: string;
-  calculationMethod: string;
-  verificationStatus: string;
-  applicableStandard: string;
-  completionStatus: string;
-  carbonFactorName: string;
-  carbonFootprint: number;
+  activitydataSource?: string;
+  activityScorelevel?: string;
+  certificationMaterials?: string;
+  emissionFactor?: string;
+  calculationMethod?: string;
+  verificationStatus?: string;
+  applicableStandard?: string;
+  completionStatus?: string;
+  carbonFactorName?: string;
+  carbonFootprint?: number;
   carbonFactordataSource?: string;
   unitConversion: number;
   emissionFactorQuality: number;
@@ -187,7 +186,13 @@ interface FinalProductNodeData extends BaseNodeData {
   carbonLabel: string;
 }
 
-type NodeData = ProductNodeData | ManufacturingNodeData | DistributionNodeData | UsageNodeData | DisposalNodeData | FinalProductNodeData;
+type NodeData = 
+  | ProductNodeData
+  | ManufacturingNodeData
+  | DistributionNodeData
+  | UsageNodeData
+  | DisposalNodeData
+  | FinalProductNodeData;
 
 const nodeTypes = {
   product: ProductNode,
@@ -209,52 +214,33 @@ const nodeTypeLabels: Record<NodeType, string> = {
   finalProduct: '最终节点',
 };
 
-const initialNodes: Node<NodeData>[] = [
-  {
-    id: 'product-1',
-    type: 'product',
-    position: { x: 250, y: 100 },
-    data: {
-      label: 'Product Node',
-      nodeName: 'product_1',
-      lifecycleStage: 'product',
-      emissionType: 'direct',
-      carbonFactor: 0,
-      activitydataSource: 'manual',
-      activityScore: 0,
-      carbonFootprint: 0,
-      certificationMaterials: '',
-      emissionFactor: '',
-      calculationMethod: '',
-      verificationStatus: 'pending',
-      applicableStandard: '',
-      completionStatus: 'incomplete',
-      carbonFactorName: '',
-      unitConversion: 1,
-      emissionFactorQuality: 0,
-    },
-  },
-];
+// 添加一个映射，用于将中文类型映射回英文类型
+const nodeTypeMapping: Record<string, NodeType> = {
+  [`材料节点`]: 'product',
+  [`制造节点`]: 'manufacturing',
+  [`分销节点`]: 'distribution',
+  [`使用节点`]: 'usage',
+  [`废弃节点`]: 'disposal',
+  [`最终节点`]: 'finalProduct',
+};
+
+// 添加一个映射，用于将英文类型映射到中文类型
+const nodeTypeReverseMapping: Record<NodeType, string> = {
+  'product': '材料节点',
+  'manufacturing': '制造节点',
+  'distribution': '分销节点',
+  'usage': '使用节点',
+  'disposal': '废弃节点',
+  'finalProduct': '最终节点',
+};
+
+const initialNodes: Node<NodeData>[] = [];
 
 const initialEdges: Edge[] = [];
 
 interface AISummary {
   credibilityScore: number;
   missingLifecycleStages: string[];
-  optimizableNode: {
-    id: string;
-    label: string;
-    reason: string;
-  } | null;
-  manualRequiredNodes: {
-    id: string;
-    label: string;
-  }[];
-  uncertainAiNodes: {
-    id: string;
-    label: string;
-    activityScore: number;
-  }[];
   isExpanded: boolean;
   modelCompleteness: {
     score: number;
@@ -308,10 +294,7 @@ const CarbonFlowInner = () => {
   const [aiSummary, setAiSummary] = useState<AISummary>({
     credibilityScore: 0,
     missingLifecycleStages: [],
-    optimizableNode: null,
-    manualRequiredNodes: [],
-    uncertainAiNodes: [],
-    isExpanded: false,
+    isExpanded: true,
     modelCompleteness: {
       score: 0,
       lifecycleCompleteness: 0,
@@ -335,7 +318,23 @@ const CarbonFlowInner = () => {
     },
     expandedSection: null,
   });
+  
+  // 添加一个全局变量来存储 nodes 信息
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).carbonFlowNodes = nodes;
+      console.log('[CarbonFlow] 已更新全局 nodes 信息:', nodes);
+    }
+  }, [nodes]);
 
+  // 添加一个全局变量来存储 AI Summary 信息
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).carbonFlowAiSummary = aiSummary;
+      console.log('[CarbonFlow] 已更新全局 AI Summary 信息:', aiSummary);
+    }
+  }, [aiSummary]);
+  
   // 创建 CarbonFlow 操作处理器
   const [actionHandler, setActionHandler] = useState<CarbonFlowActionHandler | null>(null);
   
@@ -345,18 +344,14 @@ const CarbonFlowInner = () => {
       nodes,
       edges,
       setNodes,
-      setEdges
+      setEdges,
     });
     setActionHandler(handler);
-    
-    // 设置全局标识，表示CarbonFlow已初始化
     if (typeof window !== 'undefined') {
       (window as any).carbonFlowInitialized = true;
-      console.log('[CarbonFlow] 组件已初始化');
     }
   }, [nodes, edges, setNodes, setEdges]);
   
-  // 处理 CarbonFlow 操作
   const handleCarbonFlowAction = useCallback((action: CarbonFlowAction) => {
     if (actionHandler) {
       actionHandler.handleAction(action);
@@ -413,42 +408,109 @@ const CarbonFlowInner = () => {
     event.dataTransfer.dropEffect = 'move';
   }, []);
 
+  const stageNames: Record<string, string> = {
+    '材料节点': '原材料获取',
+    '制造节点': '生产制造',
+    '分销节点': '分销和储存',
+    '使用节点': '产品使用',
+    '废弃节点': '废弃处置'
+  };
+
+  // 修改 onDrop 函数，确保类型正确
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
 
       if (!reactFlowInstance) return;
 
-      const type = event.dataTransfer.getData('application/carbonflow') as NodeType;
+      const Type = event.dataTransfer.getData('application/carbonflow') as NodeType;
+      const chineseType = event.dataTransfer.getData('application/carbonflow');
+      const lifecycleStageType = stageNames[Type] || Type;
+      const type = nodeTypeMapping[chineseType] as NodeType;
+      
+      if (!type) {
+        console.error('未知的节点类型:', chineseType);
+        return;
+      }
+      
       const position = reactFlowInstance.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       });
 
+      // 创建新节点，确保所有必需属性都有默认值
       const newNode: Node<NodeData> = {
         id: `${type}-${Date.now()}`,
         type,
         position,
         data: {
-          label: `${type.charAt(0).toUpperCase() + type.slice(1)} Node`,
-          nodeName: `${type}_${Date.now()}`,
-          lifecycleStage: type,
-          emissionType: 'direct',
+          label: chineseType,
+          nodeName: '',
+          lifecycleStage: lifecycleStageType,
+          emissionType: '',
           carbonFactor: 0,
-          activitydataSource: 'manual',
-          activityScore: 0,
+          quantity: '',
+          activitydataSource: '',
+          activityScorelevel: '',
           carbonFootprint: 0,
-          certificationMaterials: '',
-          emissionFactor: '',
-          calculationMethod: '',
-          verificationStatus: 'pending',
-          applicableStandard: '',
-          completionStatus: 'incomplete',
-          carbonFactorName: '',
           unitConversion: 1,
           emissionFactorQuality: 0,
+          // 添加其他必需属性的默认值
+          emissionFactor: '',
+          calculationMethod: '',
+          verificationStatus: '未验证',
+          applicableStandard: '',
+          completionStatus: '未完成',
+          carbonFactorName: '',
+          // 添加其他可能需要的属性
+          material: '',
+          weight_per_unit: '',
+          isRecycled: false,
+          recycledContent: '',
+          recycledContentPercentage: 0,
+          // 添加制造节点特有的属性
+          ElectricityAccountingMethod: '',
+          ElectricityAllocationMethod: '',
+          EnergyConsumptionMethodology: '',
+          EnergyConsumptionAllocationMethod: '',
+          energyConsumption: 0,
+          // 添加其他可能需要的属性
+          disposalMethod: '',
+          recyclingRate: 0,
+          landfillRate: 0,
+          incinerationRate: 0,
+          compostingRate: 0,
+          otherDisposalRate: 0,
+          disposalEmissionFactor: 0,
+          disposalQuantity: 0,
+          disposalCarbonFootprint: 0,
+          disposalVerificationStatus: '未验证',
+          disposalApplicableStandard: '',
+          disposalCompletionStatus: '未完成',
+          disposalEmissionFactorName: '',
+          disposalCalculationMethod: '',
+          disposalActivitydataSource: '',
+          disposalActivityScorelevel: '',
+          disposalUnitConversion: 1,
+          disposalEmissionFactorQuality: 0,
+          // 添加最终产品节点特有的属性
+          productName: '',
+          productCategory: '',
+          productCarbonFootprint: 0,
+          productCertificationStatus: '未认证',
+          productApplicableStandard: '',
+          productCompletionStatus: '未完成',
+          productEmissionFactorName: '',
+          productCalculationMethod: '',
+          productVerificationStatus: '未验证',
+          productEmissionFactor: '',
+          productActivitydataSource: '',
+          productActivityScorelevel: '',
+          productUnitConversion: 1,
+          productEmissionFactorQuality: 0,
         },
       };
+
 
       setNodes((nds) => [...nds, newNode]);
     },
@@ -475,7 +537,7 @@ const CarbonFlowInner = () => {
         emissionType: 'direct',
         carbonFactor: 0,
         activitydataSource: 'primary',
-        activityScore: 0,
+        activityScorelevel: '',
         certificationMaterials: '',
         emissionFactor: '',
         calculationMethod: '',
@@ -541,14 +603,14 @@ const CarbonFlowInner = () => {
 
     const NODE_WIDTH = 250;
     const NODE_HEIGHT = 150;
-    const HORIZONTAL_SPACING = 500;
-    const VERTICAL_SPACING = 400;
-    const PADDING = 300;
+    const HORIZONTAL_SPACING = 600;
+    const VERTICAL_SPACING = 650;
+    const PADDING = 400;
 
-    // 定義節點類型的順序（不包括最終產品節點）
+    // 定义节点类型的顺序（不包括最终产品节点）
     const nodeTypeOrder: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal'];
     
-    // 根據節點類型分組
+    // 根据节点类型分组
     const nodesByType: Record<NodeType, Node<NodeData>[]> = {
       product: [],
       manufacturing: [],
@@ -558,7 +620,7 @@ const CarbonFlowInner = () => {
       finalProduct: [],
     };
     
-    // 填充節點分組
+    // 填充节点分组
     nodes.forEach(node => {
       const nodeType = node.type as NodeType;
       if (nodeType in nodesByType) {
@@ -566,7 +628,7 @@ const CarbonFlowInner = () => {
       }
     });
 
-    // 確保有最終產品節點
+    // 确保有最终产品节点
     let finalProductNode = nodesByType.finalProduct[0];
     if (!finalProductNode) {
       finalProductNode = {
@@ -574,13 +636,13 @@ const CarbonFlowInner = () => {
         type: 'finalProduct',
         position: { x: 0, y: 0 },
         data: {
-          label: '最終產品',
+          label: '最终产品',
           nodeName: 'final_product_1',
           lifecycleStage: 'finalProduct',
           emissionType: 'total',
           carbonFactor: 0,
           activitydataSource: 'calculated',
-          activityScore: 0,
+          activityScorelevel: '',
           carbonFootprint: 0,
           certificationMaterials: '',
           emissionFactor: '',
@@ -591,38 +653,38 @@ const CarbonFlowInner = () => {
           carbonFactorName: '',
           unitConversion: 1,
           emissionFactorQuality: 0,
-          finalProductName: '最終產品',
+          finalProductName: '最终产品',
           totalCarbonFootprint: 0,
           certificationStatus: 'pending',
-          environmentalImpact: '待評估',
+          environmentalImpact: '待评估',
           sustainabilityScore: 0,
-          productCategory: '未分類',
+          productCategory: '未分类',
           marketSegment: '未指定',
           targetRegion: '未指定',
-          complianceStatus: '待驗證',
-          carbonLabel: '待認證',
+          complianceStatus: '未验证',
+          carbonLabel: '待认证',
         },
       };
       nodesByType.finalProduct.push(finalProductNode);
     }
 
-    // 計算新的節點位置
+    // 计算新的节点位置
     const newNodes = [...nodes];
     if (!nodesByType.finalProduct.length) {
       newNodes.push(finalProductNode);
     }
 
-    // 計算所有非最終產品節點的位置
+    // 计算所有非最终产品节点的位置
     const positionedNodes = newNodes.filter(node => node.type !== 'finalProduct').map(node => {
       const nodeType = node.type as NodeType;
       const typeIndex = nodeTypeOrder.indexOf(nodeType);
       const typeNodes = nodesByType[nodeType] || [];
       const nodeIndex = typeNodes.indexOf(node);
       
-      // 計算水平位置（根據節點類型）
+      // 计算水平位置（根据节点类型）
       const x = PADDING + typeIndex * HORIZONTAL_SPACING;
       
-      // 計算垂直位置（根據同類型節點的順序）
+      // 计算垂直位置（根据同类型节点的顺序）
       const y = PADDING + nodeIndex * VERTICAL_SPACING;
 
       return {
@@ -635,7 +697,7 @@ const CarbonFlowInner = () => {
       };
     });
 
-    // 計算最終產品節點的位置（放在中間正下方）
+    // 计算最终产品节点的位置（放在中间正下方）
     const maxX = Math.max(...positionedNodes.map(node => node.position.x));
     const maxY = Math.max(...positionedNodes.map(node => node.position.y));
     const finalProductPosition = {
@@ -643,22 +705,22 @@ const CarbonFlowInner = () => {
       y: maxY + VERTICAL_SPACING,
     };
 
-    // 添加最終產品節點
+    // 添加最终产品节点
     const finalProductNodeWithPosition = {
       ...finalProductNode,
       position: finalProductPosition,
     };
 
-    // 合併所有節點
+    // 合併所有节点
     const allNodes = [...positionedNodes, finalProductNodeWithPosition];
 
-    // 創建新的邊連接
+    // 创建新的边连接
     const newEdges: Edge[] = [];
     let totalCarbonFootprint = 0;
 
-    // 連接所有非最終產品節點到最終產品節點
+    // 连接所有非最终产品节点到最终产品节点
     positionedNodes.forEach(node => {
-      // 添加邊連接
+      // 添加边连接
       newEdges.push({
         id: `edge-${node.id}-${finalProductNode.id}`,
         source: node.id,
@@ -673,7 +735,7 @@ const CarbonFlowInner = () => {
       }
     });
 
-    // 更新最終產品節點的總碳排放量
+    // 更新最终产品节点的总碳排放量
     const updatedNodes = allNodes.map(node => {
       if (node.id === finalProductNode.id) {
         return {
@@ -694,45 +756,299 @@ const CarbonFlowInner = () => {
   }, [nodes, reactFlowInstance, setNodes, setEdges, fitView]);
 
   const calculateAiSummary = useCallback(() => {
-    // 計算模型完整性
-    const modelCompleteness = {
-      score: 0,
-      lifecycleCompleteness: 0,
-      nodeCompleteness: 0,
-      incompleteNodes: [] as { id: string; label: string; missingFields: string[] }[],
-    };
+    if (!nodes || nodes.length === 0) {
+      setAiSummary(prev => ({
+        ...prev,
+        modelCompleteness: {
+          score: 0,
+          lifecycleCompleteness: 0,
+          nodeCompleteness: 0,
+          incompleteNodes: []
+        },
+        massBalance: {
+          score: 0,
+          ratio: 0,
+          incompleteNodes: []
+        },
+        dataTraceability: {
+          score: 0,
+          coverage: 0,
+          incompleteNodes: []
+        },
+        dataAccuracy: {
+          score: 0,
+          consistency: 0,
+          incompleteNodes: []
+        }
+      }));
+      return;
+    }
 
-    // 計算質量平衡
-    const massBalance = {
-      score: 0,
-      ratio: 0,
-      incompleteNodes: [] as { id: string; label: string; missingFields: string[] }[],
-    };
+    // 1. 计算模型完整性
+    const lifecycle = ['原材料获取', '生产制造', '分销和储存', '产品使用', '废弃处置'];
+    
+    const existingStages = new Set(nodes.map(node => node.data?.lifecycleStage).filter(Boolean));
+    const missingLifecycleStages = lifecycle.filter(stage => !existingStages.has(stage));
+    const lifecycleCompletenessScore = ((lifecycle.length - missingLifecycleStages.length) / lifecycle.length) * 100;
+    
+    let totalFields = 0;
+    let completedFields = 0;
+    const complete_incompleteNodes: { id: string; label: string; missingFields: string[]; }[] = [];
 
-    // 計算數據可追溯性
-    const dataTraceability = {
-      score: 0,
-      coverage: 0,
-      incompleteNodes: [] as { id: string; label: string; missingFields: string[] }[],
-    };
+    nodes.forEach(node => {
+      const missingFields: string[] = [];
+      // 根据节点类型检查不同字段
+      switch (node.data.lifecycleStage) {
+        case '原材料获取': {
+          const productData = node.data as ProductNodeData;
+     
+          if (typeof productData.quantity === 'undefined' || productData.quantity === null || productData.quantity === 0) {
+            totalFields++;
+            missingFields.push('数量');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof node.data.carbonFactor === 'undefined' || node.data.carbonFactor === null || node.data.carbonFactor === 0) {
+            totalFields++;
+            missingFields.push('碳足迹因子');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof node.data.carbonFactorName === 'undefined' || node.data.carbonFactorName === '') {
+            totalFields++;
+            missingFields.push('碳足迹因子名称');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof node.data.carbonFactordataSource === 'undefined' || node.data.carbonFactordataSource === null || node.data.carbonFactordataSource === 0) {
+            totalFields++;
+            missingFields.push('碳足迹因子数据来源');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
 
-    // 計算驗證狀態
-    const validation = {
-      score: 0,
-      consistency: 0,
-      incompleteNodes: [] as { id: string; label: string; missingFields: string[] }[],
-    };
+          break;
+        }
+          
+        case '生产制造': {
+          const manufacturingData = node.data as ManufacturingNodeData;
+          if (typeof node.data.carbonFactor === 'undefined' || node.data.carbonFactor === null || node.data.carbonFactor === 0) {
+            totalFields++;
+            missingFields.push('碳足迹因子');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof manufacturingData.energyConsumption === 'undefined' || manufacturingData.energyConsumption === null || manufacturingData.energyConsumption === 0) {
+            totalFields++;
+            missingFields.push('能源消耗');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof manufacturingData.energyType === 'undefined' || manufacturingData.energyType === '') {
+            totalFields++;
+            missingFields.push('能源类型');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          break;
+        }
+          
+        case '分销和储存': {
+          const distributionData = node.data as DistributionNodeData;
+          if (typeof node.data.carbonFactor === 'undefined' || node.data.carbonFactor === null || node.data.carbonFactor === 0) {
+            totalFields++;
+            missingFields.push('碳足迹因子');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof distributionData.startPoint === 'undefined' || distributionData.startPoint === '') {
+            totalFields++;
+            missingFields.push('起点');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof distributionData.endPoint === 'undefined' || distributionData.endPoint === '') {
+            totalFields++;
+            missingFields.push('终点');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof distributionData.transportationDistance === 'undefined' || distributionData.transportationDistance === null || distributionData.transportationDistance === 0) {
+            totalFields++;
+            missingFields.push('运输距离');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          break;
+        }
+      }
+      
+      // 只有当有缺失字段时才添加到 incompleteNodes
+      if (missingFields.length > 0) {
+        complete_incompleteNodes.push({
+          id: node.id,
+          label: node.data.label,
+          missingFields: missingFields
+        });
+      }
+    });
+
+
+    // 计算模型完整度
+
+    const NodeCompletenessScore = Math.round(((completedFields) / (totalFields+0.01)) * 100)
+    const modelCompletenessScore = Math.round(0.25 * NodeCompletenessScore + 0.75 * lifecycleCompletenessScore);
+
+    // 2. 计算质量平衡
+    const mass_incompleteNodes: { id: string; label: string; missingFields: string[]; }[] = [];
+    let totalInputMass = 0;
+    let totalOutputMass = 0;
+
+    nodes.forEach(node => {
+      if (node.data.lifecycleStage === '原材料获取') {
+        const productData = node.data as ProductNodeData;
+        if (typeof productData.quantity === 'undefined' || productData.quantity === null || productData.quantity === 0) {
+          mass_incompleteNodes.push({
+            id: node.id,
+            label: node.data.label,
+            missingFields: ['数量']
+          });
+        } else {
+          totalInputMass += productData.quantity;
+        }
+      }
+      
+      if (node.data.lifecycleStage === '最终节点') {
+        const productData = node.data as ProductNodeData;
+        if (typeof productData.quantity === 'undefined' || productData.quantity === null || productData.quantity === 0) {
+          mass_incompleteNodes.push({
+            id: node.id,
+            label: node.data.label,
+            missingFields: ['数量']
+          });
+        } else {
+          totalOutputMass += productData.quantity;
+        }
+      }
+    });
+
+
+
+    // 计算质量平衡分数
+    const errorPercentage = Math.abs(totalInputMass - totalOutputMass) / (totalInputMass || 1) * 100;
+    let massBalanceScore = 100;
+    if (errorPercentage > 5) {
+      massBalanceScore = Math.max(0, 100 - Math.round(errorPercentage - 5));
+    }
+
+    // 3. 计算数据可追溯性
+    const traceable_incompleteNodes: { id: string; label: string; missingFields: string[]; }[] = [];
+    let total_traceabe_node_number = 0;
+    let data_ok_traceable_node_number = 0;
+
+    let totalCarbonFootprint = 0;
+    nodes.forEach(node => {
+      if (!node.data) return;
+      total_traceabe_node_number++;
+      if (node.data.carbonFactordataSource?.includes('数据库匹配')) {
+        data_ok_traceable_node_number++;
+      } else {
+        traceable_incompleteNodes.push({
+          id: node.id,
+          label: node.data.label,
+          missingFields: ['碳足迹因子数据来源']
+        });
+      }
+    });
+    console.log('total_traceabe_node_number', total_traceabe_node_number);
+
+
+    const dataTraceabilityScore = Math.round((total_traceabe_node_number > 0 ? (data_ok_traceable_node_number / total_traceabe_node_number) * 100 : 0));
+
+    // 4. 计算数据准确性
+    const validation_incompleteNodes: { id: string; label: string; missingFields: string[]; }[] = [];
+    let totalvalidation_node_number = 0;
+    let data_ok_validation_node_number = 0;
+
+    nodes.forEach(node => {
+      if (!node.data) return;
+      totalvalidation_node_number++;
+      const verificationStatus = node.data.verificationStatus;
+      
+      if (verificationStatus === '未验证') {
+        validation_incompleteNodes.push({
+          id: node.id,
+          label: node.data.label,
+          missingFields: ['验证状态']
+        });
+      } else {
+        data_ok_validation_node_number++;
+      }
+    });
+    console.log('totalvalidation_node_number', totalvalidation_node_number);
+    console.log('data_ok_validation_node_number', data_ok_validation_node_number);
+
+    const validationScore = Math.round(totalvalidation_node_number > 0 ? (data_ok_validation_node_number / totalvalidation_node_number) * 100 : 0);
+
+    // 把所有值都约束到0～100之间
+    const lifecycleCompletenessScore100 = Math.round(Math.max(0, Math.min(100, lifecycleCompletenessScore)));
+    const NodeCompletenessScore100 = Math.round(Math.max(0, Math.min(100, NodeCompletenessScore)));
+    const massBalanceScore100 = Math.round(Math.max(0, Math.min(100, massBalanceScore)));
+    const dataTraceabilityScore100 = Math.round(Math.max(0, Math.min(100, dataTraceabilityScore)));
+    const validationScore100 = Math.round(Math.max(0, Math.min(100, validationScore)));
+
+    // 计算总体可信度分数
+    const credibilityScore = Math.round(
+      0.1 * lifecycleCompletenessScore100 + 
+      0.3 * NodeCompletenessScore100 + 
+      0.1 * massBalanceScore100 + 
+      0.35 * dataTraceabilityScore100 + 
+      0.15 * validationScore100
+    );
 
     // 更新 AI Summary
     setAiSummary(prev => ({
       ...prev,
-      modelCompleteness,
-      massBalance,
-      dataTraceability,
-      validation,
-      credibilityScore: (modelCompleteness.score + massBalance.score + dataTraceability.score + validation.score) / 4,
+      credibilityScore,
+      modelCompleteness: {
+        score: modelCompletenessScore,
+        lifecycleCompleteness: lifecycleCompletenessScore,
+        nodeCompleteness: NodeCompletenessScore,
+        incompleteNodes: complete_incompleteNodes
+      },
+      massBalance: {
+        score: massBalanceScore100,
+        ratio: 0,
+        incompleteNodes: mass_incompleteNodes
+      },
+      dataTraceability: {
+        score: dataTraceabilityScore,
+        coverage: dataTraceabilityScore,
+        incompleteNodes: traceable_incompleteNodes
+      },
+      validation: {
+        score: validationScore,
+        consistency: 0,
+        incompleteNodes: validation_incompleteNodes
+      }
     }));
   }, [nodes]);
+
+  // 添加新的 useEffect 钩子来监听 nodes 变化
+  useEffect(() => {
+    calculateAiSummary();
+  }, [nodes, calculateAiSummary]);
 
   const toggleAiSummaryExpand = useCallback(() => {
     setAiSummary(prev => ({
@@ -745,99 +1061,504 @@ const CarbonFlowInner = () => {
     if (score >= 0.8) return '#52c41a';
     if (score >= 0.6) return '#faad14';
     return '#f5222d';
-  };
+  };  
 
-  const getScoreStatus = (score: number) => {
-    if (score >= 0.8) return '良好';
-    if (score >= 0.6) return '一般';
-    return '需要改進';
-  };
-
+  // AI总结展示组件
   const renderAiSummary = () => {
-    if (!aiSummary.isExpanded) return null;
+    const { 
+      credibilityScore, 
+      isExpanded,
+      modelCompleteness,
+      massBalance,
+      dataTraceability,
+      validation,
+    } = aiSummary;
+    
+    const credibilityScorePercent = Math.round(credibilityScore);
+    
+    const getScoreColor = (score: number) => {
+      if (score >= 90) return '#52c41a';
+      if (score >= 75) return '#1890ff';
+      if (score >= 60) return '#faad14';
+      return '#f5222d';
+    };
+
+    const getScoreStatus = (score: number) => {
+      if (score >= 90) return '优';
+      if (score >= 75) return '良';
+      if (score >= 60) return '中';
+      return '差';
+    };
 
     return (
-      <>
-        <div className="ai-summary-overlay" onClick={() => toggleAiSummaryExpand()} />
-        <div className="ai-summary">
-          <button className="ai-summary-close" onClick={() => toggleAiSummaryExpand()}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </button>
-          <div className="ai-summary-header">
-            <h3>AI 分析</h3>
-            <div className="credibility-score">
-              可信度評分：<span>{aiSummary.credibilityScore}</span>
-            </div>
-          </div>
-          <div className="ai-summary-content">
-            <div className="summary-section">
-              <h4>模型完整性</h4>
-              <div className="score-bar">
-                <div 
-                  className="score-fill" 
-                  style={{ 
-                    width: `${aiSummary.modelCompleteness.score * 100}%`,
-                    backgroundColor: getScoreColor(aiSummary.modelCompleteness.score)
-                  }}
-                />
-              </div>
-              <div className="score-details">
-                <span>生命週期完整性: {(aiSummary.modelCompleteness.lifecycleCompleteness * 100).toFixed(1)}%</span>
-                <span>節點完整性: {(aiSummary.modelCompleteness.nodeCompleteness * 100).toFixed(1)}%</span>
-              </div>
-            </div>
-            <div className="summary-section">
-              <h4>質量平衡</h4>
-              <div className="score-bar">
-                <div 
-                  className="score-fill" 
-                  style={{ 
-                    width: `${aiSummary.massBalance.score * 100}%`,
-                    backgroundColor: getScoreColor(aiSummary.massBalance.score)
-                  }}
-                />
-              </div>
-              <div className="score-details">
-                <span>平衡比率: {(aiSummary.massBalance.ratio * 100).toFixed(1)}%</span>
-              </div>
-            </div>
-            <div className="summary-section">
-              <h4>數據可追溯性</h4>
-              <div className="score-bar">
-                <div 
-                  className="score-fill" 
-                  style={{ 
-                    width: `${aiSummary.dataTraceability.score * 100}%`,
-                    backgroundColor: getScoreColor(aiSummary.dataTraceability.score)
-                  }}
-                />
-              </div>
-              <div className="score-details">
-                <span>覆蓋率: {(aiSummary.dataTraceability.coverage * 100).toFixed(1)}%</span>
-              </div>
-            </div>
-            <div className="summary-section">
-              <h4>驗證狀態</h4>
-              <div className="score-bar">
-                <div 
-                  className="score-fill" 
-                  style={{ 
-                    width: `${aiSummary.validation.score * 100}%`,
-                    backgroundColor: getScoreColor(aiSummary.validation.score)
-                  }}
-                />
-              </div>
-              <div className="score-details">
-                <span>一致性: {(aiSummary.validation.consistency * 100).toFixed(1)}%</span>
-              </div>
-            </div>
-          </div>
+      <div className={`ai-summary-module ${isExpanded ? 'expanded' : 'collapsed'}`}>
+        <div className="ai-summary-header" onClick={toggleAiSummaryExpand}>
+          <h4>AI工作流分析</h4>
+          {isExpanded ? <UpOutlined /> : <DownOutlined />}
         </div>
-      </>
+        
+        {isExpanded && (
+          <div className="ai-summary-content">
+            {/* 总分展示区 */}
+            <div className="summary-score-section">
+              <div className="total-score">
+                <div className="score-circle" style={{ color: getScoreColor(credibilityScorePercent) }}>
+                  {credibilityScorePercent}
+                  <span className="score-unit">分</span>
+                </div>
+                <div className="score-label">总体可信度</div>
+                <Tag color={getScoreColor(credibilityScorePercent)}>
+                  {getScoreStatus(credibilityScorePercent)}
+                </Tag>
+              </div>
+            </div>
+
+            {/* 分项得分展示 */}
+            <Collapse 
+              defaultActiveKey={[]} 
+              className="score-details-collapse"
+            >
+              {/* 模型完整度 */}
+              <Collapse.Panel 
+                header={
+                  <div className="score-panel-header">
+                    <span>模型完整度</span>
+                    <span className="score-value" style={{ color: getScoreColor(modelCompleteness.score) }}>
+                      {modelCompleteness.score}分
+                    </span>
+                  </div>
+                } 
+                key="modelCompleteness"
+              >
+                <div className="score-detail-content">
+                  <Progress 
+                    percent={modelCompleteness.score} 
+                    strokeColor={getScoreColor(modelCompleteness.score)}
+                    size="small"
+                  />
+                  
+                  {/* 评分总结 */}
+                  <div className="score-summary">
+                    <h4>评分总结</h4>
+                    <div className="score-item">
+                      <span>生命周期完整性:</span>
+                      <span>{modelCompleteness.lifecycleCompleteness}%</span>
+                    </div>
+                    <div className="score-item">
+                      <span>节点完整性:</span>
+                      <span>{modelCompleteness.nodeCompleteness}%</span>
+                    </div>
+                  </div>
+                  
+                  {/* 需要优化的节点 */}
+                  <div className="optimization-nodes">
+                    <h4>需要优化的节点</h4>
+                    {modelCompleteness.incompleteNodes.map(node => (
+                      <div 
+                        key={node.id} 
+                        className="node-item"
+                        onClick={() => {
+                          const targetNode = nodes.find(n => n.id === node.id);
+                          if (targetNode) {
+                            setSelectedNode(targetNode);
+                          }
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        style={{ 
+                          cursor: 'pointer',
+                          transition: 'all 0.3s ease',
+                          padding: '8px',
+                          borderRadius: '4px',
+                        }}
+                      >
+                        <div className="node-header">
+                          <Tag color="warning">{node.label}</Tag>
+                        </div>
+                        <div className="node-details">
+                          <div>缺失字段:</div>
+                          <div className="missing-fields">
+                            {node.missingFields.map(field => (
+                              <Tag key={field} color="error">{field}</Tag>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Collapse.Panel>
+
+              {/* 质量平衡 */}
+              <Collapse.Panel 
+                header={
+                  <div className="score-panel-header">
+                    <span>质量平衡</span>
+                    <span className="score-value" style={{ color: getScoreColor(massBalance.score) }}>
+                      {massBalance.score}分
+                    </span>
+                  </div>
+                } 
+                key="massBalance"
+              >
+                <div className="score-detail-content">
+                  <Progress 
+                    percent={massBalance.score} 
+                    strokeColor={getScoreColor(massBalance.score)}
+                    size="small"
+                  />
+                  
+                  {/* 评分总结 */}
+                  <div className="score-summary">
+                    <h4>评分总结</h4>
+                    <div className="score-item">
+                      <span>平衡率:</span>
+                      <span>{massBalance.ratio.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  
+                  {/* 需要优化的节点 */}
+                  <div className="optimization-nodes">
+                    <h4>需要优化的节点</h4>
+                    {massBalance.incompleteNodes.map(node => (
+                      <div 
+                        key={node.id} 
+                        className="node-item"
+                        onClick={() => {
+                          const targetNode = nodes.find(n => n.id === node.id);
+                          if (targetNode) {
+                            setSelectedNode(targetNode);
+                          }
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        style={{ 
+                          cursor: 'pointer',
+                          transition: 'all 0.3s ease',
+                          padding: '8px',
+                          borderRadius: '4px',
+                        }}
+                      >
+                        <div className="node-header">
+                          <Tag color="warning">{node.label}</Tag>
+                        </div>
+                        <div className="node-details">
+                          <div>缺失字段:</div>
+                          <div className="missing-fields">
+                            {node.missingFields.map(field => (
+                              <Tag key={field} color="error">{field}</Tag>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Collapse.Panel>
+
+              {/* 数据可追溯性 */}
+              <Collapse.Panel 
+                header={
+                  <div className="score-panel-header">
+                    <span>数据可追溯性</span>
+                    <span className="score-value" style={{ color: getScoreColor(dataTraceability.score) }}>
+                      {dataTraceability.score}分
+                    </span>
+                  </div>
+                } 
+                key="dataTraceability"
+              >
+                <div className="score-detail-content">
+                  <Progress 
+                    percent={dataTraceability.score} 
+                    strokeColor={getScoreColor(dataTraceability.score)}
+                    size="small"
+                  />
+                  
+                  {/* 评分总结 */}
+                  <div className="score-summary">
+                    <h4>评分总结</h4>
+                    <div className="score-item">
+                      <span>关键数据覆盖率:</span>
+                      <span>{dataTraceability.coverage}%</span>
+                    </div>
+                  </div>
+                  
+                  {/* 需要优化的节点 */}
+                  <div className="optimization-nodes">
+                    <h4>需要优化的节点</h4>
+                    {dataTraceability.incompleteNodes.map(node => (
+                      <div 
+                        key={node.id} 
+                        className="node-item"
+                        onClick={() => {
+                          const targetNode = nodes.find(n => n.id === node.id);
+                          if (targetNode) {
+                            setSelectedNode(targetNode);
+                          }
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        style={{ 
+                          cursor: 'pointer',
+                          transition: 'all 0.3s ease',
+                          padding: '8px',
+                          borderRadius: '4px',
+                        }}
+                      >
+                        <div className="node-header">
+                          <Tag color="warning">{node.label}</Tag>
+                        </div>
+                        <div className="node-details">
+                          <div>缺失字段:</div>
+                          <div className="missing-fields">
+                            {node.missingFields.map(field => (
+                              <Tag key={field} color="error">{field}</Tag>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Collapse.Panel>
+
+              {/* 数据验证 */}
+              <Collapse.Panel 
+                header={
+                  <div className="score-panel-header">
+                    <span>数据准确性</span>
+                    <span className="score-value" style={{ color: getScoreColor(validation.score) }}>
+                      {validation.score}分
+                    </span>
+                  </div>
+                } 
+                key="validation"
+              >
+                <div className="score-detail-content">
+                  <Progress 
+                    percent={validation.score} 
+                    strokeColor={getScoreColor(validation.score)}
+                    size="small"
+                  />
+                  
+                  {/* 评分总结 */}
+                  <div className="score-summary">
+                    <h4>评分总结</h4>
+                    <div className="score-item">
+                      <span>数据一致性:</span>
+                      <span>{validation.consistency}%</span>
+                    </div>
+                  </div>
+                  
+                  {/* 需要优化的节点 */}
+                  <div className="optimization-nodes">
+                    <h4>需要优化的节点</h4>
+                    {validation.incompleteNodes.map(node => (
+                      <div 
+                        key={node.id} 
+                        className="node-item"
+                        onClick={() => {
+                          const targetNode = nodes.find(n => n.id === node.id);
+                          if (targetNode) {
+                            setSelectedNode(targetNode);
+                          }
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        style={{ 
+                          cursor: 'pointer',
+                          transition: 'all 0.3s ease',
+                          padding: '8px',
+                          borderRadius: '4px',
+                        }}
+                      >
+                        <div className="node-header">
+                          <Tag color="warning">{node.label}</Tag>
+                        </div>
+                        <div className="node-details">
+                          <div>缺失字段:</div>
+                          <div className="missing-fields">
+                            {node.missingFields.map(field => (
+                              <Tag key={field} color="error">{field}</Tag>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Collapse.Panel>
+            </Collapse>
+          </div>
+        )}
+      </div>
     );
   };
+
+  // 添加一键补全功能
+  const autoCompleteMissingFields = useCallback(async () => {
+    if (!nodes || nodes.length === 0) return;
+
+
+    // 显示AI优化中的消息
+    message.info('AI优化中...');
+
+    // 创建一个Promise来模拟暂停
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // 等待3秒，让用户看到消息
+    await sleep(3000);
+
+    // 清除消息
+    message.destroy();
+
+
+    const updatedNodes = nodes.map(node => {
+      const updatedData = { ...node.data };
+      
+      // 根据节点类型和缺失字段自动填充
+      switch (node.data.lifecycleStage) {
+        case '原材料获取': {
+          const productData = node.data as ProductNodeData;
+
+          if (!productData.quantity) {
+            updatedData.quantity = '1'; // 默认数量为1
+          }
+
+          if (!productData.carbonFactor) {
+            updatedData.carbonFactor = 0.5; // 默认碳因子
+          }
+
+          if (!productData.carbonFactorName) {
+            updatedData.carbonFactorName = '默认碳因子';
+          }
+
+          if (!productData.carbonFactordataSource) {
+            updatedData.carbonFactordataSource = '数据库匹配';
+          }
+
+          break;
+        }
+
+        case '生产制造': {
+          const manufacturingData = node.data as ManufacturingNodeData;
+
+          if (!manufacturingData.carbonFactor) {
+            updatedData.carbonFactor = 0.3; // 默认制造碳因子
+          }
+
+          if (!manufacturingData.energyConsumption) {
+            updatedData.energyConsumption = 100; // 默认能源消耗
+          }
+
+          if (!manufacturingData.energyType) {
+            updatedData.energyType = '电力';
+          }
+
+          break;
+        }
+
+        case '分销和储存': {
+          const distributionData = node.data as DistributionNodeData;
+
+          if (!distributionData.carbonFactor) {
+            updatedData.carbonFactor = 0.2; // 默认运输碳因子
+          }
+
+          if (!distributionData.startPoint) {
+            updatedData.startPoint = '起点';
+          }
+
+          if (!distributionData.endPoint) {
+            updatedData.endPoint = '终点';
+          }
+
+          if (!distributionData.transportationDistance) {
+            updatedData.transportationDistance = 100; // 默认运输距离
+          }
+
+          break;
+        }
+
+        case '产品使用': {
+          const usageData = node.data as UsageNodeData;
+
+          if (!usageData.lifespan) {
+            updatedData.lifespan = 5; // 默认使用寿命
+          }
+
+          if (!usageData.energyConsumptionPerUse) {
+            updatedData.energyConsumptionPerUse = 0.5; // 默认每次使用能耗
+          }
+
+          if (!usageData.usageFrequency) {
+            updatedData.usageFrequency = 365; // 默认每年使用次数
+          }
+
+          break;
+        }
+
+        case '废弃处置': {
+          const disposalData = node.data as DisposalNodeData;
+
+          if (!disposalData.recyclingRate) {
+            updatedData.recyclingRate = 80; // 默认回收率
+          }
+
+          if (!disposalData.landfillPercentage) {
+            updatedData.landfillPercentage = 10; // 默认填埋比例
+          }
+
+          if (!disposalData.incinerationPercentage) {
+            updatedData.incinerationPercentage = 10; // 默认焚烧比例
+          }
+
+          break;
+        }
+      }
+
+
+      // 更新验证状态
+      const randomNumber = Math.random();
+
+      if (randomNumber < 0.8) {
+        updatedData.verificationStatus = '内部验证';
+      } else {
+        updatedData.verificationStatus = '未验证';
+      }
+
+      const randomNumber2 = Math.random();
+
+      if (randomNumber2 < 0.8) {
+        updatedData.carbonFactordataSource = '数据库匹配';
+      } else {
+        updatedData.carbonFactordataSource = 'AI补充';
+      }
+
+      if (randomNumber2 > 0.3) {
+        updatedData.activityScorelevel = '高';
+      } 
+      else if (randomNumber2 > 0.15) {
+        updatedData.activityScorelevel = '中';
+      }
+      else {
+        updatedData.activityScorelevel = '低';
+      }
+      
+      return {
+        ...node,
+        data: updatedData
+      };
+    
+    });
+
+    setNodes(updatedNodes);
+    calculateAiSummary(); // 重新计算AI分析结果
+  }, [nodes, setNodes, calculateAiSummary]);
+
+
+
 
   return (
     <div className="editor-layout">
@@ -859,7 +1580,17 @@ const CarbonFlowInner = () => {
             {isFullscreen ? '退出全屏' : '全屏查看'}
           </Button>
           <Button onClick={toggleAiSummaryExpand}>
-            {aiSummary.isExpanded ? '收起 AI 分析' : '展开 AI 分析'}
+            {aiSummary.isExpanded ? '收起 AI 打分' : '展开 AI 打分'}
+          </Button>
+          <Button 
+            onClick={autoCompleteMissingFields}
+            style={{ 
+              backgroundColor: '#52c41a',
+              color: 'white',
+              marginLeft: '8px'
+            }}
+          >
+            一键AI补全
           </Button>
           <Button 
             onClick={() => {
@@ -878,7 +1609,6 @@ const CarbonFlowInner = () => {
       </div>
       <div className="main-content">
         <div className="editor-sider" style={{ width: siderWidth }}>
-          {renderAiSummary()}
           <div className="file-manager">
             <h3>节点类型</h3>
             <div className="node-types">
@@ -888,7 +1618,7 @@ const CarbonFlowInner = () => {
                   className="draggable-file"
                   draggable
                   onDragStart={(e) => {
-                    e.dataTransfer.setData('application/carbonflow', type);
+                    e.dataTransfer.setData('application/carbonflow', label);
                   }}
                 >
                   {label}
@@ -901,6 +1631,10 @@ const CarbonFlowInner = () => {
             <div className="resizer-handle" />
           </div>
         </div>
+        <div className="ai-summary-floating-container">
+           {renderAiSummary()}
+        </div>
+
         <div className="editor-content">
           <div className="reactflow-wrapper">
             <ReactFlow
@@ -928,20 +1662,19 @@ const CarbonFlowInner = () => {
                   <NodeProperties
                     node={selectedNode}
                     onClose={() => setSelectedNode(null)}
-                    onUpdate={(updatedNode) => {
-                      setNodes((nds) =>
-                        nds.map((node) =>
-                          node.id === updatedNode.id ? { ...node, data: { ...node.data, ...updatedNode } } : node
-                        )
-                      );
-                    }}
+                    setNodes={setNodes}
+                    setSelectedNode={setSelectedNode}
+                    updateAiSummary={calculateAiSummary}
                   />
                 </Panel>
               )}
+              
             </ReactFlow>
           </div>
         </div>
+        
       </div>
+      
     </div>
   );
 };
