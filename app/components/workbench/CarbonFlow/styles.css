@@ -717,20 +717,28 @@ input[type="number"].node-properties-input:focus {
   }
 }
 
-/* 修复Select下拉菜单样式 */
+/* 修复下拉菜单样式 */
 .ant-select-dropdown {
-  background: rgba(10, 25, 47, 0.95) !important;
-  backdrop-filter: blur(10px) !important;
+  background: rgba(16, 32, 61, 0.98) !important;
+  backdrop-filter: blur(20px) !important;
   border: 1px solid rgba(100, 255, 218, 0.3) !important;
   border-radius: 8px !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(100, 255, 218, 0.2) !important;
-  color: #e6f1ff !important;
+  padding: 8px 0 !important;
+  z-index: 9999 !important;
+  position: fixed !important;
 }
 
+/* 修复下拉菜单选项样式 */
 .ant-select-item {
+  padding: 12px 16px !important;
   color: #e6f1ff !important;
   background: transparent !important;
   transition: all 0.2s !important;
+  line-height: 1.5 !important;
+  font-size: 14px !important;
+  margin: 0 !important;
+  border: none !important;
 }
 
 .ant-select-item:hover {
@@ -747,248 +755,67 @@ input[type="number"].node-properties-input:focus {
   background: rgba(100, 255, 218, 0.15) !important;
 }
 
-.ant-select-selection-item {
-  color: #e6f1ff !important;
-  line-height: 48px !important;
-  display: flex !important;
-  align-items: center !important;
-}
-
-.ant-select-selection-placeholder {
-  color: rgba(230, 241, 255, 0.5) !important;
-  line-height: 48px !important;
-  display: flex !important;
-  align-items: center !important;
-}
-
-.ant-select-selection-search-input {
-  background: transparent !important;
-  color: #e6f1ff !important;
-}
-
-.ant-select-arrow {
-  color: rgba(100, 255, 218, 0.5) !important;
-}
-
 /* 修复Select组件样式 */
 .ant-select {
-  background: rgba(10, 25, 47, 0.8) !important;
-  border: 1px solid rgba(100, 255, 218, 0.3) !important;
-  border-radius: 8px !important;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
-  height: 48px !important;
-  display: flex !important;
-  align-items: center !important;
   width: 100% !important;
-}
-
-.ant-select:not(.ant-select-disabled):hover {
-  border-color: rgba(100, 255, 218, 0.5) !important;
-  background: rgba(16, 32, 61, 0.9) !important;
-  color: #64ffda !important;
-}
-
-.ant-select-focused:not(.ant-select-disabled).ant-select:not(.ant-select-customize-input) .ant-select-selector {
-  border-color: #64ffda !important;
-  box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
-  background: rgba(16, 32, 61, 0.95) !important;
-  color: #64ffda !important;
 }
 
 .ant-select-selector {
   background: rgba(10, 25, 47, 0.8) !important;
-  border: none !important;
+  border: 1px solid rgba(100, 255, 218, 0.3) !important;
   border-radius: 8px !important;
-  padding: 0 12px !important;
   height: 48px !important;
+  padding: 0 16px !important;
   display: flex !important;
   align-items: center !important;
   width: 100% !important;
+  /* 宽度为120% */
+  min-width: 362px !important;
+  /* 往左移 */
+  margin-left: -20px !important;
+}
+
+.ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+  border-color: rgba(100, 255, 218, 0.5) !important;
+  background: rgba(16, 32, 61, 0.9) !important;
+}
+
+.ant-select-focused:not(.ant-select-disabled) .ant-select-selector {
+  border-color: #64ffda !important;
+  box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
+  background: rgba(16, 32, 61, 0.95) !important;
 }
 
 .ant-select-selection-item {
   color: #e6f1ff !important;
   line-height: 48px !important;
-  display: flex !important;
-  align-items: center !important;
 }
 
 .ant-select-selection-placeholder {
   color: rgba(230, 241, 255, 0.5) !important;
   line-height: 48px !important;
-  display: flex !important;
-  align-items: center !important;
-}
-
-.ant-select-selection-search-input {
-  background: transparent !important;
-  color: #e6f1ff !important;
 }
 
 .ant-select-arrow {
   color: rgba(100, 255, 218, 0.5) !important;
+  font-size: 12px !important;
+  right: 16px !important;
 }
 
-/* 修复DatePicker样式 */
-.ant-picker {
-  background: rgba(10, 25, 47, 0.8) !important;
-  border: 1px solid rgba(100, 255, 218, 0.3) !important;
-  border-radius: 8px !important;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
-  height: 48px !important;
-  display: flex !important;
-  align-items: center !important;
-  width: 100% !important;
+/* 修复下拉菜单内容溢出问题 */
+.ant-select-dropdown-placement-bottomLeft {
+  margin-top: 4px !important;
 }
 
-.ant-picker:hover {
-  border-color: rgba(100, 255, 218, 0.5) !important;
-  background: rgba(16, 32, 61, 0.9) !important;
+.ant-select-dropdown .ant-select-item-option-content {
+  white-space: normal !important;
+  word-break: break-word !important;
+  line-height: 1.5 !important;
 }
 
-.ant-picker-focused {
-  border-color: #64ffda !important;
-  box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
-  background: rgba(16, 32, 61, 0.95) !important;
-}
-
-.ant-picker-input {
-  display: flex !important;
-  align-items: center !important;
-  height: 100% !important;
-  width: 100% !important;
-}
-
-.ant-picker-input > input {
-  color: #e6f1ff !important;
-  line-height: 48px !important;
-  height: 100% !important;
-}
-
-.ant-picker-suffix {
-  color: rgba(100, 255, 218, 0.5) !important;
-}
-
-.ant-picker-dropdown {
-  background: rgba(10, 25, 47, 0.95) !important;
-  backdrop-filter: blur(10px) !important;
-  border: 1px solid rgba(100, 255, 218, 0.3) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(100, 255, 218, 0.2) !important;
-}
-
-.ant-picker-panel {
-  background: transparent !important;
-  border: none !important;
-}
-
-.ant-picker-header {
-  color: #e6f1ff !important;
-  border-bottom: 1px solid rgba(100, 255, 218, 0.2) !important;
-}
-
-.ant-picker-content th {
-  color: rgba(100, 255, 218, 0.7) !important;
-}
-
-.ant-picker-cell {
-  color: #e6f1ff !important;
-}
-
-.ant-picker-cell-in-view {
-  color: #e6f1ff !important;
-}
-
-.ant-picker-cell:hover:not(.ant-picker-cell-selected):not(.ant-picker-cell-range-start):not(.ant-picker-cell-range-end):not(.ant-picker-cell-range-hover-start):not(.ant-picker-cell-range-hover-end) .ant-picker-cell-inner {
-  background: rgba(100, 255, 218, 0.1) !important;
-  color: #64ffda !important;
-}
-
-.ant-picker-cell-selected .ant-picker-cell-inner {
-  background: rgba(100, 255, 218, 0.2) !important;
-  color: #64ffda !important;
-}
-
-.ant-picker-today-btn {
-  color: #64ffda !important;
-}
-
-.ant-picker-today-btn:hover {
-  color: #40a9ff !important;
-}
-
-/* 修复Input样式 */
-.ant-input {
-  background: rgba(10, 25, 47, 0.8) !important;
-  border: 1px solid rgba(100, 255, 218, 0.3) !important;
-  border-radius: 8px !important;
-  color: #e6f1ff !important;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
-  height: 48px !important;
-  line-height: 48px !important;
-  padding: 0 16px !important;
-  display: flex !important;
-  align-items: center !important;
-  width: 100% !important;
-}
-
-.ant-input:hover,
-.ant-select:hover .ant-select-selector,
-.ant-picker:hover {
-  background: rgba(16, 32, 61, 0.9) !important;
-  border-color: #64ffda !important;
-  color: #64ffda !important;
-}
-
-.ant-input:focus,
-.ant-select-focused .ant-select-selector,
-.ant-picker-focused {
-  background: rgba(16, 32, 61, 0.95) !important;
-  border-color: #64ffda !important;
-  color: #64ffda !important;
-  box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
-}
-
-.ant-input::placeholder {
-  color: rgba(230, 241, 255, 0.5) !important;
-}
-
-/* 修复Form样式 */
-.ant-form-item-label > label {
-  color: #e6f1ff !important;
-}
-
-.ant-form-item-required::before {
-  color: #64ffda !important;
-}
-
-/* 修复Button样式 */
-.ant-btn {
-  background: rgba(10, 25, 47, 0.8) !important;
-  border: 1px solid rgba(100, 255, 218, 0.3) !important;
-  border-radius: 8px !important;
-  color: #e6f1ff !important;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
-}
-
-.ant-btn:hover {
-  background: rgba(16, 32, 61, 0.9) !important;
-  border-color: rgba(100, 255, 218, 0.5) !important;
-  box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
-  color: #64ffda !important;
-}
-
-.ant-btn-primary {
-  background: rgba(100, 255, 218, 0.1) !important;
-  border-color: rgba(100, 255, 218, 0.5) !important;
-  box-shadow: 0 0 10px rgba(100, 255, 218, 0.2) !important;
-  color: #64ffda !important;
-}
-
-.ant-btn-primary:hover {
-  background: rgba(100, 255, 218, 0.3) !important;
-  box-shadow: 0 0 20px rgba(100, 255, 218, 0.4) !important;
-  color: #940000 !important;
+/* 确保下拉菜单显示在其他元素之上 */
+.ant-select-dropdown {
+  position: fixed !important;
 }
 
 /* 基于activityScore的节点背景颜色 */
