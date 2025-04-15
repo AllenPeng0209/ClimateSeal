@@ -117,7 +117,7 @@ export const ChatImpl = memo(
     useShortcuts();
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
+    const [chatStarted, setChatStarted] = useState(true);
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
     const [imageDataList, setImageDataList] = useState<string[]>([]);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -235,7 +235,7 @@ export const ChatImpl = memo(
     const TEXTAREA_MIN_HEIGHT = 48;
 
     useEffect(() => {
-      chatStore.setKey('started', initialMessages.length > 0);
+      chatStore.setKey('started', true);
     }, []);
 
     useEffect(() => {
@@ -282,17 +282,12 @@ export const ChatImpl = memo(
     }, [input, textareaRef]);
 
     const runAnimation = async () => {
-      if (chatStarted) {
-        return;
-      }
-
       await Promise.all([
         animate('#examples', { opacity: 0, display: 'none' }, { duration: 0.1 }),
         animate('#intro', { opacity: 0, flex: 1 }, { duration: 0.2, ease: cubicEasingFn }),
       ]);
 
       chatStore.setKey('started', true);
-
       setChatStarted(true);
     };
 
