@@ -116,8 +116,6 @@ export const getSystemPromptCarbonChinese = (
 
 #### 3.4 操作格式规范
 
-增加内容
-
 ##### 3.4.1 基本操作格式
 // CarbonFlowAction 接口定义
 // interface CarbonFlowAction {
