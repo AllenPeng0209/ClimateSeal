@@ -32,7 +32,7 @@ export interface SupabaseAction extends BaseAction {
 
 export interface CarbonFlowAction extends BaseAction {
   type: 'carbonflow';
-  operation: 'add' | 'update' | 'delete' | 'query' | 'connect' | 'layout' | 'calculate';
+  operation: string;
   nodeType?: string;
   nodeId?: string;
   source?: string;
@@ -41,6 +41,7 @@ export interface CarbonFlowAction extends BaseAction {
   content: string;
   description?: string;
 }
+
 
 export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction;
 

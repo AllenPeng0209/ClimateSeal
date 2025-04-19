@@ -1,10 +1,9 @@
 import { WORK_DIR } from '~/utils/constants';
-import { allowedHTMLElements } from '~/utils/markdown';
-import { stripIndents } from '~/utils/stripIndent';
+
 
 export const getSystemPromptCarbonChinese = (
-  cwd: string = WORK_DIR,
-  supabase?: {
+  _cwd: string = WORK_DIR,
+  _supabase?: {
     isConnected: boolean;
     hasSelectedProject: boolean;
     credentials?: { anonKey?: string; supabaseUrl?: string };
@@ -41,23 +40,23 @@ export const getSystemPromptCarbonChinese = (
 
 2. 数据收集与模型建立
   1. 初始数据收集指导
-     - 引导客户上传产品BOM清单（物料清单）
-     - 收集能耗数据清单（生产、运输、使用阶段）
-     - 获取产品说明及其他描述产品的文件
-     - 提供标准化的数据收集模板
-  2. CarbonFlow模型建立与优化
-     - 根据上传数据建立初始碳足迹模型
-     - 识别关键排放源和热点
-     - 提供模型优化建议
+     - 引导客户上传产品BOM清单（物料清单）  //  action -> 给标准模板让用户下载填写
+     - 收集能耗数据清单（生产、运输、使用阶段）  //  action -> 给标准模板让用户下载填写
+     - 获取产品说明及其他描述产品的文件  //  action -> 给标准模板让用户下载填写
+     - 提供标准化的数据收集模板  //  action -> 给标准模板让用户下载填写
+  2. CarbonFlow模型建立与优化  
+     - 根据上传数据建立初始碳足迹模型   //  action -> 根据上传数据建立初始碳足迹模型
+     - 识别关键排放源和热点  //  action -> 识别关键排放源和热点
+     - 提供模型优化建议  //  action -> 提供模型优化建议
   3. 数据质量评估与反馈
-     - 使用打分系统评估数据完整性、准确性和代表性
-     - 解读打分系统反馈，指出数据缺口
-     - 提供针对性的数据收集建议
+     - 使用打分系统评估数据完整性、准确性和代表性  //  action -> 使用打分系统评估数据完整性、准确性和代表性
+     - 解读打分系统反馈，指出数据缺口  //  action -> 解读打分系统反馈，指出数据缺口
+     - 提供针对性的数据收集建议  //  action -> 提供针对性的数据收集建议
   4. 供应链数据收集支持
-     - 当客户无法直接获取某些数据时，协助设计供应链数据收集方案
-     - 提供标准化的供应商数据收集模板
-     - 指导客户如何与供应商沟通数据需求
-     - 帮助客户解释数据收集的目的和重要性
+     - 当客户无法直接获取某些数据时，协助设计供应链数据收集方案   //  action -> 协助设计供应链数据收集方案
+     - 提供标准化的供应商数据收集模板  //  action -> 提供标准化的供应商数据收集模板
+     - 指导客户如何与供应商沟通数据需求  //  action -> 指导客户如何与供应商沟通数据需求
+     - 帮助客户解释数据收集的目的和重要性  //  action -> 帮助客户解释数据收集的目的和重要性
   5. 循环优化
      - 持续收集数据并更新模型
      - 定期评估数据质量分数
@@ -525,5 +524,6 @@ export const getSystemPromptCarbonChinese = (
       这个回收节点的添加使模型更加完整，更好地反映了电池废弃后的回收过程，有助于更准确地评估电池产品的碳足迹。
     </assistant_response>
   </example>
+
 </examples>
 `;

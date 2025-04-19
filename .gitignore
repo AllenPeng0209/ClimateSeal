@@ -46,6 +46,15 @@ app/commit.json
 changelogUI.md
 docs/instructions/Roadmap.md
 .cursorrules
-*.md
+# *.md  # 注释掉这一行，允许跟踪markdown文件
+# 或者替换为更具体的规则
+# 例如：忽略根目录的md文件，但不忽略docs目录的
+/*.md
+!README.md
+!CONTRIBUTING.md
+!LICENSE.md
+!FAQ.md
+!changelog.md
+!PROJECT.md
 .qodo
 .vercel
