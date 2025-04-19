@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Typography,
   Card,
@@ -18,6 +18,12 @@ import {
   Upload,
   Badge,
   Tooltip,
+  Table,
+  Modal,
+  Drawer,
+  Tag,
+  Alert,
+  Spin,
 } from 'antd';
 import {
   SettingOutlined,
@@ -39,6 +45,9 @@ import {
   DatabaseOutlined,
   DesktopOutlined,
   InfoCircleOutlined,
+  DeleteOutlined,
+  PlusOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import './SettingsSection.css';
 
@@ -47,20 +56,186 @@ const { Option } = Select;
 const { Panel } = Collapse;
 const { Password } = Input;
 
+const customPanelStyle = {
+  borderRadius: '8px',
+  marginBottom: '16px',
+  border: '1px solid var(--carbon-border)',
+  overflow: 'hidden',
+};
+
+interface UserType {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  status: boolean;
+  createTime: string;
+  updateTime: string;
+  updatedBy: string;
+  isEmailVerified: boolean;
+}
+
 const SettingsSection: React.FC = () => {
   const [form] = Form.useForm();
+  const [userForm] = Form.useForm();
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
+  const [userDrawerVisible, setUserDrawerVisible] = useState(false);
+  const [userDrawerMode, setUserDrawerMode] = useState<'create' | 'edit'>('create');
+  const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
+  const [users, setUsers] = useState<UserType[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [roles, setRoles] = useState<{ value: string; label: string; }[]>([]);
   
   const handleSaveSettings = (sectionKey: string) => {
     message.success(`${sectionKey}设置已保存`);
   };
 
-  const customPanelStyle = {
-    borderRadius: '8px',
-    marginBottom: '16px',
-    border: '1px solid var(--carbon-border)',
-    overflow: 'hidden',
+  // 获取用户列表
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/users');
+      if (!response.ok) {
+        throw new Error('获取用户列表失败');
+      }
+      const data = await response.json();
+      setUsers(data as UserType[]);
+    } catch (error) {
+      message.error('获取用户列表失败');
+      console.error('获取用户列表错误:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 获取角色列表
+  const fetchRoles = async () => {
+    try {
+      const response = await fetch('/api/roles');
+      if (!response.ok) {
+        throw new Error('获取角色列表失败');
+      }
+      const data = await response.json();
+      setRoles(data as { value: string; label: string; }[]);
+    } catch (error) {
+      message.error('获取角色列表失败');
+      console.error('获取角色列表错误:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+    fetchRoles();
+  }, []);
+
+  // 发送验证邮件
+  const sendVerificationEmail = async (email: string) => {
+    try {
+      const response = await fetch('/api/users/send-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('发送验证邮件失败');
+      }
+      
+      message.success(`验证邮件已发送至 ${email}`);
+    } catch (error) {
+      message.error('发送验证邮件失败');
+      console.error('发送验证邮件错误:', error);
+    }
+  };
+
+  // 用户管理相关函数
+  const handleAddUser = () => {
+    setUserDrawerMode('create');
+    userForm.resetFields();
+    setUserDrawerVisible(true);
+  };
+
+  const handleEditUser = (record: UserType) => {
+    setUserDrawerMode('edit');
+    setSelectedUser(record);
+    userForm.setFieldsValue(record);
+    setUserDrawerVisible(true);
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('删除用户失败');
+      }
+
+      message.success('用户已删除');
+      fetchUsers(); // 重新获取用户列表
+    } catch (error) {
+      message.error('删除用户失败');
+      console.error('删除用户错误:', error);
+    }
+  };
+
+  const handleUserStatusChange = async (userId: string, enabled: boolean) => {
+    try {
+      const response = await fetch(`/api/users/${userId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: enabled }),
+      });
+
+      if (!response.ok) {
+        throw new Error('更新用户状态失败');
+      }
+
+      message.success(`用户已${enabled ? '启用' : '禁用'}`);
+      fetchUsers(); // 重新获取用户列表
+    } catch (error) {
+      message.error('更新用户状态失败');
+      console.error('更新用户状态错误:', error);
+    }
+  };
+
+  const handleSaveUser = async () => {
+    try {
+      const values = await userForm.validateFields();
+      const url = userDrawerMode === 'create' ? '/api/users' : `/api/users/${selectedUser?.id}`;
+      const method = userDrawerMode === 'create' ? 'POST' : 'PUT';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(values),
+      });
+
+      if (!response.ok) {
+        throw new Error(userDrawerMode === 'create' ? '创建用户失败' : '更新用户失败');
+      }
+
+      if (userDrawerMode === 'create') {
+        await sendVerificationEmail(values.email);
+      }
+
+      message.success(userDrawerMode === 'create' ? '用户创建成功，已发送验证邮件' : '用户更新成功');
+      setUserDrawerVisible(false);
+      fetchUsers(); // 重新获取用户列表
+    } catch (error) {
+      if (error instanceof Error) {
+        message.error(error.message);
+      }
+      console.error('保存用户错误:', error);
+    }
   };
 
   return (
@@ -74,7 +249,129 @@ const SettingsSection: React.FC = () => {
         bordered={false}
         expandIconPosition="end"
         className="settings-collapse"
+        defaultActiveKey={['users']}
       >
+        {/* 用户管理 */}
+        <Panel 
+          header={
+            <div className="panel-header">
+              <TeamOutlined className="panel-icon" />
+              <span className="panel-title">用户管理</span>
+              <Text type="secondary" className="panel-description">管理系统用户、角色和权限</Text>
+            </div>
+          } 
+          key="users"
+          style={customPanelStyle}
+        >
+          <div style={{ marginBottom: 16 }}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleAddUser}
+              style={{ 
+                backgroundColor: 'var(--carbon-green-primary)',
+                borderColor: 'var(--carbon-green-dark)'
+              }}
+            >
+              新增用户
+            </Button>
+          </div>
+
+          <Table
+            loading={loading}
+            dataSource={users}
+            rowKey="id"
+            columns={[
+              {
+                title: '用户名',
+                dataIndex: 'username',
+                key: 'username',
+              },
+              {
+                title: '邮箱',
+                dataIndex: 'email',
+                key: 'email',
+                render: (email: string, record: UserType) => (
+                  <Space>
+                    {email}
+                    {!record.isEmailVerified && (
+                      <Tag color="warning" icon={<MailOutlined />}>
+                        待验证
+                      </Tag>
+                    )}
+                  </Space>
+                ),
+              },
+              {
+                title: '角色',
+                dataIndex: 'role',
+                key: 'role',
+              },
+              {
+                title: '状态',
+                dataIndex: 'status',
+                key: 'status',
+                render: (status: boolean) => (
+                  <Tag color={status ? 'success' : 'error'}>
+                    {status ? '已启用' : '已禁用'}
+                  </Tag>
+                ),
+              },
+              {
+                title: '创建时间',
+                dataIndex: 'createTime',
+                key: 'createTime',
+              },
+              {
+                title: '更新时间',
+                dataIndex: 'updateTime',
+                key: 'updateTime',
+              },
+              {
+                title: '更新人',
+                dataIndex: 'updatedBy',
+                key: 'updatedBy',
+              },
+              {
+                title: '操作',
+                key: 'action',
+                render: (_, record: UserType) => (
+                  <Space size="middle">
+                    <Button
+                      type="text"
+                      icon={<EditOutlined />}
+                      onClick={() => handleEditUser(record)}
+                    >
+                      编辑
+                    </Button>
+                    {!record.isEmailVerified && (
+                      <Button
+                        type="text"
+                        icon={<MailOutlined />}
+                        onClick={() => sendVerificationEmail(record.email)}
+                      >
+                        重发验证邮件
+                      </Button>
+                    )}
+                    <Switch
+                      checked={record.status}
+                      onChange={(checked) => handleUserStatusChange(record.id, checked)}
+                    />
+                    <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleDeleteUser(record.id)}
+                    >
+                      删除
+                    </Button>
+                  </Space>
+                ),
+              },
+            ]}
+          />
+        </Panel>
+
         {/* 个人资料设置 */}
         <Panel 
           header={
@@ -389,6 +686,73 @@ const SettingsSection: React.FC = () => {
           </Form.Item>
         </Panel>
       </Collapse>
+
+      {/* 用户管理抽屉 */}
+      <Drawer
+        title={userDrawerMode === 'create' ? '新增用户' : '编辑用户'}
+        width={520}
+        open={userDrawerVisible}
+        onClose={() => setUserDrawerVisible(false)}
+        extra={
+          <Space>
+            <Button onClick={() => setUserDrawerVisible(false)}>取消</Button>
+            <Button type="primary" onClick={handleSaveUser}>
+              确定
+            </Button>
+          </Space>
+        }
+      >
+        <Form
+          form={userForm}
+          layout="vertical"
+        >
+          <Form.Item
+            name="username"
+            label="用户名"
+            rules={[
+              { required: true, message: '请输入用户名' },
+              { min: 1, max: 32, message: '用户名长度在1-32个字符之间' },
+              { pattern: /^[\u4e00-\u9fa5a-zA-Z0-9_-]+$/, message: '用户名只能包含中英文、数字、下划线、中划线' },
+            ]}
+          >
+            <Input placeholder="请输入用户名" />
+          </Form.Item>
+
+          <Form.Item
+            name="email"
+            label="邮箱"
+            rules={[
+              { required: true, message: '请输入邮箱' },
+              { type: 'email', message: '请输入有效的邮箱地址' },
+              { min: 1, max: 64, message: '邮箱长度在1-64个字符之间' },
+            ]}
+          >
+            <Input placeholder="请输入邮箱" />
+          </Form.Item>
+
+          <Form.Item
+            name="role"
+            label="角色"
+            rules={[{ required: true, message: '请选择角色' }]}
+          >
+            <Select placeholder="请选择角色">
+              {roles.map(role => (
+                <Option key={role.value} value={role.value}>{role.label}</Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          {userDrawerMode === 'create' && (
+            <Alert
+              message="提示"
+              description="创建用户后，系统将向用户邮箱发送验证邮件。用户需要通过邮箱验证后才能登录系统。"
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
+        </Form>
+      </Drawer>
     </div>
   );
 };

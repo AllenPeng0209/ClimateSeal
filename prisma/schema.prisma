@@ -1,0 +1,70 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 角色表
+model Role {
+  id          String    @id @default(cuid())
+  name        String
+  code        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  users       User[]
+  permissions Permission[]
+}
+
+// 用户表
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  avatar        String?
+  roleId        String?
+  organizationId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  role          Role?     @relation(fields: [roleId], references: [id])
+  organization  Organization? @relation(fields: [organizationId], references: [id])
+}
+
+// 邮箱验证表
+model EmailVerification {
+  id         String   @id @default(uuid())
+  email      String   // 邮箱
+  token      String   @unique // 验证token
+  expireTime DateTime // 过期时间
+  createTime DateTime @default(now()) // 创建时间
+  isUsed     Boolean  @default(false) // 是否已使用
+
+  @@map("email_verifications")
+}
+
+model Organization {
+  id          String    @id @default(cuid())
+  name        String
+  code        String    @unique
+  description String?
+  parentId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  users       User[]
+  parent      Organization?  @relation("OrganizationHierarchy", fields: [parentId], references: [id])
+  children    Organization[] @relation("OrganizationHierarchy")
+}
+
+model Permission {
+  id          String    @id @default(cuid())
+  name        String
+  code        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  roles       Role[]
+} 
