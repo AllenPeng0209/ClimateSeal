@@ -1,12 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Layout, Menu } from 'antd';
 import { Link, Outlet, useLocation } from '@remix-run/react';
 import {
   DashboardOutlined,
   CloudOutlined,
   BookOutlined,
+  TeamOutlined,
+  DownloadOutlined,
+  FileSearchOutlined,
+  AppstoreOutlined,
+  HistoryOutlined,
+  ShopOutlined,
+  RobotOutlined,
   FileTextOutlined,
-  SearchOutlined,
+  SettingOutlined,
+  CheckSquareOutlined,
 } from '@ant-design/icons';
 import './DashboardLayout.css';
 
@@ -18,32 +26,62 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const location = useLocation();
+  const [collapsed, setCollapsed] = useState(false);
 
   const menuItems = [
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,
-      label: <Link to="/dashboard">仪表板</Link>,
+      label: <Link to="/dashboard">工作台</Link>,
     },
     {
-      key: '/dashboard/emission',
+      key: '/dashboard/tasks',
+      icon: <CheckSquareOutlined />,
+      label: <Link to="/dashboard/tasks">任务管理</Link>,
+    },
+    {
+      key: 'carbon-footprint',
       icon: <CloudOutlined />,
-      label: <Link to="/dashboard/emission">碳排放管理</Link>,
+      label: '产品碳足迹',
+      children: [
+        {
+          key: '/dashboard/products',
+          label: <Link to="/dashboard/products">产品管理</Link>,
+        },
+        {
+          key: '/dashboard/ai-modeling',
+          label: <Link to="/dashboard/ai-modeling">AI建模核算</Link>,
+        },
+        {
+          key: '/dashboard/carbon-results',
+          label: <Link to="/dashboard/carbon-results">碳足迹结果生成</Link>,
+        },
+      ],
     },
     {
-      key: '/dashboard/industry',
-      icon: <BookOutlined />,
-      label: <Link to="/dashboard/industry">行业知识库</Link>,
+      key: '/dashboard/suppliers',
+      icon: <ShopOutlined />,
+      label: <Link to="/dashboard/suppliers">供应商管理</Link>,
     },
     {
-      key: '/dashboard/policy',
-      icon: <FileTextOutlined />,
-      label: <Link to="/dashboard/policy">政策知识库</Link>,
+      key: '/dashboard/ai-knowledge',
+      icon: <RobotOutlined />,
+      label: <Link to="/dashboard/ai-knowledge">AI知识库</Link>,
     },
     {
-      key: '/dashboard/carbon-factor',
-      icon: <SearchOutlined />,
-      label: <Link to="/dashboard/carbon-factor">碳因子查询</Link>,
+      key: '/dashboard/organization',
+      icon: <TeamOutlined />,
+      label: <Link to="/dashboard/organization">组织管理</Link>,
+    },
+    {
+      key: '/dashboard/downloads',
+      icon: <DownloadOutlined />,
+      label: <Link to="/dashboard/downloads">下载管理</Link>,
+    },
+    {
+      key: '/dashboard/logs',
+      icon: <HistoryOutlined />,
+      label: <Link to="/dashboard/logs">操作日志</Link>,
     },
   ];
 
@@ -56,10 +94,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         </div>
       </Header>
       <Layout>
-        <Sider width={200} className="dashboard-sider">
+        <Sider 
+          width={220} 
+          className="dashboard-sider"
+          collapsible
+          collapsed={collapsed}
+          onCollapse={(value) => setCollapsed(value)}
+        >
           <Menu
             mode="inline"
             selectedKeys={[location.pathname]}
+            defaultOpenKeys={['carbon-footprint']}
             style={{ height: '100%', borderRight: 0 }}
             items={menuItems}
           />

@@ -8,71 +8,59 @@
   align-items: center;
   padding: 0 24px;
   background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1;
 }
 
 .logo {
   font-size: 18px;
-  font-weight: 600;
-  color: var(--carbon-green-dark);
+  font-weight: bold;
+  color: #1890ff;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
 }
 
 .user-info {
-  color: var(--carbon-text);
+  margin-left: 16px;
+  color: rgba(0, 0, 0, 0.65);
 }
 
 .dashboard-sider {
   background: #fff;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1;
+}
+
+.dashboard-sider .ant-menu {
+  border-right: none;
+}
+
+.dashboard-sider .ant-menu-item {
+  margin: 0;
+  width: 100%;
+}
+
+.dashboard-sider .ant-menu-submenu-title {
+  margin: 0;
+  width: 100%;
 }
 
 .dashboard-content {
-  background: #fff;
-  padding: 24px;
-  min-height: 280px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: #f0f2f5;
+  min-height: calc(100vh - 64px);
+  overflow: auto;
 }
 
-.ant-menu-item {
-  margin: 4px 0 !important;
-}
-
-.ant-menu-item-selected {
-  background-color: var(--carbon-green-light) !important;
-  color: var(--carbon-green-dark) !important;
-}
-
-.ant-menu-item:hover {
-  color: var(--carbon-green-primary) !important;
-}
-
-@media screen and (max-width: 768px) {
-  .dashboard-header {
-    padding: 0 16px;
-  }
-
+/* 响应式布局 */
+@media (max-width: 768px) {
   .dashboard-sider {
     position: fixed;
+    height: 100vh;
     left: 0;
-    top: 64px;
-    bottom: 0;
+    top: 0;
     z-index: 1000;
-    transform: translateX(-100%);
-    transition: transform 0.3s;
-  }
-
-  .dashboard-sider.ant-layout-sider-collapsed {
-    transform: translateX(0);
-  }
-
-  .dashboard-content {
-    padding: 16px;
   }
 } 

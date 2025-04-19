@@ -1,444 +1,243 @@
-import { json, type LoaderFunctionArgs, type MetaFunction } from "@remix-run/node";
-import { useLoaderData, useSearchParams, useRevalidator, useNavigate } from "@remix-run/react";
-import { useState } from "react";
-import { Modal, message, Layout, Menu, Button, Typography, Space, Dropdown, Avatar } from "antd";
-import { ensureUUID } from "~/utils/uuid";
-import type { Workflow, VendorTask, VendorDataTask } from "~/types/dashboard";
-import { workflowTasks, vendorDataTasks, carbonReductionTasks, carbonTrendData } from "~/utils/mockData";
-import DashboardSection from "~/components/dashboard/sections/DashboardSection";
-import WorkbenchSection from "~/components/dashboard/sections/WorkbenchSection";
-import PolicyKnowledgeSection from "~/components/dashboard/sections/PolicyKnowledgeSection";
-import SettingsSection from "~/components/dashboard/sections/SettingsSection";
-import VendorDataSection from "~/components/dashboard/sections/VendorDataSection";
-import CarbonFactorSearchSection from "~/components/dashboard/sections/CarbonFactorSearchSection";
-import EnterpriseKnowledgeSection from "~/components/dashboard/sections/EnterpriseKnowledgeSection";
-import IndustryKnowledgeSection from "~/components/dashboard/sections/IndustryKnowledgeSection";
-import "~/styles/dashboard.css";
+import { json, type LoaderFunctionArgs } from "@remix-run/node";
+import { useLoaderData, useNavigate } from "@remix-run/react";
+import { Layout, Typography, Tabs, Input, Card, List, Avatar, Table } from "antd";
 import { useAuthContext } from "~/contexts/AuthContext";
-import {
-  LogoutOutlined,
-  DashboardOutlined,
-  BarChartOutlined,
-  FileTextOutlined,
-  SettingOutlined,
-  TeamOutlined,
-  DatabaseOutlined,
-  GlobalOutlined,
-  ExperimentOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  UserOutlined,
-  BulbOutlined,
-  ToolOutlined,
-  BookOutlined,
-} from "@ant-design/icons";
+import DashboardLayout from "~/components/dashboard/DashboardLayout";
+import "~/styles/workbench.css";
 
-const { Title, Paragraph, Text } = Typography;
-
-export const meta: MetaFunction = () => {
-  return [
-    { title: "仪表板 - Climate Seal" },
-    { name: "description", content: "Climate Seal碳足迹管理系统仪表板" },
-  ];
-};
+const { Content } = Layout;
+const { Title, Text } = Typography;
+const { TextArea } = Input;
+const { TabPane } = Tabs;
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const url = new URL(request.url);
-  const searchQuery = url.searchParams.get("q") || "";
-  const industryFilter = url.searchParams.get("industry") || "";
-
-  // TODO: 从后端获取实际数据
-  const workflows = [
+  // 获取进行中的碳足迹核算任务
+  const carbonFootprintTasks = [
     {
-      id: "wf-1",
-      name: "碳足迹评估工作流",
-      status: "active" as const,
-      industry: "制造业",
-      type: "assessment" as const,
-      createdAt: "2024-04-01",
-      updatedAt: "2024-04-07"
+      id: "task-1",
+      serialNumber: 1,
+      name: "产品A碳足迹核算",
+      product: "产品A",
+      aiAgent: "ISO14067专家",
+      status: "进行中",
+      updatedAt: "2024-04-07 14:30:00"
     },
-    {
-      id: "wf-2",
-      name: "供应商数据收集",
-      status: "pending" as const,
-      industry: "制造业",
-      type: "collection" as const,
-      createdAt: "2024-04-02",
-      updatedAt: "2024-04-07"
-    }
   ];
 
-  const products = [
+  // 获取其他待办任务
+  const otherTasks = [
     {
-      id: "p-1",
-      name: "产品A",
-      carbonFootprint: 100,
-      unit: "tCO2e",
-      category: "电子产品",
-      reductionTarget: 20,
-      progress: 65
+      id: "other-1",
+      serialNumber: 1,
+      name: "供应商数据审核",
+      type: "数据审核",
+      status: "进行中",
+      updatedAt: "2024-04-07 15:00:00"
     },
-    {
-      id: "p-2",
-      name: "产品B",
-      carbonFootprint: 150,
-      unit: "tCO2e",
-      category: "机械设备",
-      reductionTarget: 15,
-      progress: 45
-    }
   ];
 
-  const vendorTasks: VendorDataTask[] = [
+  // 获取历史对话记录
+  const chatHistory = [
     {
-      id: "vt-1",
-      vendor: "供应商A",
-      product: "原材料X",
-      status: "待提交",
-      deadline: "2024-04-15",
-      submittedAt: null,
-      dataQuality: null
+      id: "chat-1",
+      title: "产品A碳足迹分析讨论",
+      timestamp: "2024-04-07 13:00:00"
     },
-    {
-      id: "vt-2",
-      vendor: "供应商B",
-      product: "原材料Y",
-      status: "已提交",
-      deadline: "2024-04-10",
-      submittedAt: "2024-04-08",
-      dataQuality: "良好"
-    }
   ];
 
-  // 过滤工作流
-  const filteredWorkflows = workflows.filter(workflow => {
-    const matchesSearch = workflow.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesIndustry = !industryFilter || workflow.industry === industryFilter;
-    return matchesSearch && matchesIndustry;
-  });
+  // AI Agents数据
+  const aiAgents = [
+    {
+      id: "agent-1",
+      name: "ISO14067专家",
+      icon: "🌍",
+      description: "专业的碳足迹核算专家，帮助您完成产品碳足迹核算"
+    },
+    {
+      id: "agent-2",
+      name: "欧盟新电池法专家",
+      icon: "🔋",
+      description: "欧盟新电池法规专家，协助您完成电池碳足迹核算"
+    },
+    {
+      id: "agent-3",
+      name: "EPD专家",
+      icon: "📊",
+      description: "环境产品声明专家，帮助您完成EPD报告编制"
+    }
+  ];
 
   return json({
-    workflows: filteredWorkflows,
-    products,
-    vendorTasks,
-    workflowTasks,
-    carbonReductionTasks,
-    carbonTrendData,
-    searchQuery,
-    industryFilter
+    carbonFootprintTasks,
+    otherTasks,
+    chatHistory,
+    aiAgents
   });
 }
 
 export default function Dashboard() {
-  const { 
-    workflows,
-    products,
-    vendorTasks,
-    workflowTasks,
-    carbonReductionTasks,
-    carbonTrendData,
-    searchQuery,
-    industryFilter
-  } = useLoaderData<typeof loader>();
-  
+  const { carbonFootprintTasks, otherTasks, chatHistory, aiAgents } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const { user, logout } = useAuthContext();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const revalidator = useRevalidator();
-  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [workflowToDelete, setWorkflowToDelete] = useState<Workflow | null>(null);
-  const [selectedKey, setSelectedKey] = useState("dashboard");
-  const [collapsed, setCollapsed] = useState(false);
+  const { user } = useAuthContext();
 
-  const handleLogout = async () => {
-    await logout();
-    navigate("/login");
-  };
-
-  const navigateToWorkflow = (id: string, route: "workflow" | "report") => {
-    // 如果是创建新工作流，直接导航
-    if (id === "new") {
-      navigate(`/${route}/new`);
-      return;
-    }
-
-    // 对于其他情况，验证UUID格式
-    const formattedId = ensureUUID(id);
-    if (!formattedId) {
-      message.error("无效的工作流ID格式");
-      return;
-    }
-    
-    navigate(`/${route}/${formattedId}`);
-  };
-
-  const handleDeleteWorkflow = async (workflow: Workflow) => {
-    try {
-      // TODO: 实现删除工作流的action
-      message.success(`工作流 "${workflow.name}" 已删除`);
-      revalidator.revalidate();
-      setDeleteModalVisible(false);
-    } catch (error) {
-      console.error("删除工作流失败:", error);
-      message.error("删除工作流失败，请稍后重试");
+  const handleTaskClick = (taskId: string, taskType: 'carbon' | 'other') => {
+    if (taskType === 'carbon') {
+      navigate(`/carbon-footprint/${taskId}`);
+    } else {
+      navigate(`/task/${taskId}`);
     }
   };
 
-  const showDeleteModal = (workflow: Workflow) => {
-    setWorkflowToDelete(workflow);
-    setDeleteModalVisible(true);
+  const handleAgentSelect = (agentId: string) => {
+    navigate(`/carbon-footprint/new?agent=${agentId}`);
   };
 
-  const handleSearch = (value: string) => {
-    setSearchParams(prev => {
-      prev.set("q", value);
-      return prev;
-    });
+  const handleChatSelect = (chatId: string) => {
+    navigate(`/chat/${chatId}`);
   };
 
-  const handleIndustryFilter = (value: string) => {
-    setSearchParams(prev => {
-      if (value) {
-        prev.set("industry", value);
-      } else {
-        prev.delete("industry");
-      }
-      return prev;
-    });
-  };
-
-  const handleMenuClick = ({ key }: { key: string }) => {
-    // 处理子菜单项
-    if (key.startsWith('dashboard:')) {
-      const section = key.split(':')[1];
-      setSelectedKey(section);
-      return;
-    }
-    
-    // 处理主菜单项
-    setSelectedKey(key);
-  };
-
-  const menuItems = [
+  // 碳足迹核算任务表格列定义
+  const carbonFootprintColumns = [
     {
-      key: 'dashboard:dashboard',
-      icon: <DashboardOutlined />,
-      label: '仪表盘',
+      title: '序号',
+      dataIndex: 'serialNumber',
+      key: 'serialNumber',
+      width: 60,
     },
     {
-      key: 'workbench',
-      icon: <ToolOutlined />,
-      label: '工作台',
-      children: [
-        {
-          key: 'dashboard:workbench-main',
-          label: '产品碳足迹管理',
-        },
-        {
-          key: 'dashboard:vendor-data',
-          label: '供应商数据收集',
-        },
-        {
-          key: 'dashboard:carbon-factor-search',
-          label: '碳排因子搜索',
-        }
-      ]
+      title: '核算任务名称',
+      dataIndex: 'name',
+      key: 'name',
     },
     {
-      key: 'knowledge',
-      icon: <BookOutlined />,
-      label: '知识库',
-      children: [
-        {
-          key: 'dashboard:enterprise-knowledge',
-          label: '企业知识库',
-        },
-        {
-          key: 'dashboard:industry-knowledge',
-          label: '行业知识库',
-        },
-        {
-          key: 'dashboard:policy-knowledge',
-          label: '政策法规库',
-        }
-      ]
+      title: '核算产品',
+      dataIndex: 'product',
+      key: 'product',
     },
     {
-      key: 'dashboard:settings',
-      icon: <SettingOutlined />,
-      label: '设置',
+      title: 'AI Agent',
+      dataIndex: 'aiAgent',
+      key: 'aiAgent',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+    },
+    {
+      title: '更新时间',
+      dataIndex: 'updatedAt',
+      key: 'updatedAt',
     },
   ];
 
-  const userMenuItems = [
+  // 其他待办任务表格列定义
+  const otherTaskColumns = [
     {
-      key: 'profile',
-      icon: <UserOutlined />,
-      label: '个人资料',
-      onClick: () => setSelectedKey('settings'),
+      title: '序号',
+      dataIndex: 'serialNumber',
+      key: 'serialNumber',
+      width: 60,
     },
     {
-      key: 'settings',
-      icon: <SettingOutlined />,
-      label: '账号设置',
-      onClick: () => setSelectedKey('settings'),
+      title: '任务名称',
+      dataIndex: 'name',
+      key: 'name',
     },
     {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: '退出登录',
-      onClick: handleLogout,
+      title: '任务类型',
+      dataIndex: 'type',
+      key: 'type',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+    },
+    {
+      title: '更新时间',
+      dataIndex: 'updatedAt',
+      key: 'updatedAt',
     },
   ];
-
-  const renderContent = () => {
-    switch (selectedKey) {
-      case "dashboard":
-        return (
-          <DashboardSection 
-            products={products}
-            workflowTasks={workflowTasks}
-            vendorDataTasks={vendorTasks}
-            carbonReductionTasks={carbonReductionTasks}
-            carbonTrendData={carbonTrendData}
-          />
-        );
-      case "workbench-main":
-        return (
-          <WorkbenchSection
-            filteredWorkflows={workflows}
-            searchQuery={searchQuery}
-            setSearchQuery={handleSearch}
-            industryFilter={industryFilter}
-            setIndustryFilter={handleIndustryFilter}
-            navigateToWorkflow={navigateToWorkflow}
-            showDeleteModal={showDeleteModal}
-          />
-        );
-      case "vendor-data":
-        return (
-          <VendorDataSection
-            vendorTasks={vendorTasks}
-            onAddTask={(task) => {
-              // TODO: 实现添加任务的逻辑
-              console.log('添加任务:', task);
-            }}
-            onEditTask={(id, task) => {
-              // TODO: 实现编辑任务的逻辑
-              console.log('编辑任务:', id, task);
-            }}
-            onDeleteTask={(id) => {
-              // TODO: 实现删除任务的逻辑
-              console.log('删除任务:', id);
-            }}
-          />
-        );
-      case "carbon-factor-search":
-        return <CarbonFactorSearchSection />;
-      case "enterprise-knowledge":
-        return <EnterpriseKnowledgeSection />;
-      case "industry-knowledge":
-        return <IndustryKnowledgeSection />;
-      case "policy-knowledge":
-        return <PolicyKnowledgeSection />;
-      case "settings":
-        return <SettingsSection />;
-      default:
-        return <div>功能开发中...</div>;
-    }
-  };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Layout.Sider 
-        trigger={null} 
-        collapsible 
-        collapsed={collapsed}
-        style={{
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          zIndex: 1,
-          overflow: 'auto',
-          height: '100vh',
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          bottom: 0,
-        }}
-      >
-        <div style={{ 
-          height: '64px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          padding: '0',
-          margin: '16px 0',
-        }}>
-          {collapsed ? (
-            <Avatar shape="square" size="large" src="/images/logo.png" />
-          ) : (
-            <Text style={{ color: 'rgba(230, 230, 230, 0.85)', fontSize: '25px', fontWeight: 'bold' }}>氣候印信</Text>
-          )}
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[`dashboard:${selectedKey}`]}
-          defaultOpenKeys={['workbench', 'knowledge']}
-          items={menuItems}
-          onClick={handleMenuClick}
-        />
-      </Layout.Sider>
-      <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'all 0.2s' }}>
-        <Layout.Header style={{ 
-          padding: '0 16px', 
-          background: '#fff', 
-          boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}>
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ fontSize: '16px', width: 64, height: 64 }}
-          />
+    <DashboardLayout>
+      <div className="workbench-container">
+        <div className="workbench-content">
+          {/* 左侧：历史对话记录 */}
+          <div className="chat-history-area">
+            <Title level={4}>历史对话</Title>
+            <List
+              dataSource={chatHistory}
+              renderItem={chat => (
+                <List.Item onClick={() => handleChatSelect(chat.id)}>
+                  <Text>{chat.title}</Text>
+                  <Text type="secondary">{chat.timestamp}</Text>
+                </List.Item>
+              )}
+            />
+          </div>
 
-          <Space>
-            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-              <Space style={{ cursor: 'pointer' }}>
-                <Avatar icon={<UserOutlined />} />
-                {user && <span>{user.name || user.email}</span>}
-              </Space>
-            </Dropdown>
-          </Space>
-        </Layout.Header>
-        <Layout.Content style={{ 
-          margin: '24px 16px', 
-          padding: 24, 
-          background: '#fff',
-          minHeight: 280,
-          borderRadius: '4px',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-        }}>
-          {renderContent()}
-        </Layout.Content>
-      </Layout>
-      
-      <Modal
-        title="确认删除"
-        open={deleteModalVisible}
-        onOk={() => workflowToDelete && handleDeleteWorkflow(workflowToDelete)}
-        onCancel={() => setDeleteModalVisible(false)}
-        okText="删除"
-        cancelText="取消"
-        okButtonProps={{ danger: true }}
-      >
-        <p>
-          确定要删除工作流 "{workflowToDelete?.name}" 吗？此操作不可撤销。
-        </p>
-      </Modal>
-    </Layout>
+          {/* 中间：AI交互区域 */}
+          <div className="ai-interaction-area">
+            <Title level={3}>今天您想了解点什么？</Title>
+            <TextArea
+              placeholder="请输入您的问题..."
+              autoSize={{ minRows: 4, maxRows: 6 }}
+              className="ai-input"
+            />
+            
+            <div className="ai-agents-section">
+              <Text>使用适合的AI碳足迹Agent，建立、跟踪碳足迹核算任务：</Text>
+              <div className="ai-agents-list">
+                {aiAgents.map(agent => (
+                  <Card
+                    key={agent.id}
+                    className="agent-card"
+                    onClick={() => handleAgentSelect(agent.id)}
+                  >
+                    <Avatar size={40}>{agent.icon}</Avatar>
+                    <Title level={4}>{agent.name}</Title>
+                    <Text type="secondary">{agent.description}</Text>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 右侧：任务跟踪区域 */}
+          <div className="task-tracking-area">
+            <Title level={3}>任务跟踪</Title>
+            <Tabs defaultActiveKey="carbon">
+              <TabPane tab="进行中碳足迹核算任务" key="carbon">
+                <Table
+                  dataSource={carbonFootprintTasks}
+                  columns={carbonFootprintColumns}
+                  rowKey="id"
+                  pagination={false}
+                  onRow={(record) => ({
+                    onClick: () => handleTaskClick(record.id, 'carbon'),
+                    style: { cursor: 'pointer' }
+                  })}
+                />
+              </TabPane>
+              <TabPane tab="其他待办任务" key="other">
+                <Table
+                  dataSource={otherTasks}
+                  columns={otherTaskColumns}
+                  rowKey="id"
+                  pagination={false}
+                  onRow={(record) => ({
+                    onClick: () => handleTaskClick(record.id, 'other'),
+                    style: { cursor: 'pointer' }
+                  })}
+                />
+              </TabPane>
+            </Tabs>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
   );
-}
+} 
