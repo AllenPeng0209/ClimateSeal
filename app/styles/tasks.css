@@ -1,0 +1,32 @@
+.task-list-container {
+  padding: 24px;
+}
+
+.task-filter-form {
+  margin-bottom: 24px;
+  padding: 24px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.task-table {
+  background: #fff;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.task-details-container {
+  padding: 24px;
+}
+
+.task-details-card {
+  margin-top: 24px;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.task-details-card .ant-descriptions {
+  margin-top: 16px;
+} 

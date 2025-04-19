@@ -4,9 +4,9 @@ import "~/styles/workbench.css";
 
 const { Content } = Layout;
 
-export default function Dashboard() {
+export default function AccountLayout() {
   return (
-    <Content className="dashboard-container">
+    <Content className="account-container">
       <Outlet />
     </Content>
   );

@@ -1,0 +1,68 @@
+.operation-logs-container {
+  padding: 24px;
+}
+
+.operation-logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.operation-logs-filters {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.operation-logs-filters .ant-space {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ant-table {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: #f5f5f5;
+}
+
+.ant-tag {
+  margin: 0;
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+  .operation-logs-container {
+    padding: 16px;
+  }
+
+  .operation-logs-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .operation-logs-filters {
+    padding: 12px;
+  }
+
+  .operation-logs-filters .ant-space {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .operation-logs-filters .ant-space > * {
+    width: 100%;
+  }
+} 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Layout, Menu } from 'antd';
-import { Link, Outlet, useLocation } from '@remix-run/react';
+import { Layout, Menu, Dropdown } from 'antd';
+import type { MenuProps } from 'antd';
+import { Link, Outlet, useLocation, useNavigate } from '@remix-run/react';
 import {
   DashboardOutlined,
   CloudOutlined,
@@ -15,6 +16,8 @@ import {
   FileTextOutlined,
   SettingOutlined,
   CheckSquareOutlined,
+  UserOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
 import './DashboardLayout.css';
 
@@ -22,66 +25,38 @@ const { Header, Sider, Content } = Layout;
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+  menuItems: MenuProps['items'];
+  onMenuClick: MenuProps['onClick'];
 }
 
-const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
+const DashboardLayout: React.FC<DashboardLayoutProps> = ({ 
+  children, 
+  menuItems,
+  onMenuClick 
+}) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
 
-  const menuItems = [
+  // 用户下拉菜单项
+  const userMenuItems: MenuProps['items'] = [
     {
-      key: '/dashboard',
-      icon: <DashboardOutlined />,
-      label: <Link to="/dashboard">工作台</Link>,
+      key: 'account',
+      icon: <SettingOutlined />,
+      label: '账户管理',
+      onClick: () => navigate('/account'),
     },
     {
-      key: '/dashboard/tasks',
-      icon: <CheckSquareOutlined />,
-      label: <Link to="/dashboard/tasks">任务管理</Link>,
+      type: 'divider',
     },
     {
-      key: 'carbon-footprint',
-      icon: <CloudOutlined />,
-      label: '产品碳足迹',
-      children: [
-        {
-          key: '/dashboard/products',
-          label: <Link to="/dashboard/products">产品管理</Link>,
-        },
-        {
-          key: '/dashboard/ai-modeling',
-          label: <Link to="/dashboard/ai-modeling">AI建模核算</Link>,
-        },
-        {
-          key: '/dashboard/carbon-results',
-          label: <Link to="/dashboard/carbon-results">碳足迹结果生成</Link>,
-        },
-      ],
-    },
-    {
-      key: '/dashboard/suppliers',
-      icon: <ShopOutlined />,
-      label: <Link to="/dashboard/suppliers">供应商管理</Link>,
-    },
-    {
-      key: '/dashboard/ai-knowledge',
-      icon: <RobotOutlined />,
-      label: <Link to="/dashboard/ai-knowledge">AI知识库</Link>,
-    },
-    {
-      key: '/dashboard/organization',
-      icon: <TeamOutlined />,
-      label: <Link to="/dashboard/organization">组织管理</Link>,
-    },
-    {
-      key: '/dashboard/downloads',
-      icon: <DownloadOutlined />,
-      label: <Link to="/dashboard/downloads">下载管理</Link>,
-    },
-    {
-      key: '/dashboard/logs',
-      icon: <HistoryOutlined />,
-      label: <Link to="/dashboard/logs">操作日志</Link>,
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      onClick: () => {
+        // 这里添加登出逻辑
+        navigate('/landing');
+      },
     },
   ];
 
@@ -90,7 +65,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <Header className="dashboard-header">
         <div className="logo">碳足迹管理系统</div>
         <div className="header-right">
-          <span className="user-info">管理员</span>
+          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+            <div className="user-info">
+              <UserOutlined style={{ marginRight: 8 }} />
+              管理员
+            </div>
+          </Dropdown>
         </div>
       </Header>
       <Layout>
@@ -107,6 +87,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             defaultOpenKeys={['carbon-footprint']}
             style={{ height: '100%', borderRight: 0 }}
             items={menuItems}
+            onClick={onMenuClick}
           />
         </Sider>
         <Layout style={{ padding: '24px' }}>

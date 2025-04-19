@@ -24,8 +24,16 @@
 }
 
 .user-info {
-  margin-left: 16px;
-  color: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  border-radius: 4px;
+}
+
+.user-info:hover {
+  background-color: rgba(0, 0, 0, 0.025);
 }
 
 .dashboard-sider {
@@ -49,9 +57,12 @@
 }
 
 .dashboard-content {
-  background: #f0f2f5;
-  min-height: calc(100vh - 64px);
-  overflow: auto;
+  background: #fff;
+  padding: 24px;
+  margin: 0;
+  min-height: 280px;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* 响应式布局 */

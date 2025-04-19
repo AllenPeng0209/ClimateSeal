@@ -1,0 +1,38 @@
+.account-settings-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.settings-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.settings-card .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 24px;
+}
+
+.settings-card .ant-card-head-title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.settings-card .ant-card-body {
+  padding: 24px;
+}
+
+.settings-card .ant-form-item:last-child {
+  margin-bottom: 0;
+}
+
+.settings-card .ant-input[disabled],
+.settings-card .ant-select-disabled .ant-select-selector,
+.settings-card .ant-input-textarea-disabled {
+  color: rgba(0, 0, 0, 0.85);
+  background-color: #fafafa;
+  cursor: not-allowed;
+  opacity: 1;
+} 

@@ -1,12 +1,12 @@
 import { Outlet } from "@remix-run/react";
 import { Layout } from "antd";
-import "~/styles/workbench.css";
+import "~/styles/tasks.css";
 
 const { Content } = Layout;
 
-export default function Dashboard() {
+export default function TasksLayout() {
   return (
-    <Content className="dashboard-container">
+    <Content className="tasks-container">
       <Outlet />
     </Content>
   );

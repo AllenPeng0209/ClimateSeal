@@ -4,9 +4,9 @@ import "~/styles/workbench.css";
 
 const { Content } = Layout;
 
-export default function Dashboard() {
+export default function CarbonFootprint() {
   return (
-    <Content className="dashboard-container">
+    <Content className="carbon-footprint-container">
       <Outlet />
     </Content>
   );
