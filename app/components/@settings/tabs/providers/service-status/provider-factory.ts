@@ -2,6 +2,7 @@ import type { ProviderName, ProviderConfig, StatusCheckResult } from './types';
 import { BaseProviderChecker } from './base-provider';
 
 import { AmazonBedrockStatusChecker } from './providers/amazon-bedrock';
+import { AliyunStatusChecker } from './providers/aliyun';
 import { CohereStatusChecker } from './providers/cohere';
 import { DeepseekStatusChecker } from './providers/deepseek';
 import { GoogleStatusChecker } from './providers/google';
@@ -16,6 +17,24 @@ import { XAIStatusChecker } from './providers/xai';
 
 export class ProviderStatusCheckerFactory {
   private static _providerConfigs: Record<ProviderName, ProviderConfig> = {
+    Aliyun: {
+      statusUrl: 'https://status.aliyun.com/',
+      apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/models',
+      headers: {},
+      testModel: 'qwen-turbo',
+    },
+    Anthropic: {
+      statusUrl: 'https://status.anthropic.com/',
+      apiUrl: 'https://api.anthropic.com/v1/models',
+      headers: {},
+      testModel: 'claude-3-sonnet-20240229',
+    },
+    OpenAI: {
+      statusUrl: 'https://status.openai.com/',
+      apiUrl: 'https://api.openai.com/v1/models',
+      headers: {},
+      testModel: 'gpt-3.5-turbo',
+    },
     AmazonBedrock: {
       statusUrl: 'https://health.aws.amazon.com/health/status',
       apiUrl: 'https://bedrock.us-east-1.amazonaws.com/models',
@@ -98,6 +117,8 @@ export class ProviderStatusCheckerFactory {
     }
 
     switch (provider) {
+      case 'Aliyun':
+        return new AliyunStatusChecker(config);
       case 'AmazonBedrock':
         return new AmazonBedrockStatusChecker(config);
       case 'Cohere':

@@ -162,7 +162,8 @@
     "unist-util-visit": "^5.0.0",
     "vite-plugin-node-polyfills": "^0.22.0",
     "zod": "^3.24.1",
-    "zustand": "^5.0.3"
+    "zustand": "^5.0.3",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@blitz/eslint-plugin": "0.1.0",
@@ -193,7 +194,6 @@
     "husky": "9.1.7",
     "is-ci": "^3.0.1",
     "jsdom": "^26.0.0",
-    "node-fetch": "^3.3.2",
     "pnpm": "^9.14.4",
     "prettier": "^3.4.1",
     "rimraf": "^4.4.1",

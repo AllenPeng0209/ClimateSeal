@@ -1,7 +1,9 @@
 import type { IconType } from 'react-icons';
 
 export type ProviderName =
+  | 'Aliyun'
   | 'AmazonBedrock'
+  | 'Anthropic'
   | 'Cohere'
   | 'Deepseek'
   | 'Google'
@@ -9,6 +11,7 @@ export type ProviderName =
   | 'HuggingFace'
   | 'Hyperbolic'
   | 'Mistral'
+  | 'OpenAI'
   | 'OpenRouter'
   | 'Perplexity'
   | 'Together'

@@ -12,11 +12,12 @@ import { SiAmazon, SiGoogle, SiHuggingface, SiPerplexity, SiOpenai } from 'react
 import { BsRobot, BsCloud } from 'react-icons/bs';
 import { TbBrain, TbCloudComputing } from 'react-icons/tb';
 import { BiCodeBlock, BiChip } from 'react-icons/bi';
-import { FaCloud, FaBrain } from 'react-icons/fa';
+import { FaCloud, FaBrain, FaAlipay } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
 
 // Add type for provider names to ensure type safety
 type ProviderName =
+  | 'Aliyun'
   | 'AmazonBedrock'
   | 'Anthropic'
   | 'Cohere'
@@ -34,6 +35,7 @@ type ProviderName =
 
 // Update the PROVIDER_ICONS type to use the ProviderName type
 const PROVIDER_ICONS: Record<ProviderName, IconType> = {
+  Aliyun: FaAlipay,
   AmazonBedrock: SiAmazon,
   Anthropic: FaBrain,
   Cohere: BiChip,
@@ -52,6 +54,7 @@ const PROVIDER_ICONS: Record<ProviderName, IconType> = {
 
 // Update PROVIDER_DESCRIPTIONS to use the same type
 const PROVIDER_DESCRIPTIONS: Partial<Record<ProviderName, string>> = {
+  Aliyun: '使用通义千问大模型',
   Anthropic: 'Access Claude and other Anthropic models',
   OpenAI: 'Use GPT-4, GPT-3.5, and other OpenAI models',
 };
