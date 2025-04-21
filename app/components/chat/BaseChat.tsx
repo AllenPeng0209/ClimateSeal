@@ -41,6 +41,15 @@ import { SupabaseConnection } from './SupabaseConnection';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
+interface CSVData {
+  headers: string[];
+  data: Record<string, string>[];
+  fileName: string;
+  rowCount: number;
+  parseStatus: 'idle' | 'parsing' | 'success' | 'error';
+  errorMessage?: string;
+}
+
 interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
   messageRef?: RefCallback<HTMLDivElement> | undefined;
@@ -126,6 +135,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [isModelLoading, setIsModelLoading] = useState<string | undefined>('all');
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
     const prevMessagesLengthRef = useRef(messages?.length ?? 0);
+    const [csvData, setCsvData] = useState<CSVData | null>(null);
+    const [showCSVPreview, setShowCSVPreview] = useState(false);
     
     // 简单可靠的强制滚动函数
     const forceScrollToBottom = useCallback(() => {
@@ -170,28 +181,97 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     }, [isStreaming, forceScrollToBottom]);
     
     // 修改发送消息处理函数
-    const handleSendMessage = useCallback((event: React.UIEvent, messageInput?: string) => {
-      if (sendMessage) {
-        sendMessage(event, messageInput);
+    const handleSendMessage = useCallback((event: React.UIEvent<Element>, messageInput?: string) => {
+      const messageContent = messageInput || input;
+
+      if (!messageContent?.trim()) {
+        return;
+      }
+
+      if (isStreaming) {
+        handleStop?.();
+        return;
+      }
+
+      if (isModelLoading) {
+        return;
+      }
+
+      if (!chatStarted) {
+        setIsModelLoading('all');
+        fetch('/api/models')
+          .then((response) => response.json())
+          .then((data) => {
+            const typedData = data as { modelList: ModelInfo[] };
+            setModelList(typedData.modelList);
+          })
+          .catch((error) => {
+            console.error('Error fetching model list:', error);
+          })
+          .finally(() => {
+            setIsModelLoading(undefined);
+          });
+      }
+
+      // 如果有CSV数据，创建一个消息
+      if (csvData) {
+        // 创建一个更结构化的CSV数据表示
+        const csvContent = [
+          // 表头行
+          csvData.headers.join(','),
+          // 数据行
+          ...csvData.data.map(row => 
+            csvData.headers.map(header => {
+              // 处理包含逗号、引号或换行符的字段
+              const value = row[header] || '';
+              if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+                // 用双引号包裹，并将内部的双引号替换为两个双引号
+                return `"${value.replace(/"/g, '""')}"`;
+              }
+              return value;
+            }).join(',')
+          )
+        ].join('\n');
+
+        // 创建一个用户消息，包含CSV数据
+        const csvMessage: Message = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: `${messageContent}\n\n我上传了一个CSV文件 "${csvData.fileName}"，内容如下：\n\n\`\`\`csv\n${csvContent}\n\`\`\``,
+          createdAt: new Date(),
+          // 不添加隐藏标记，确保消息可见
+        };
+        
+        // 将消息添加到消息列表中
+        if (messages && Array.isArray(messages)) {
+          messages.push(csvMessage);
+        }
+        
+        // 发送用户消息
+        if (sendMessage) {
+          // 直接发送包含完整CSV数据的消息
+          sendMessage(event, `${messageContent}\n\n我上传了一个CSV文件 "${csvData.fileName}"，内容如下：\n\n\`\`\`csv\n${csvContent}\n\`\`\``);
+        }
+        
+        // 清除CSV数据
+        setCsvData(null);
         
         // 延时滚动
         setTimeout(forceScrollToBottom, 100);
         setTimeout(forceScrollToBottom, 500);
         
-        if (recognition) {
-          recognition.abort();
-          setTranscript('');
-          setIsListening(false);
-          
-          if (handleInputChange) {
-            const syntheticEvent = {
-              target: { value: '' },
-            } as React.ChangeEvent<HTMLTextAreaElement>;
-            handleInputChange(syntheticEvent);
-          }
-        }
+        return; // 提前返回，避免重复发送消息
       }
-    }, [sendMessage, recognition, setTranscript, setIsListening, handleInputChange, forceScrollToBottom]);
+
+      // 发送用户消息
+      if (sendMessage) {
+        sendMessage(event, messageContent);
+      }
+      
+      // 延时滚动
+      setTimeout(forceScrollToBottom, 100);
+      setTimeout(forceScrollToBottom, 500);
+    }, [sendMessage, isStreaming, handleStop, isModelLoading, messages, csvData, input, forceScrollToBottom]);
     
     // AI 初始问候消息
     useEffect(() => {
@@ -323,23 +403,203 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
+    // 修改CSV解析工具函数
+    const parseCSV = (csvContent: string): { headers: string[], data: Record<string, string>[] } => {
+      // 移除BOM标记
+      const cleanContent = csvContent.replace(/^\uFEFF/, '');
+      
+      // 分割行，处理Windows和Unix换行符
+      const rows = cleanContent.split(/\r?\n/).filter(row => row.trim());
+      
+      if (rows.length === 0) {
+        throw new Error('CSV文件为空');
+      }
+
+      // 解析表头
+      const rawHeaders = parseCSVRow(rows[0]);
+      if (rawHeaders.length === 0) {
+        throw new Error('CSV文件必须包含表头');
+      }
+
+      // 处理空列名和重复列名
+      const headerCounts: Record<string, number> = {};
+      const emptyColumnIndices: number[] = [];
+      
+      const headers = rawHeaders.map((header, index) => {
+        const trimmedHeader = header.trim();
+        
+        if (!trimmedHeader) {
+          // 记录空列名的索引
+          emptyColumnIndices.push(index);
+          // 生成默认列名
+          const defaultHeader = `Column_${index + 1}`;
+          return defaultHeader;
+        }
+        
+        if (headerCounts[trimmedHeader]) {
+          headerCounts[trimmedHeader]++;
+          return `${trimmedHeader}_${headerCounts[trimmedHeader]}`;
+        } else {
+          headerCounts[trimmedHeader] = 1;
+          return trimmedHeader;
+        }
+      });
+
+      // 如果有空列名，显示警告
+      if (emptyColumnIndices.length > 0) {
+        toast.warning(`发现${emptyColumnIndices.length}个空列名，已自动命名为Column_1, Column_2等`);
+      }
+
+      // 如果有重复列名，显示警告
+      const duplicateHeaders = Object.entries(headerCounts)
+        .filter(([_, count]) => count > 1)
+        .map(([header]) => header);
+        
+      if (duplicateHeaders.length > 0) {
+        toast.warning(`发现重复列名: ${duplicateHeaders.join(', ')}，已自动添加后缀区分`);
+      }
+
+      // 解析数据行
+      const data = rows.slice(1).map((row, index) => {
+        const values = parseCSVRow(row);
+        const rowData: Record<string, string> = {};
+        
+        // 智能处理列数不匹配的情况
+        if (values.length < headers.length) {
+          // 如果数据行的列数少于表头，用空字符串填充
+          const paddedValues = [...values, ...Array(headers.length - values.length).fill('')];
+          headers.forEach((header, i) => {
+            rowData[header] = paddedValues[i].trim();
+          });
+          toast.warning(`第${index + 2}行的列数少于表头，已自动填充空值`);
+        } else if (values.length > headers.length) {
+          // 如果数据行的列数多于表头，截断多余的值
+          headers.forEach((header, i) => {
+            rowData[header] = values[i].trim();
+          });
+          toast.warning(`第${index + 2}行的列数多于表头，已自动截断多余的值`);
+        } else {
+          // 列数匹配，正常处理
+          headers.forEach((header, i) => {
+            rowData[header] = values[i].trim();
+          });
+        }
+        
+        return rowData;
+      });
+
+      return { headers, data };
+    };
+
+    // 解析单行CSV数据
+    const parseCSVRow = (row: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < row.length; i++) {
+        const char = row[i];
+        
+        if (char === '"') {
+          if (inQuotes && row[i + 1] === '"') {
+            // 处理双引号转义
+            current += '"';
+            i++;
+          } else {
+            // 切换引号状态
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          // 字段分隔符
+          result.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      
+      // 添加最后一个字段
+      result.push(current);
+      
+      return result;
+    };
+
     const handleFileUpload = () => {
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = 'image/*';
+      input.accept = 'image/*,.csv';
 
       input.onchange = async (e) => {
         const file = (e.target as HTMLInputElement).files?.[0];
 
         if (file) {
-          const reader = new FileReader();
+          if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const base64Image = e.target?.result as string;
+              setUploadedFiles?.([...uploadedFiles, file]);
+              setImageDataList?.([...imageDataList, base64Image]);
+            };
+            reader.readAsDataURL(file);
+          } else if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+            const reader = new FileReader();
+            
+            // 设置解析状态为进行中
+            setCsvData({
+              headers: [],
+              data: [],
+              fileName: file.name,
+              rowCount: 0,
+              parseStatus: 'parsing'
+            });
+            
+            reader.onload = async (e) => {
+              const csvContent = e.target?.result as string;
+              try {
+                // 使用改进的CSV解析函数
+                const { headers, data } = parseCSV(csvContent);
+                
+                // 检查数据完整性
+                const hasEmptyCells = data.some(row => 
+                  Object.values(row).some(value => value === '')
+                );
+                
+                if (hasEmptyCells) {
+                  toast.warning('CSV文件包含空单元格，这可能会影响分析结果');
+                }
 
-          reader.onload = (e) => {
-            const base64Image = e.target?.result as string;
-            setUploadedFiles?.([...uploadedFiles, file]);
-            setImageDataList?.([...imageDataList, base64Image]);
-          };
-          reader.readAsDataURL(file);
+                // Store CSV data for later use
+                setCsvData({
+                  headers,
+                  data,
+                  fileName: file.name,
+                  rowCount: data.length,
+                  parseStatus: 'success'
+                });
+                
+                // Add file to uploaded files
+                setUploadedFiles?.([...uploadedFiles, file]);
+                
+                // 显示成功提示
+                toast.success(`CSV文件 "${file.name}" 解析成功，共 ${data.length} 行数据，${headers.length} 列`);
+                
+                // 自动显示预览
+                setShowCSVPreview(true);
+              } catch (error) {
+                console.error('Error parsing CSV:', error);
+                setCsvData({
+                  headers: [],
+                  data: [],
+                  fileName: file.name,
+                  rowCount: 0,
+                  parseStatus: 'error',
+                  errorMessage: error instanceof Error ? error.message : '解析CSV文件失败'
+                });
+                toast.error(`CSV文件解析失败: ${error instanceof Error ? error.message : '未知错误'}`);
+              }
+            };
+            reader.readAsText(file);
+          }
         }
       };
 
@@ -374,6 +634,31 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         }
       }
     };
+
+    // 添加事件监听器来处理隐藏消息
+    useEffect(() => {
+      const handleHiddenMessage = (event: CustomEvent) => {
+        const hiddenMessage = event.detail;
+        // 这里可以处理隐藏消息，例如将其添加到消息列表中但不显示
+        // 或者通过其他方式传递给AI
+        console.log('Hidden message received:', hiddenMessage);
+        
+        // 如果需要，可以将隐藏消息添加到消息列表中
+        // 但标记为不显示
+        if (messages && typeof messages === 'object') {
+          // 这里需要根据您的消息处理逻辑来实现
+          // 例如，可以添加一个特殊的标记，表示这条消息不应该显示
+        }
+      };
+      
+      // 添加事件监听器
+      window.addEventListener('sendHiddenMessage', handleHiddenMessage as EventListener);
+      
+      // 清理函数
+      return () => {
+        window.removeEventListener('sendHiddenMessage', handleHiddenMessage as EventListener);
+      };
+    }, [messages]);
 
     const baseChat = (
       <div
@@ -533,10 +818,70 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       files={uploadedFiles}
                       imageDataList={imageDataList}
                       onRemove={(index) => {
+                        // 检查是否删除了CSV文件
+                        const fileToRemove = uploadedFiles[index];
+                        if (fileToRemove && (fileToRemove.type === 'text/csv' || fileToRemove.name.endsWith('.csv'))) {
+                          setCsvData(null);
+                        }
+                        
                         setUploadedFiles?.(uploadedFiles.filter((_, i) => i !== index));
                         setImageDataList?.(imageDataList.filter((_, i) => i !== index));
                       }}
                     />
+                    {csvData && showCSVPreview && (
+                      <div className="mt-4 p-4 bg-bolt-elements-background-depth-2 rounded-lg border border-bolt-elements-borderColor">
+                        <div className="flex justify-between items-center mb-2">
+                          <h3 className="text-sm font-medium">CSV预览: {csvData.fileName}</h3>
+                          <button 
+                            onClick={() => setShowCSVPreview(false)}
+                            className="text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary"
+                          >
+                            <div className="i-ph:x text-lg"></div>
+                          </button>
+                        </div>
+                        
+                        {csvData.parseStatus === 'parsing' && (
+                          <div className="flex items-center gap-2 text-sm text-bolt-elements-textTertiary">
+                            <div className="i-svg-spinners:90-ring-with-bg text-bolt-elements-loader-progress text-xl animate-spin"></div>
+                            正在解析CSV文件...
+                          </div>
+                        )}
+                        
+                        {csvData.parseStatus === 'success' && (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-bolt-elements-borderColor">
+                                  {csvData.headers.map((header, index) => (
+                                    <th key={index} className="px-4 py-2 text-left">{header}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {csvData.data.slice(0, 5).map((row, rowIndex) => (
+                                  <tr key={rowIndex} className="border-b border-bolt-elements-borderColor/50">
+                                    {csvData.headers.map((header, colIndex) => (
+                                      <td key={colIndex} className="px-4 py-2">{row[header]}</td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            {csvData.data.length > 5 && (
+                              <div className="text-xs text-bolt-elements-textTertiary mt-2">
+                                显示前5行，共 {csvData.data.length} 行数据
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {csvData.parseStatus === 'error' && (
+                          <div className="text-sm text-red-500">
+                            解析错误: {csvData.errorMessage}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <ClientOnly>
                       {() => (
                         <ScreenshotStateManager
