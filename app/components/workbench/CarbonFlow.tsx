@@ -30,6 +30,9 @@ import { CarbonFlowActionHandler } from './CarbonFlow/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
 import { Tag, Collapse, Progress, message } from 'antd';
 import { UpOutlined, DownOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CheckpointManager } from '~/lib/checkpoints/CheckpointManager';
+import { Modal, Input, Button as AntButton } from 'antd';
+import { SaveOutlined, HistoryOutlined, ExportOutlined, ImportOutlined, DeleteOutlined } from '@ant-design/icons';
 
 interface BaseNodeData {
   label: string;
@@ -1557,8 +1560,260 @@ const CarbonFlowInner = () => {
     calculateAiSummary(); // 重新计算AI分析结果
   }, [nodes, setNodes, calculateAiSummary]);
 
+  const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
+  const [checkpointName, setCheckpointName] = useState('');
+  const [checkpoints, setCheckpoints] = useState<Array<{
+    name: string;
+    timestamp: number;
+    metadata?: { description?: string; tags?: string[]; version?: string };
+  }>>([]);
 
+  // 加载检查点列表
+  useEffect(() => {
+    const loadCheckpoints = async () => {
+      try {
+        const list = await CheckpointManager.listCheckpoints();
+        setCheckpoints(list);
+      } catch (error) {
+        console.error('Failed to load checkpoints:', error);
+      }
+    };
+    loadCheckpoints();
+  }, []);
 
+  // 自动保存功能
+  useEffect(() => {
+    const autoSave = async () => {
+      try {
+        const timestamp = new Date().toISOString();
+        await CheckpointManager.saveCheckpoint(
+          `auto-save-${timestamp}`,
+          {
+            nodes,
+            edges,
+            aiSummary,
+            settings: {
+              theme: localStorage.getItem('theme') || 'light',
+              language: localStorage.getItem('language') || 'zh-CN',
+              notifications: localStorage.getItem('notifications') === 'true',
+              eventLogs: localStorage.getItem('eventLogs') === 'true',
+              timezone: localStorage.getItem('timezone') || 'UTC',
+              contextOptimization: localStorage.getItem('contextOptimization') === 'true',
+              autoSelectTemplate: localStorage.getItem('autoSelectTemplate') === 'true',
+            }
+          },
+          {
+            description: '自动保存的检查点',
+            tags: ['auto-save'],
+          }
+        );
+      } catch (error) {
+        console.error('Auto-save failed:', error);
+      }
+    };
+
+    const interval = setInterval(autoSave, 5 * 60 * 1000); // 每5分钟自动保存一次
+    return () => clearInterval(interval);
+  }, [nodes, edges, aiSummary]);
+
+  // 保存检查点
+  const handleSaveCheckpoint = async () => {
+    if (!checkpointName.trim()) {
+      message.error('请输入检查点名称');
+      return;
+    }
+
+    try {
+      await CheckpointManager.saveCheckpoint(
+        checkpointName,
+        {
+          nodes,
+          edges,
+          aiSummary,
+          settings: {
+            theme: localStorage.getItem('theme') || 'light',
+            language: localStorage.getItem('language') || 'zh-CN',
+            notifications: localStorage.getItem('notifications') === 'true',
+            eventLogs: localStorage.getItem('eventLogs') === 'true',
+            timezone: localStorage.getItem('timezone') || 'UTC',
+            contextOptimization: localStorage.getItem('contextOptimization') === 'true',
+            autoSelectTemplate: localStorage.getItem('autoSelectTemplate') === 'true',
+          }
+        },
+        {
+          description: '手动保存的检查点',
+          tags: ['manual-save'],
+        }
+      );
+
+      const updatedCheckpoints = await CheckpointManager.listCheckpoints();
+      setCheckpoints(updatedCheckpoints);
+      setCheckpointName('');
+      setIsCheckpointModalVisible(false);
+      message.success('检查点保存成功');
+    } catch (error) {
+      console.error('Failed to save checkpoint:', error);
+      message.error('保存检查点失败');
+    }
+  };
+
+  // 恢复检查点
+  const handleRestoreCheckpoint = async (name: string) => {
+    try {
+      const data = await CheckpointManager.restoreCheckpoint(name);
+      setNodes(data.nodes);
+      setEdges(data.edges);
+      setAiSummary(data.aiSummary);
+      
+      // 恢复设置
+      if (data.settings) {
+        Object.entries(data.settings).forEach(([key, value]) => {
+          if (value !== undefined) {
+            localStorage.setItem(key, String(value));
+          }
+        });
+      }
+
+      setIsCheckpointModalVisible(false);
+      message.success('检查点恢复成功');
+    } catch (error) {
+      console.error('Failed to restore checkpoint:', error);
+      message.error('恢复检查点失败');
+    }
+  };
+
+  // 导出检查点
+  const handleExportCheckpoint = async (name: string) => {
+    try {
+      const data = await CheckpointManager.exportCheckpoint(name);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${name}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      message.success('检查点导出成功');
+    } catch (error) {
+      console.error('Failed to export checkpoint:', error);
+      message.error('导出检查点失败');
+    }
+  };
+
+  // 导入检查点
+  const handleImportCheckpoint = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const content = e.target?.result as string;
+        const name = file.name.replace('.json', '');
+        await CheckpointManager.importCheckpoint(name, content);
+        const updatedCheckpoints = await CheckpointManager.listCheckpoints();
+        setCheckpoints(updatedCheckpoints);
+        message.success('检查点导入成功');
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      console.error('Failed to import checkpoint:', error);
+      message.error('导入检查点失败');
+    }
+  };
+
+  // 删除检查点
+  const handleDeleteCheckpoint = async (name: string) => {
+    try {
+      await CheckpointManager.deleteCheckpoint(name);
+      const updatedCheckpoints = await CheckpointManager.listCheckpoints();
+      setCheckpoints(updatedCheckpoints);
+      message.success('检查点删除成功');
+    } catch (error) {
+      console.error('Failed to delete checkpoint:', error);
+      message.error('删除检查点失败');
+    }
+  };
+
+  // 渲染检查点管理界面
+  const renderCheckpointModal = () => (
+    <Modal
+      title="检查点管理"
+      open={isCheckpointModalVisible}
+      onCancel={() => setIsCheckpointModalVisible(false)}
+      footer={null}
+      width={800}
+    >
+      <div className="checkpoint-management">
+        <div className="checkpoint-actions">
+          <Input
+            placeholder="输入检查点名称"
+            value={checkpointName}
+            onChange={(e) => setCheckpointName(e.target.value)}
+            style={{ width: 200, marginRight: 8 }}
+          />
+          <AntButton
+            type="primary"
+            icon={<SaveOutlined />}
+            onClick={handleSaveCheckpoint}
+          >
+            保存当前状态
+          </AntButton>
+          <input
+            type="file"
+            accept=".json"
+            onChange={handleImportCheckpoint}
+            style={{ display: 'none' }}
+            id="checkpoint-import"
+          />
+          <AntButton
+            icon={<ImportOutlined />}
+            onClick={() => document.getElementById('checkpoint-import')?.click()}
+          >
+            导入检查点
+          </AntButton>
+        </div>
+
+        <div className="checkpoint-list">
+          {checkpoints.map((checkpoint) => (
+            <div key={checkpoint.name} className="checkpoint-item">
+              <div className="checkpoint-info">
+                <h4>{checkpoint.name}</h4>
+                <p>{new Date(checkpoint.timestamp).toLocaleString()}</p>
+                {checkpoint.metadata?.description && (
+                  <p>{checkpoint.metadata.description}</p>
+                )}
+              </div>
+              <div className="checkpoint-actions">
+                <AntButton
+                  type="primary"
+                  icon={<HistoryOutlined />}
+                  onClick={() => handleRestoreCheckpoint(checkpoint.name)}
+                >
+                  恢复
+                </AntButton>
+                <AntButton
+                  icon={<ExportOutlined />}
+                  onClick={() => handleExportCheckpoint(checkpoint.name)}
+                >
+                  导出
+                </AntButton>
+                <AntButton
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => handleDeleteCheckpoint(checkpoint.name)}
+                >
+                  删除
+                </AntButton>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Modal>
+  );
 
   return (
     <div className="editor-layout">
@@ -1604,6 +1859,9 @@ const CarbonFlowInner = () => {
             }}
           >
             生成报告
+          </Button>
+          <Button onClick={() => setIsCheckpointModalVisible(true)}>
+            检查点管理
           </Button>
         </div>
       </div>
@@ -1674,7 +1932,7 @@ const CarbonFlowInner = () => {
         </div>
         
       </div>
-      
+      {renderCheckpointModal()}
     </div>
   );
 };

@@ -656,3 +656,50 @@ body.resizing {
   stroke: rgba(64, 169, 255, 0.5);
   stroke-width: 1;
 }
+
+.checkpoint-management {
+  padding: 16px;
+}
+
+.checkpoint-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.checkpoint-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.checkpoint-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  background-color: #fff;
+}
+
+.checkpoint-info {
+  flex: 1;
+}
+
+.checkpoint-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+}
+
+.checkpoint-info p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.checkpoint-actions {
+  display: flex;
+  gap: 8px;
+}
