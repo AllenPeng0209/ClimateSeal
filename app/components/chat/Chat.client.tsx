@@ -11,6 +11,7 @@ import { cssTransition, toast, ToastContainer } from 'react-toastify';
 import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from '~/lib/hooks';
 import { description, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
+import { chatMessagesStore } from '~/lib/stores/chatMessagesStore';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
 import { cubicEasingFn } from '~/utils/easings';
@@ -38,18 +39,14 @@ const logger = createScopedLogger('Chat');
 export function Chat() {
   renderLogger.trace('Chat');
 
-  const { ready, initialMessages, storeMessageHistory, importChat, exportChat } = useChatHistory();
+  const { ready, storeMessageHistory, importChat, exportChat } = useChatHistory();
   const title = useStore(description);
-  useEffect(() => {
-    workbenchStore.setReloadedMessages(initialMessages.map((m) => m.id));
-  }, [initialMessages]);
 
   return (
     <>
       {ready && (
         <ChatImpl
           description={title}
-          initialMessages={initialMessages}
           exportChat={exportChat}
           storeMessageHistory={storeMessageHistory}
           importChat={importChat}
@@ -105,7 +102,6 @@ const processSampledMessages = createSampler(
 );
 
 interface ChatProps {
-  initialMessages: Message[];
   storeMessageHistory: (messages: Message[]) => Promise<void>;
   importChat: (description: string, messages: Message[]) => Promise<void>;
   exportChat: () => void;
@@ -113,7 +109,7 @@ interface ChatProps {
 }
 
 export const ChatImpl = memo(
-  ({ description, initialMessages, storeMessageHistory, importChat, exportChat }: ChatProps) => {
+  ({ description, storeMessageHistory, importChat, exportChat }: ChatProps) => {
     useShortcuts();
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -124,7 +120,7 @@ export const ChatImpl = memo(
     const [fakeLoading, setFakeLoading] = useState(false);
     const files = useStore(workbenchStore.files);
     const actionAlert = useStore(workbenchStore.alert);
-    const supabaseConn = useStore(supabaseConnection); // Add this line to get Supabase connection
+    const supabaseConn = useStore(supabaseConnection);
     const selectedProject = supabaseConn.stats?.projects?.find(
       (project) => project.id === supabaseConn.selectedProjectId,
     );
@@ -145,6 +141,8 @@ export const ChatImpl = memo(
     const [animationScope, animate] = useAnimate();
 
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+
+    const messagesFromStore = useStore(chatMessagesStore);
 
     const {
       messages,
@@ -205,13 +203,11 @@ export const ChatImpl = memo(
 
         logger.debug('Finished streaming');
       },
-      initialMessages,
+      initialMessages: messagesFromStore,
       initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
     });
     useEffect(() => {
       const prompt = searchParams.get('prompt');
-
-      // console.log(prompt, searchParams, model, provider);
 
       if (prompt) {
         setSearchParams({});
@@ -223,7 +219,7 @@ export const ChatImpl = memo(
               type: 'text',
               text: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${prompt}`,
             },
-          ] as any, // Type assertion to bypass compiler check
+          ] as any,
         });
       }
     }, [model, provider, searchParams]);
@@ -241,12 +237,12 @@ export const ChatImpl = memo(
     useEffect(() => {
       processSampledMessages({
         messages,
-        initialMessages,
+        initialMessages: messagesFromStore,
         isLoading,
         parseMessages,
         storeMessageHistory,
       });
-    }, [messages, isLoading, parseMessages]);
+    }, [messages, isLoading, parseMessages, storeMessageHistory, messagesFromStore]);
 
     const scrollTextArea = () => {
       const textarea = textareaRef.current;
@@ -372,7 +368,6 @@ export const ChatImpl = memo(
           }
         }
 
-        // If autoSelectTemplate is disabled or template selection failed, proceed with normal message
         setMessages([
           {
             id: `${new Date().getTime()}`,
@@ -456,18 +451,10 @@ export const ChatImpl = memo(
       textareaRef.current?.blur();
     };
 
-    /**
-     * Handles the change event for the textarea and updates the input state.
-     * @param event - The change event from the textarea.
-     */
     const onTextareaChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
       handleInputChange(event);
     };
 
-    /**
-     * Debounced function to cache the prompt in cookies.
-     * Caches the trimmed value of the textarea input after a delay to optimize performance.
-     */
     const debouncedCachePrompt = useCallback(
       debounce((event: React.ChangeEvent<HTMLTextAreaElement>) => {
         const trimmedValue = event.target.value.trim();
@@ -495,6 +482,19 @@ export const ChatImpl = memo(
       setProvider(newProvider);
       Cookies.set('selectedProvider', newProvider.name, { expires: 30 });
     };
+
+    useEffect(() => {
+      const handleChatHistoryUpdate = (event: CustomEvent) => {
+        if (event.detail?.messages) {
+          setMessages(event.detail.messages);
+        }
+      };
+
+      window.addEventListener('chatHistoryUpdated', handleChatHistoryUpdate as EventListener);
+      return () => {
+        window.removeEventListener('chatHistoryUpdated', handleChatHistoryUpdate as EventListener);
+      };
+    }, []);
 
     return (
       <BaseChat

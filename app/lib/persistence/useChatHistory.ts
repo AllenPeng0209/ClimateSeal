@@ -20,6 +20,7 @@ import type { Snapshot } from './types';
 import { webcontainer } from '~/lib/webcontainer';
 import { createCommandsMessage, detectProjectCommands } from '~/utils/projectCommands';
 import type { ContextAnnotation } from '~/types/context';
+import { chatMessagesStore } from '~/lib/stores/chatMessagesStore'; // Import the new store
 
 export interface ChatHistoryItem {
   id: string;
@@ -43,7 +44,6 @@ export function useChatHistory() {
   const [searchParams] = useSearchParams();
 
   const [archivedMessages, setArchivedMessages] = useState<Message[]>([]);
-  const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [ready, setReady] = useState<boolean>(false);
   const [urlId, setUrlId] = useState<string | undefined>();
 
@@ -63,6 +63,7 @@ export function useChatHistory() {
     if (mixedId) {
       getMessages(db, mixedId)
         .then(async (storedMessages) => {
+          let loadedMessages: Message[] = [];
           if (storedMessages && storedMessages.messages.length > 0) {
             const snapshotStr = localStorage.getItem(`snapshot:${mixedId}`);
             const snapshot: Snapshot = snapshotStr ? JSON.parse(snapshotStr) : { chatIndex: 0, files: {} };
@@ -182,17 +183,50 @@ ${value.content}
               restoreSnapshot(mixedId);
             }
 
-            setInitialMessages(filteredMessages);
+            setArchivedMessages(archivedMessages);
+
+            chatMessagesStore.set(filteredMessages);
+            loadedMessages = filteredMessages;
 
             setUrlId(storedMessages.urlId);
             description.set(storedMessages.description);
             chatId.set(storedMessages.id);
             chatMetadata.set(storedMessages.metadata);
           } else {
+            chatMessagesStore.set([]);
             navigate('/', { replace: true });
           }
 
           setReady(true);
+
+          if (commands !== null) {
+            const commandsMessages: Message[] = [
+              {
+                id: `${storedMessages.messages[snapshotIndex].id}-2`,
+                role: 'user' as const,
+                content: `setup project`,
+                annotations: ['no-store', 'hidden'],
+              },
+              {
+                ...commands,
+                id: `${storedMessages.messages[snapshotIndex].id}-3`,
+                annotations: [
+                  'no-store',
+                  ...(commands.annotations || []),
+                  ...(summary
+                    ? [
+                        {
+                          chatId: `${storedMessages.messages[snapshotIndex].id}-3`,
+                          type: 'chatSummary',
+                          summary,
+                        } satisfies ContextAnnotation,
+                      ]
+                    : []),
+                ],
+              },
+            ];
+            chatMessagesStore.set([...loadedMessages, ...commandsMessages]);
+          }
         })
         .catch((error) => {
           console.error(error);
@@ -200,8 +234,11 @@ ${value.content}
           logStore.logError('Failed to load chat messages', error);
           toast.error(error.message);
         });
+    } else {
+      chatMessagesStore.set([]);
+      setReady(true);
     }
-  }, [mixedId]);
+  }, [mixedId, navigate, searchParams]);
 
   const takeSnapshot = useCallback(
     async (chatIdx: string, files: FileMap, _chatId?: string | undefined, chatSummary?: string) => {
@@ -257,7 +294,6 @@ ${value.content}
 
   return {
     ready: !mixedId || ready,
-    initialMessages,
     updateChatMestaData: async (metadata: IChatMetadata) => {
       const id = chatId.get();
 
@@ -266,21 +302,23 @@ ${value.content}
       }
 
       try {
-        await setMessages(db, id, initialMessages, urlId, description.get(), undefined, metadata);
+        await setMessages(db, id, chatMessagesStore.get(), urlId, description.get(), undefined, metadata);
         chatMetadata.set(metadata);
       } catch (error) {
         toast.error('Failed to update chat metadata');
         console.error(error);
       }
     },
-    storeMessageHistory: async (messages: Message[]) => {
-      if (!db || messages.length === 0) {
-        return;
-      }
+    storeMessageHistory: async (messagesToStore: Message[]) => {
+      if (!db) return;
 
+      const messagesWithoutNoStore = messagesToStore.filter((m) => !m.annotations?.includes('no-store'));
+      
+      chatMessagesStore.set(messagesWithoutNoStore);
+
+      if (messagesWithoutNoStore.length === 0) return;
+      
       const { firstArtifact } = workbenchStore;
-      messages = messages.filter((m) => !m.annotations?.includes('no-store'));
-
       let _urlId = urlId;
 
       if (!urlId && firstArtifact?.id) {
@@ -291,7 +329,7 @@ ${value.content}
       }
 
       let chatSummary: string | undefined = undefined;
-      const lastMessage = messages[messages.length - 1];
+      const lastMessage = messagesWithoutNoStore[messagesWithoutNoStore.length - 1];
 
       if (lastMessage.role === 'assistant') {
         const annotations = lastMessage.annotations as JSONValue[];
@@ -305,13 +343,13 @@ ${value.content}
         }
       }
 
-      takeSnapshot(messages[messages.length - 1].id, workbenchStore.files.get(), _urlId, chatSummary);
+      takeSnapshot(messagesWithoutNoStore[messagesWithoutNoStore.length - 1].id, workbenchStore.files.get(), _urlId, chatSummary);
 
       if (!description.get() && firstArtifact?.title) {
         description.set(firstArtifact?.title);
       }
 
-      if (initialMessages.length === 0 && !chatId.get()) {
+      if (chatMessagesStore.get().length === 0 && !chatId.get()) {
         const nextId = await getNextId(db);
 
         chatId.set(nextId);
@@ -324,7 +362,7 @@ ${value.content}
       await setMessages(
         db,
         chatId.get() as string,
-        [...archivedMessages, ...messages],
+        [...archivedMessages, ...chatMessagesStore.get()],
         urlId,
         description.get(),
         undefined,

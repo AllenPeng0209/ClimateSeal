@@ -1,169 +1,263 @@
+import { openDB, type IDBPDatabase } from 'idb';
 import type { Node, Edge } from 'reactflow';
-import type { AISummary } from '~/components/workbench/CarbonFlow';
-import type { NodeData } from '~/components/workbench/CarbonFlow/CarbonFlowActions';
-
-export interface CarbonFlowCheckpoint {
-  timestamp: number;
-  name: string;
-  data: {
-    nodes: Node<NodeData>[];
-    edges: Edge[];
-    aiSummary: AISummary;
-    settings: {
-      theme?: string;
-      language?: string;
-      notifications?: boolean;
-      eventLogs?: boolean;
-      timezone?: string;
-      contextOptimization?: boolean;
-      autoSelectTemplate?: boolean;
-    };
-  };
-  metadata?: {
-    description?: string;
-    tags?: string[];
-    version?: string;
-  };
-}
+import type { Message } from 'ai';
+import { toast } from 'react-toastify';
+import type { CarbonFlowCheckpoint, CheckpointData, CheckpointMetadata } from '~/types/checkpoints';
 
 export class CheckpointManager {
   private static readonly STORAGE_KEY = 'carbonflow_checkpoints';
   private static readonly MAX_CHECKPOINTS = 10;
   private static readonly DB_NAME = 'CarbonFlowCheckpoints';
   private static readonly STORE_NAME = 'checkpoints';
-  private static readonly DB_VERSION = 1;
+  private static readonly DB_VERSION = 2;
+  private static readonly METADATA_KEY = 'checkpointMetadata';
 
-  private static async openDatabase(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
+  private static async openDatabase(): Promise<IDBPDatabase> {
+    const storeName = CheckpointManager.STORE_NAME;
 
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
+    return openDB(this.DB_NAME, this.DB_VERSION, {
+      upgrade(db, oldVersion, newVersion, transaction) {
+        console.log(`Upgrading IndexedDB from version ${oldVersion} to ${newVersion}`);
 
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(this.STORE_NAME)) {
-          db.createObjectStore(this.STORE_NAME);
+        if (db.objectStoreNames.contains(storeName)) {
+          console.log(`Deleting existing store '${storeName}' for schema update.`);
+          db.deleteObjectStore(storeName);
         }
-      };
+        
+        console.log(`Creating new store '${storeName}'.`);
+        db.createObjectStore(storeName, { keyPath: 'name' });
+      },
+      blocked() {
+        toast.error("Database upgrade blocked. Please close other tabs/windows using this application.");
+        console.error("IndexedDB upgrade blocked.");
+      },
+      blocking() {
+        toast.warning("Database upgrade required. Please refresh the page or close this tab.");
+        console.warn("IndexedDB upgrade blocking.");
+      },
+      terminated() {
+        toast.error("Database connection terminated unexpectedly. Please refresh the page.");
+        console.error("IndexedDB connection terminated.");
+      },
     });
+  }
+
+  private static getMetadata(): CheckpointMetadata[] {
+    try {
+      const storedMetadata = localStorage.getItem(this.METADATA_KEY);
+      return storedMetadata ? JSON.parse(storedMetadata) as CheckpointMetadata[] : [];
+    } catch (error) {
+      console.error("Error reading checkpoint metadata from localStorage:", error);
+      toast.error("Failed to load checkpoint list.");
+      return [];
+    }
+  }
+
+  private static saveMetadata(metadata: CheckpointMetadata[]): void {
+    try {
+      localStorage.setItem(this.METADATA_KEY, JSON.stringify(metadata));
+    } catch (error) {
+      console.error("Error saving checkpoint metadata to localStorage:", error);
+      toast.error("Failed to update checkpoint list.");
+    }
   }
 
   static async saveCheckpoint(
     name: string, 
-    data: CarbonFlowCheckpoint['data'], 
-    metadata?: CarbonFlowCheckpoint['metadata']
-  ): Promise<void> {
-    try {
-      const checkpoint: CarbonFlowCheckpoint = {
-        timestamp: Date.now(),
-        name,
-        data,
-        metadata: {
-          version: '1.0.0',
-          ...metadata,
-        }
-      };
-
-      // 获取现有检查点
-      const existingCheckpoints = await this.listCheckpoints();
-      
-      // 添加新检查点并保持最大数量限制
-      const updatedCheckpoints = [
-        {
-          name: checkpoint.name,
-          timestamp: checkpoint.timestamp,
-          metadata: checkpoint.metadata
-        },
-        ...existingCheckpoints.slice(0, this.MAX_CHECKPOINTS - 1)
-      ];
-
-      // 保存到 IndexedDB
-      const db = await this.openDatabase();
-      const tx = db.transaction(this.STORE_NAME, 'readwrite');
-      const store = tx.objectStore(this.STORE_NAME);
-      await store.put(checkpoint, name);
-
-      // 保存元数据到 localStorage
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updatedCheckpoints));
-
-      return new Promise((resolve, reject) => {
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch (error) {
-      console.error('Failed to save checkpoint:', error);
-      throw error;
+    data: CheckpointData, 
+    metadata?: Partial<CheckpointMetadata>
+  ): Promise<boolean> {
+    if (!name || !name.trim()) {
+        toast.error("Checkpoint name cannot be empty.");
+        return false;
     }
-  }
 
-  static async restoreCheckpoint(name: string): Promise<CarbonFlowCheckpoint['data']> {
+    const timestamp = Date.now();
+    const trimmedName = name.trim();
+
+    const metadataToStore: CheckpointMetadata = {
+        name: trimmedName,
+        timestamp: timestamp,
+        description: metadata?.description || '',
+        tags: metadata?.tags || [],
+        version: metadata?.version || '1.0'
+    };
+
+    let db: IDBPDatabase | null = null;
     try {
-      const db = await this.openDatabase();
-      const tx = db.transaction(this.STORE_NAME, 'readonly');
-      const store = tx.objectStore(this.STORE_NAME);
-      
-      return new Promise((resolve, reject) => {
-        const request = store.get(name);
-        request.onsuccess = () => {
-          const checkpoint = request.result as CarbonFlowCheckpoint;
-          if (!checkpoint) {
-            reject(new Error(`Checkpoint "${name}" not found`));
-          } else {
-            resolve(checkpoint.data);
+        db = await this.openDatabase();
+        const tx = db.transaction(this.STORE_NAME, 'readwrite');
+        const store = tx.objectStore(this.STORE_NAME);
+
+        await store.put(data, trimmedName);
+
+        let currentMetadata = this.getMetadata();
+        const existingIndex = currentMetadata.findIndex(m => m.name === trimmedName);
+
+        if (existingIndex > -1) {
+          currentMetadata[existingIndex] = metadataToStore;
+        } else {
+          currentMetadata.push(metadataToStore);
+          currentMetadata.sort((a, b) => b.timestamp - a.timestamp);
+          if (currentMetadata.length > this.MAX_CHECKPOINTS) {
+            const oldestCheckpoint = currentMetadata.pop();
+            if (oldestCheckpoint) {
+                const deleteTx = db.transaction(this.STORE_NAME, 'readwrite');
+                await deleteTx.objectStore(this.STORE_NAME).delete(oldestCheckpoint.name);
+                await deleteTx.done;
+                console.log(`Removed oldest checkpoint '${oldestCheckpoint.name}' due to limit.`);
+                toast.info(`Removed oldest checkpoint '${oldestCheckpoint.name}' to stay within the ${this.MAX_CHECKPOINTS} checkpoint limit.`);
+            }
           }
-        };
-        request.onerror = () => reject(request.error);
-      });
+        }
+
+        await tx.done;
+        this.saveMetadata(currentMetadata);
+
+        console.log(`Checkpoint '${trimmedName}' saved successfully.`);
+        toast.success(`Checkpoint '${trimmedName}' saved.`);
+        return true;
     } catch (error) {
-      console.error('Failed to restore checkpoint:', error);
-      throw error;
+        console.error(`Error saving checkpoint '${trimmedName}':`, error);
+        toast.error(`Failed to save checkpoint '${trimmedName}'. See console for details.`);
+        this.saveMetadata(this.getMetadata());
+        return false;
+    } finally {
+        db?.close();
     }
   }
 
-  static async listCheckpoints(): Promise<Array<{
-    name: string;
-    timestamp: number;
-    metadata?: CarbonFlowCheckpoint['metadata'];
-  }>> {
-    const metadataString = localStorage.getItem(this.STORAGE_KEY);
-    return metadataString ? JSON.parse(metadataString) : [];
+  static async restoreCheckpoint(name: string): Promise<CheckpointData | null> {
+    let db: IDBPDatabase | null = null;
+    try {
+      db = await this.openDatabase();
+      const data = await db.get(this.STORE_NAME, name);
+      if (data) {
+        console.log(`Checkpoint '${name}' restored successfully.`);
+        toast.success(`Checkpoint '${name}' restored.`);
+        return data as CheckpointData;
+      } else {
+        console.warn(`Checkpoint '${name}' not found in database.`);
+        toast.warn(`Checkpoint '${name}' not found.`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`Error restoring checkpoint '${name}':`, error);
+      toast.error(`Failed to restore checkpoint '${name}'.`);
+      return null;
+    } finally {
+        db?.close();
+    }
   }
 
-  static async deleteCheckpoint(name: string): Promise<void> {
+  static async listCheckpoints(): Promise<CheckpointMetadata[]> {
+    return this.getMetadata().sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  static async deleteCheckpoint(name: string): Promise<boolean> {
+     let db: IDBPDatabase | null = null;
     try {
-      const db = await this.openDatabase();
+      db = await this.openDatabase();
       const tx = db.transaction(this.STORE_NAME, 'readwrite');
-      const store = tx.objectStore(this.STORE_NAME);
-      
-      await new Promise<void>((resolve, reject) => {
-        const request = store.delete(name);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      });
+      await tx.objectStore(this.STORE_NAME).delete(name);
+      await tx.done;
 
-      // 更新 localStorage 中的元数据
-      const checkpoints = await this.listCheckpoints();
-      const updatedCheckpoints = checkpoints.filter(cp => cp.name !== name);
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updatedCheckpoints));
+      let currentMetadata = this.getMetadata();
+      currentMetadata = currentMetadata.filter(m => m.name !== name);
+      this.saveMetadata(currentMetadata);
+
+      console.log(`Checkpoint '${name}' deleted successfully.`);
+      toast.success(`Checkpoint '${name}' deleted.`);
+      return true;
     } catch (error) {
-      console.error('Failed to delete checkpoint:', error);
-      throw error;
+      console.error(`Error deleting checkpoint '${name}':`, error);
+      toast.error(`Failed to delete checkpoint '${name}'.`);
+      return false;
+    } finally {
+        db?.close();
     }
   }
 
-  static async exportCheckpoint(name: string): Promise<string> {
-    const checkpoint = await this.restoreCheckpoint(name);
-    return JSON.stringify(checkpoint);
+  static async exportCheckpoint(name: string): Promise<string | null> {
+     let db: IDBPDatabase | null = null;
+    try {
+      db = await this.openDatabase();
+      const data = await db.get(this.STORE_NAME, name);
+      const metadata = this.getMetadata().find(m => m.name === name);
+
+      if (data && metadata) {
+         const checkpointToExport = {
+            name: metadata.name,
+            timestamp: metadata.timestamp,
+            data: data as CheckpointData,
+            metadata: {
+                description: metadata.description,
+                tags: metadata.tags,
+                version: metadata.version
+            }
+         };
+         return JSON.stringify(checkpointToExport as CarbonFlowCheckpoint, null, 2);
+      } else {
+         console.warn(`Checkpoint '${name}' data or metadata not found for export.`);
+         toast.warn(`Could not find complete data for checkpoint '${name}' to export.`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`Error exporting checkpoint '${name}':`, error);
+      toast.error(`Failed to export checkpoint '${name}'.`);
+      return null;
+    } finally {
+        db?.close();
+    }
   }
 
-  static async importCheckpoint(name: string, checkpointData: string): Promise<void> {
+  static async importCheckpoint(jsonString: string): Promise<boolean> {
     try {
-      const data = JSON.parse(checkpointData);
-      await this.saveCheckpoint(name, data);
+      const checkpoint = JSON.parse(jsonString) as CarbonFlowCheckpoint;
+      if (!checkpoint.name || !checkpoint.timestamp || !checkpoint.data) {
+          throw new Error("Invalid checkpoint file format: Missing required fields.");
+      }
+      if (typeof checkpoint.name !== 'string' || typeof checkpoint.timestamp !== 'number' || typeof checkpoint.data !== 'object') {
+          throw new Error("Invalid checkpoint file format: Incorrect field types.");
+      }
+      const metadataToSave = checkpoint.metadata ? {
+        description: checkpoint.metadata.description,
+        tags: checkpoint.metadata.tags,
+        version: checkpoint.metadata.version
+      } : {};
+      return await this.saveCheckpoint(checkpoint.name, checkpoint.data, metadataToSave);
     } catch (error) {
-      console.error('Failed to import checkpoint:', error);
-      throw error;
+        console.error("Error importing checkpoint:", error);
+        if (error instanceof SyntaxError) {
+            toast.error("Failed to import: Invalid JSON file.");
+        } else if (error instanceof Error) {
+             toast.error(`Failed to import checkpoint: ${error.message}`);
+        } else {
+             toast.error("An unknown error occurred during import.");
+        }
+        return false;
+    }
+  }
+
+  static async clearAllCheckpoints(): Promise<boolean> {
+    let db: IDBPDatabase | null = null;
+    try {
+        db = await this.openDatabase();
+        const tx = db.transaction(this.STORE_NAME, 'readwrite');
+        await tx.objectStore(this.STORE_NAME).clear();
+        await tx.done;
+
+        this.saveMetadata([]);
+
+        console.log("All checkpoints cleared successfully.");
+        toast.success("All local checkpoints cleared.");
+        return true;
+    } catch (error) {
+        console.error("Error clearing all checkpoints:", error);
+        toast.error("Failed to clear all local checkpoints.");
+        return false;
+    } finally {
+        db?.close();
     }
   }
 } 

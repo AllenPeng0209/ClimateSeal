@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ClientOnly } from 'remix-utils/client-only';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider } from './components/auth/AuthProvider';
 
 import reactToastifyStyles from 'react-toastify/dist/ReactToastify.css?url';
 import globalStyles from './styles/index.scss?url';
@@ -73,7 +73,7 @@ export const Head = createHead(() => (
   </>
 ));
 
-export function Layout({ children }: { children: React.ReactNode }) {
+function Document({ children }: { children: React.ReactNode }) {
   const theme = useStore(themeStore);
 
   useEffect(() => {
@@ -81,19 +81,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   return (
-    <>
-      <ClientOnly fallback={<div>Loading...</div>}>
-        {() => (
-          <AuthProvider>
+    <html lang="zh-CN">
+      <Head />
+      <body>
+        <ClientOnly fallback={<div>Loading...</div>}>
+          {() => (
             <DndProvider backend={HTML5Backend}>
               {children}
             </DndProvider>
-          </AuthProvider>
-        )}
-      </ClientOnly>
-      <ScrollRestoration />
-      <Scripts />
-    </>
+          )}
+        </ClientOnly>
+        <ScrollRestoration />
+        <Scripts />
+      </body>
+    </html>
   );
 }
 
@@ -101,13 +102,10 @@ import { logStore } from './lib/stores/logs';
 
 export default function App() {
   return (
-    <html lang="zh-CN">
-      <Head />
-      <body>
-        <Layout>
-          <Outlet />
-        </Layout>
-      </body>
-    </html>
+    <AuthProvider>
+      <Document>
+        <Outlet />
+      </Document>
+    </AuthProvider>
   );
 }

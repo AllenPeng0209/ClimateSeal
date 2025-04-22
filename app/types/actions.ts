@@ -1,9 +1,12 @@
 import type { Change } from 'diff';
 
-export type ActionType = 'file' | 'shell' | 'start' | 'supabase' | 'carbonflow';
+export type ActionType = 'file' | 'shell' | 'start' | 'supabase' | 'carbonflow' | 'llm' | 'datasheet' | 'settings';
 
 export interface BaseAction {
+  type: 'llm' | 'carbonflow' | 'datasheet' | 'settings';
   content: string;
+  description?: string;
+  traceId?: string;
 }
 
 export interface FileAction extends BaseAction {
@@ -30,20 +33,34 @@ export interface SupabaseAction extends BaseAction {
   projectId?: string;
 }
 
+export interface LlmAction extends BaseAction {
+  type: 'llm';
+  operation: 'analyze' | 'summarize' | 'recommend';
+}
+
 export interface CarbonFlowAction extends BaseAction {
   type: 'carbonflow';
-  operation: string;
+  operation: 'add' | 'update' | 'delete' | 'query' | 'connect' | 'layout' | 'calculate';
   nodeType?: string;
   nodeId?: string;
   source?: string;
   target?: string;
   position?: string;
-  content: string;
-  description?: string;
+  layoutType?: string;
 }
 
+export interface DatasheetAction extends BaseAction {
+  type: 'datasheet';
+  operation: string;
+  filePath?: string;
+}
 
-export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction;
+export interface SettingsAction extends BaseAction {
+  type: 'settings';
+  operation: string;
+}
+
+export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction | LlmAction | DatasheetAction | SettingsAction;
 
 export type BoltActionData = BoltAction | BaseAction;
 

@@ -3,7 +3,7 @@
  * Preventing TS checks with files presented in the video for a better presentation.
  */
 import type { JSONValue, Message } from 'ai';
-import React, { type RefCallback, useEffect, useState, useRef, useCallback } from 'react';
+import React, { type RefCallback, useEffect, useState, useRef, useCallback, type RefObject } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
@@ -42,9 +42,9 @@ import { SupabaseConnection } from './SupabaseConnection';
 const TEXTAREA_MIN_HEIGHT = 76;
 
 interface BaseChatProps {
-  textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
+  textareaRef?: RefObject<HTMLTextAreaElement> | undefined;
   messageRef?: RefCallback<HTMLDivElement> | undefined;
-  scrollRef?: React.RefObject<HTMLDivElement> | undefined;
+  scrollRef?: RefObject<HTMLDivElement> | undefined;
   showChat?: boolean;
   chatStarted?: boolean;
   isStreaming?: boolean;
