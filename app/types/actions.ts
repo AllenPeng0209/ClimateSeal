@@ -34,11 +34,13 @@ export interface CarbonFlowAction extends BaseAction {
   type: 'carbonflow';
   operation: 'create' | 'update' | 'delete' | 'query' | 'connect' | 'layout' | 'calculate';
   nodeId?: string;
+  nodeType?: string;
   source?: string;
   target?: string;
   position?: string;
   data: string;
   description?: string;
+  
 }
 
 

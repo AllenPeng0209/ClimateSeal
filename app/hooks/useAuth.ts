@@ -18,7 +18,6 @@ export function useAuth() {
     try {
       console.log('开始验证用户状态...');
       const result = await api.auth.validateToken();
-      console.log('验证结果:', result);
       
       if (result.valid && result.user) {
         setUser(result.user);

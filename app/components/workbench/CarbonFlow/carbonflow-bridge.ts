@@ -135,7 +135,7 @@ export const testCarbonFlowAction = (): void => {
   
   const testAction: CarbonFlowAction = {
     type: 'carbonflow',
-    operation: 'add',
+    operation: 'create',
     nodeType: 'product',
     content: JSON.stringify({
       label: '测试产品节点',
@@ -168,7 +168,7 @@ export const testFullCarbonFlow = (): void => {
   // 测试原材料节点
   const materialNode: CarbonFlowAction = {
     type: 'carbonflow',
-    operation: 'add',
+    operation: 'create',
     nodeType: 'product',
     content: JSON.stringify({
       label: '测试原材料',
@@ -189,7 +189,7 @@ export const testFullCarbonFlow = (): void => {
   // 测试制造节点
   const manufacturingNode: CarbonFlowAction = {
     type: 'carbonflow',
-    operation: 'add',
+    operation: 'create',
     nodeType: 'manufacturing',
     content: JSON.stringify({
       label: '测试制造',

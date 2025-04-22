@@ -420,23 +420,61 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                       <span className="font-medium text-gray-100">
                         {(() => {
                           try {
-                            console.log('CarbonFlow data 字段内容:', (action as any).data);
+                            console.log('[CarbonFlow] 开始解析节点数据:', {
+                              data: (action as any).data,
+                              type: typeof (action as any).data
+                            });
 
-                            // 检查 data 是否已经是对象
                             let dataObj;
                             if (typeof (action as any).data === 'object') {
                               dataObj = (action as any).data;
                             } else {
-                              // 如果不是对象，尝试解析 JSON 字符串
-                              dataObj = JSON.parse((action as any).data);
+                              try {
+                                // Simple validation for JSON string
+                                const dataStr = (action as any).data;
+
+                                if (
+                                  typeof dataStr === 'string' &&
+                                  (dataStr.trim().startsWith('{') || dataStr.trim().startsWith('[')) &&
+                                  (dataStr.trim().endsWith('}') || dataStr.trim().endsWith(']'))
+                                ) {
+                                  dataObj = JSON.parse(dataStr);
+                                } else {
+                                  // If not a valid JSON string, create a simple object
+                                  dataObj = { label: dataStr || '节点' };
+                                }
+                              } catch (parseError) {
+                                console.error('[CarbonFlow] JSON解析失败:', parseError);
+                                // 尝试从 content 字段解析
+                                if ((action as any).content) {
+                                  try {
+                                    // Simple validation for JSON string
+                                    const contentStr = (action as any).content;
+
+                                    if (
+                                      typeof contentStr === 'string' &&
+                                      (contentStr.trim().startsWith('{') || contentStr.trim().startsWith('[')) &&
+                                      (contentStr.trim().endsWith('}') || contentStr.trim().endsWith(']'))
+                                    ) {
+                                      dataObj = JSON.parse(contentStr);
+                                    } else {
+                                      // If not a valid JSON string, create a simple object
+                                      dataObj = { label: contentStr || '节点' };
+                                    }
+                                  } catch (contentError) {
+                                    console.error('[CarbonFlow] Content字段解析也失败:', contentError);
+                                    return '节点';
+                                  }
+                                } else {
+                                  return '节点';
+                                }
+                              }
                             }
 
-                            console.log('解析后的 data 对象:', dataObj);
-
+                            console.log('[CarbonFlow] 解析后的数据对象:', dataObj);
                             return dataObj.label || '节点';
                           } catch (e) {
-                            console.error('解析 CarbonFlow 节点数据失败:', e);
-
+                            console.error('[CarbonFlow] 节点数据解析失败:', e);
                             return '节点';
                           }
                         })()}
@@ -450,9 +488,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                       <span className="font-medium text-gray-100">{(action as any).target}</span>
                     </div>
                   )}
-                  {(action as any).operation === 'calculate' && (
-                    <div className="ml-4 text-gray-300">• 计算碳足迹值</div>
-                  )}
+                  {(action as any).operation === 'calculate' && <div className="ml-4 text-gray-300">• 计算碳足迹值</div>}
                   {(action as any).operation === 'update' && <div className="ml-4 text-gray-300">• 更新节点信息</div>}
                   {(action as any).operation === 'delete' && <div className="ml-4 text-gray-300">• 删除节点</div>}
                   {(action as any).operation === 'query' && <div className="ml-4 text-gray-300">• 查询节点信息</div>}

@@ -371,6 +371,10 @@ export class StreamingMessageParser {
         // 根据操作类型提取不同属性
         if (operation === 'create') {
           const position = this.#extractAttribute(actionTag, 'position');
+          
+          const nodeType = this.#extractAttribute(actionTag, 'nodeType');
+          
+          (actionAttributes as CarbonFlowAction).nodeType = nodeType;
           (actionAttributes as CarbonFlowAction).position = position;
           (actionAttributes as CarbonFlowAction).data = carbonFlowOperation.data;
 
@@ -462,12 +466,30 @@ export class StreamingMessageParser {
   }
 
   #extractAttribute(tag: string, attributeName: string): string | undefined {
-    // 修改正则表达式，同时匹配单引号和双引号包裹的属性值
-    const match = tag.match(new RegExp(`${attributeName}=["']([^"']*)["']`, 'i'));
-    const result = match ? match[1] : undefined;
+    // 修改正则表达式，同时匹配单引号和双引号包裹的属性值，并处理多行内容
+    const regex = new RegExp(`${attributeName}=["']([\\s\\S]*?)["'](?=\\s|>)`, 'i');
+    const match = tag.match(regex);
+    let result = match ? match[1] : undefined;
 
     // 为CarbonFlow操作添加额外的属性提取日志
     if (tag.includes('type="carbonflow"')) {
+      // 清理和规范化结果
+      if (result) {
+        // 移除多余的空白字符
+        result = result.replace(/\s+/g, ' ').trim();
+        
+        // 如果是JSON格式的字符串，尝试解析和重新格式化
+        if (result.startsWith('{') || result.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(result);
+            result = JSON.stringify(parsed);
+          } catch (e) {
+            // 如果解析失败，保持原始值
+            console.log(`[PARSER_ATTR_WARNING] 无法解析JSON格式的属性 ${attributeName}`);
+          }
+        }
+      }
+
       console.log(`[PARSER_ATTR] 提取属性 ${attributeName}:`, {
         value: result ? result.substring(0, 50) + (result.length > 50 ? '...' : '') : 'undefined',
         length: result ? result.length : 0,
@@ -504,38 +526,87 @@ export class StreamingMessageParser {
       const position = this.#extractAttribute(actionTag, 'position');
       const target = this.#extractAttribute(actionTag, 'target');
       const description = this.#extractAttribute(actionTag, 'description');
+      const source = this.#extractAttribute(actionTag, 'source');
+
+      // 记录提取的属性
+      logger.info('Extracted CarbonFlow attributes', {
+        operation,
+        nodeId,
+        position,
+        target,
+        description,
+        source
+      });
 
       // 提取并解析数据
-      let data = this.#extractAttribute(actionTag, 'data') || '{}';
+      let data = this.#extractAttribute(actionTag, 'data');
+      let parsedData = '{}';
 
-      // 清理数据字符串
-      data = data
-        .replace(/<!--[\s\S]*?-->/g, '') // 移除HTML注释
-        .replace(/\s+/g, ' ') // 规范化空白字符
-        .trim();
+      if (data) {
+        try {
+          // 如果data已经是对象，直接使用
+          if (typeof data === 'object') {
+            parsedData = JSON.stringify(data);
+          } else {
+            // 清理数据字符串
+            data = data
+              .replace(/<!--[\s\S]*?-->/g, '') // 移除HTML注释
+              .replace(/\s+/g, ' ') // 规范化空白字符
+              .trim();
 
-      // 尝试解析数据（如果解析失败则使用原始字符串）
-      try {
-        JSON.parse(data);
-      } catch (error) {
-        logger.warn('Failed to parse CarbonFlow data as JSON, using raw string', { error });
+            // 尝试解析数据
+            const parsed = JSON.parse(data);
+            parsedData = JSON.stringify(parsed);
+            
+            logger.info('Successfully parsed CarbonFlow data', {
+              dataLength: data.length,
+              parsedDataLength: parsedData.length
+            });
+          }
+        } catch (error) {
+          logger.warn('Failed to parse CarbonFlow data as JSON, using empty object', { 
+            error,
+            dataPreview: typeof data === 'string' ? data.substring(0, 100) + (data.length > 100 ? '...' : '') : '非字符串数据'
+          });
+        }
+      } else {
+        logger.info('No data attribute found in CarbonFlow action');
       }
 
       // 构建 CarbonFlow 操作对象
       const carbonFlowAction: CarbonFlowAction = {
         type: 'carbonflow',
         operation: operation as CarbonFlowAction['operation'],
-        content: data, // 使用 data 作为 content
-        data: '', // 保持 data 字段为空字符串，因为我们已经将数据移到 content 中
+        content: '', // 保持 content 字段为空字符串
+        data: parsedData, // 将解析后的数据存储在 data 字段中
       };
 
       // 添加可选属性
       if (nodeId) carbonFlowAction.nodeId = nodeId;
-      if (position) carbonFlowAction.position = position;
+      if (position) {
+        try {
+          // 尝试解析position为JSON对象
+          const positionObj = JSON.parse(position);
+          carbonFlowAction.position = JSON.stringify(positionObj);
+        } catch (e) {
+          // 如果解析失败，直接使用原始字符串
+          carbonFlowAction.position = position;
+        }
+      }
       if (target) carbonFlowAction.target = target;
       if (description) carbonFlowAction.description = description;
+      if (source) carbonFlowAction.source = source;
 
-      logger.info('Successfully parsed CarbonFlow operation', { operation });
+      logger.info('Successfully parsed CarbonFlow operation', { 
+        operation,
+        hasNodeId: !!nodeId,
+        hasPosition: !!position,
+        hasTarget: !!target,
+        hasDescription: !!description,
+        hasSource: !!source,
+        dataLength: parsedData.length
+      });
+
       return carbonFlowAction;
     } catch (error) {
       logger.error('Error parsing CarbonFlow operation', { error });
