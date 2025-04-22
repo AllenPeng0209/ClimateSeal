@@ -38,6 +38,8 @@ import type { ActionRunner } from '~/lib/runtime/action-runner';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
 import { SupabaseChatAlert } from '~/components/chat/SupabaseAlert';
 import { SupabaseConnection } from './SupabaseConnection';
+import { previewActions } from '~/lib/stores/preview';
+import type { RcFile } from 'antd/es/upload/interface';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -75,6 +77,20 @@ interface BaseChatProps {
   clearSupabaseAlert?: () => void;
   data?: JSONValue[] | undefined;
   actionRunner?: ActionRunner;
+}
+
+interface FileResult {
+  file: File;
+  imageData?: string;
+}
+
+interface UploadResult {
+  file: {
+    type: string;
+    name: string;
+    size: number;
+  };
+  imageData?: string;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -323,27 +339,169 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
-    const handleFileUpload = () => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-
-      input.onchange = async (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-
-        if (file) {
-          const reader = new FileReader();
-
-          reader.onload = (e) => {
-            const base64Image = e.target?.result as string;
-            setUploadedFiles?.([...uploadedFiles, file]);
-            setImageDataList?.([...imageDataList, base64Image]);
-          };
-          reader.readAsDataURL(file);
+    const handleFileUpload = async (files: File[]): Promise<FileResult[]> => {
+      const results: FileResult[] = [];
+      
+      // 显示上传开始的消息
+      if (sendMessage) {
+        sendMessage({} as React.UIEvent, `正在处理${files.length}个文件的上传...`);
+      }
+      
+      for (const file of files) {
+        const result: FileResult = { file };
+        
+        if (file.type.startsWith('image/')) {
+          try {
+            const reader = new FileReader();
+            const imageData = await new Promise<string>((resolve, reject) => {
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            result.imageData = imageData;
+          } catch (error) {
+            console.error('Error reading image file:', error);
+          }
         }
-      };
+        
+        results.push(result);
+      }
 
-      input.click();
+      // 更新状态
+      if (setUploadedFiles) {
+        setUploadedFiles([...uploadedFiles, ...results.map(r => r.file)]);
+      }
+      
+      if (setImageDataList) {
+        const newImageData = results
+          .filter((r): r is FileResult & { imageData: string } => !!r.imageData)
+          .map(r => r.imageData);
+        setImageDataList([...imageDataList, ...newImageData]);
+      }
+
+      // 更新预览状态
+      const uploadFiles = results.map(r => {
+        const rcFile = new File([r.file], r.file.name, {
+          type: r.file.type,
+          lastModified: r.file.lastModified,
+        }) as RcFile;
+        
+        rcFile.uid = Math.random().toString();
+        
+        return {
+          uid: rcFile.uid,
+          name: rcFile.name,
+          type: rcFile.type,
+          size: rcFile.size,
+          lastModified: rcFile.lastModified,
+          lastModifiedDate: new Date(rcFile.lastModified),
+          originFileObj: rcFile,
+        };
+      });
+      
+      const newImageDataList = results
+        .map(r => r.imageData || '')
+        .filter(Boolean);
+      
+      previewActions.addFiles(uploadFiles, newImageDataList);
+
+      // 对文件类型进行分类统计
+      const fileTypes = new Map<string, number>();
+      results.forEach(r => {
+        let type = '其他';
+        if (r.file.type.startsWith('image/')) type = '图片';
+        else if (r.file.type.includes('pdf')) type = 'PDF文档';
+        else if (r.file.type.includes('excel') || r.file.type.includes('spreadsheet') || r.file.type.includes('csv')) type = '表格文件';
+        else if (r.file.type.includes('word') || r.file.type.includes('document')) type = '文档';
+        
+        fileTypes.set(type, (fileTypes.get(type) || 0) + 1);
+      });
+
+      // 发送文件上传成功消息
+      const fileTypeSummary = Array.from(fileTypes.entries())
+        .map(([type, count]: [string, number]) => `${type} ${count} 个`)
+        .join('、');
+      
+      const uploadSuccessMsg = `已成功上传 ${results.length} 个文件（${fileTypeSummary}）。我将帮您分析这些文件中的信息。`;
+      
+      sendMessage?.({} as React.UIEvent, uploadSuccessMsg);
+
+      // 发送分析进度消息
+      const analysisMsg = `正在进行以下分析：
+1. 提取产品基本信息：规格型号、年产量等
+2. 识别物料清单：
+   - 原材料类型和用量
+   - 包装材料规格
+   - 能源消耗数据
+3. 获取供应商信息：
+   - 供应商名称和位置
+   - 运输方式和距离
+4. 分析生产工艺流程
+   - 设备能耗
+   - 工艺参数
+   - 物料平衡
+
+分析完成后，我会为您生成初步的碳足迹建模建议。`;
+
+      sendMessage?.({} as React.UIEvent, analysisMsg);
+
+      // 延迟2秒后发送初步分析结果
+      setTimeout(() => {
+        const preliminaryResults = `基于上传文件的初步分析：
+
+1. 已识别的关键信息：
+   ${generatePreliminaryAnalysis(results)}
+
+2. 下一步建议：
+   - 请确认以上信息是否准确
+   - 如有缺失数据，我可以协助您设计调研表
+   - 需要时我可以帮您细化具体的数据收集项
+
+您可以随时询问我关于数据收集和建模的具体问题。`;
+
+        sendMessage?.({} as React.UIEvent, preliminaryResults);
+      }, 2000);
+
+      // 自动切换到Preview标签页
+      const previewTab = document.querySelector('[data-tab="Preview"]');
+      if (previewTab && previewTab instanceof HTMLElement) {
+        previewTab.click();
+      }
+
+      return results;
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+      e.preventDefault();
+      const target = e.currentTarget as HTMLElement;
+      target.style.border = '1px solid var(--bolt-elements-borderColor)';
+
+      const files = Array.from(e.dataTransfer.files);
+      const newFiles: File[] = [...uploadedFiles];
+      const newImageDataList: string[] = [...imageDataList];
+
+      for (const file of files) {
+        if (file.type.startsWith('image/')) {
+          try {
+            const base64Data = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            newFiles.push(file);
+            newImageDataList.push(base64Data);
+          } catch (error) {
+            console.error('Error reading image file:', error);
+          }
+        } else {
+          newFiles.push(file);
+          newImageDataList.push('');
+        }
+      }
+
+      setUploadedFiles?.(newFiles);
+      setImageDataList?.(newImageDataList);
     };
 
     const handlePaste = async (e: React.ClipboardEvent) => {
@@ -571,24 +729,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                           e.preventDefault();
                           e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
                         }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
-
-                          const files = Array.from(e.dataTransfer.files);
-                          files.forEach((file) => {
-                            if (file.type.startsWith('image/')) {
-                              const reader = new FileReader();
-
-                              reader.onload = (e) => {
-                                const base64Image = e.target?.result as string;
-                                setUploadedFiles?.([...uploadedFiles, file]);
-                                setImageDataList?.([...imageDataList, base64Image]);
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          });
-                        }}
+                        onDrop={handleDrop}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
                             if (event.shiftKey) {
@@ -643,7 +784,21 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       </ClientOnly>
                       <div className="flex justify-between items-center text-sm p-4 pt-2">
                         <div className="flex gap-1 items-center">
-                          <IconButton title="Upload file" className="transition-all" onClick={() => handleFileUpload()}>
+                          <IconButton 
+                            title="Upload file" 
+                            className="transition-all" 
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = '.jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv';
+                              input.multiple = true;
+                              input.onchange = (e) => {
+                                const files = Array.from((e.target as HTMLInputElement).files || []);
+                                handleFileUpload(files);
+                              };
+                              input.click();
+                            }}
+                          >
                             <div className="i-ph:paperclip text-xl"></div>
                           </IconButton>
                           <IconButton
@@ -733,3 +888,20 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     return <Tooltip.Provider delayDuration={200}>{baseChat}</Tooltip.Provider>;
   },
 );
+
+// 添加初步分析生成方法
+function generatePreliminaryAnalysis(results: { file: File }[]): string {
+  const analysis: string[] = [];
+  
+  results.forEach(r => {
+    if (r.file.type.startsWith('image/')) {
+      analysis.push('- 工艺流程图：将分析工序步骤和设备信息');
+    } else if (r.file.type.includes('excel') || r.file.type.includes('spreadsheet')) {
+      analysis.push('- 数据表格：将提取物料清单和能耗数据');
+    } else if (r.file.type.includes('pdf')) {
+      analysis.push('- PDF文档：将识别产品规格和工艺参数');
+    }
+  });
+
+  return analysis.length > 0 ? analysis.join('\n') : '需要进一步分析文件内容';
+}

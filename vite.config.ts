@@ -70,6 +70,8 @@ const pkg = getPackageJson();
 const gitInfo = getGitInfo();
 
 export default defineConfig((config) => {
+  const isDev = config.mode === 'development';
+  
   return {
     define: {
       __COMMIT_HASH: JSON.stringify(gitInfo.commitHash),
@@ -94,19 +96,36 @@ export default defineConfig((config) => {
       rollupOptions: {
         output: {
           format: 'esm',
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            antd: ['antd'],
+          },
         },
       },
       commonjsOptions: {
         transformMixedEsModules: true,
       },
+      sourcemap: !isDev,
+      minify: 'esbuild',
+      cssMinify: true,
+      reportCompressedSize: false,
     },
     optimizeDeps: {
+      include: [
+        'react', 
+        'react-dom',
+        'antd',
+        '@ant-design/icons',
+        'xlsx',
+        'pdf-lib'
+      ],
+      disabled: false,
       esbuildOptions: {
+        target: 'esnext',
         define: {
           global: 'globalThis',
         },
       },
-      include: ['util'],
     },
     resolve: {
       alias: {
@@ -177,8 +196,33 @@ export default defineConfig((config) => {
       },
       modules: {
         localsConvention: 'camelCase',
-        generateScopedName: '[name]__[local]___[hash:base64:5]'
-      }
+        generateScopedName: isDev 
+          ? '[name]__[local]___[hash:base64:5]'
+          : '[hash:base64:8]'
+      },
+      devSourcemap: false,
+    },
+    server: {
+      port: 5173,
+      strictPort: true,
+      hmr: {
+        overlay: false,
+        port: 5173,
+        timeout: 30000,
+      },
+      watch: {
+        usePolling: false,
+        interval: 100,
+      },
+      fs: {
+        strict: false,
+      },
+      force: true,
+    },
+    esbuild: {
+      target: 'esnext',
+      legalComments: 'none',
+      treeShaking: true,
     },
   };
 });
