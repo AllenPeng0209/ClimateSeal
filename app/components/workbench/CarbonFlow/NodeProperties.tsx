@@ -2,7 +2,7 @@ import React from 'react';
 import { Form, Input, Select, InputNumber, Upload, Button, Row, Col, message } from 'antd';
 import { UploadOutlined, CloseOutlined } from '@ant-design/icons';
 import type { Node } from 'reactflow';
-import type { NodeData } from '../CarbonFlow';
+import type { NodeData } from '~/app/types/nodes';
 
 const { Option } = Select;
 
@@ -12,6 +12,7 @@ interface NodePropertiesProps {
   onUpdate: (data: Partial<NodeData>) => void;
   setNodes: (callback: (nodes: any[]) => any[]) => void;
   selectedNode: any;
+  setSelectedNode: (node: any) => void;
   updateAiSummary: () => void;
 }
 
@@ -240,6 +241,14 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
                     onChange={(e) => updateNodeData('vehicleType', e.target.value)}
                   />
                 </Form.Item>
+                <Form.Item label="起点" className="form-item">
+                  <Input
+                    className="node-properties-input"
+                    value={(node.data as any).startPoint}
+                    onChange={(e) => updateNodeData('startPoint', e.target.value)}
+                  />
+                </Form.Item>
+
               </Col>
               <Col span={12}>
                 <Form.Item label="燃料类型" className="form-item">
@@ -270,6 +279,14 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
                     max={100}
                   />
                 </Form.Item>
+                <Form.Item label="终点" className="form-item">
+                  <Input
+                    className="node-properties-input"
+                    value={(node.data as any).endPoint}
+                    onChange={(e) => updateNodeData('endPoint', e.target.value)}
+                  />
+                </Form.Item>
+
               </Col>
             </Row>
           </Col>
@@ -625,6 +642,7 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
               
               <Form.Item label="因子来源" className="form-item">
                   <Select
+                    className="node-properties-input"
                     value={node?.data.carbonFactordataSource}
                     style={{ width: '100%' }}
                     onChange={(value) => updateNodeData('carbonFactordataSource', value)}

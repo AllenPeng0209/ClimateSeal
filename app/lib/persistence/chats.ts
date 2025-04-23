@@ -138,3 +138,67 @@ export async function deleteAllChats(db: IDBDatabase): Promise<void> {
     };
   });
 }
+
+storeMessageHistory: async (messagesToStore: Message[]) => {
+  if (!db) {
+    console.error('Database not initialized');
+    return;
+  }
+
+  const messagesWithoutNoStore = messagesToStore.filter((m) => !m.annotations?.includes('no-store'));
+  
+  if (messagesWithoutNoStore.length === 0) {
+    return;
+  }
+
+  chatMessagesStore.set(messagesWithoutNoStore);
+  
+  const { firstArtifact } = workbenchStore;
+  let _urlId = urlId;
+
+  if (!urlId && firstArtifact?.id) {
+    try {
+      const newUrlId = await getUrlId(db, firstArtifact.id);
+      _urlId = newUrlId;
+      navigateChat(newUrlId);
+      setUrlId(newUrlId);
+    } catch (error) {
+      console.error('Failed to get URL ID:', error);
+      return;
+    }
+  }
+
+  let currentChatId = chatId.get();
+  
+  if (!currentChatId) {
+    try {
+      const nextId = await getNextId(db);
+      if (!nextId || typeof nextId !== 'string') {
+        console.error('Failed to generate a valid chat ID');
+        return;
+      }
+      currentChatId = nextId;
+      chatId.set(currentChatId);
+      if (!urlId) {
+        navigateChat(currentChatId);
+      }
+    } catch (error) {
+      console.error('Failed to generate new chat ID:', error);
+      return;
+    }
+  }
+
+  try {
+    await setMessages(
+      db,
+      currentChatId,
+      [...archivedMessages, ...chatMessagesStore.get()],
+      _urlId,
+      description.get(),
+      undefined,
+      chatMetadata.get(),
+    );
+  } catch (error) {
+    console.error('Failed to store messages:', error);
+  }
+}

@@ -1,19 +1,8 @@
 import type { Node, Edge } from 'reactflow';
 import type { CarbonFlowAction } from '~/types/actions';
+import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData } from '~/types/nodes';
 
-export interface NodeData {
-  label: string;
-  nodeName: string;
-  lifecycleStage: string;
-  emissionType: string;
-  carbonFactor: number;
-  activitydataSource: string;
-  activityScore: number;
-  carbonFootprint: number;
-  [key: string]: any; // 允許其他屬性
-}
-
-type NodeType = 'product' | 'manufacturing' | 'distribution' | 'usage' | 'disposal' | 'finalProduct';
+export type NodeType = 'product' | 'manufacturing' | 'distribution' | 'usage' | 'disposal' | 'finalProduct';
 
 export interface CarbonFlowActionHandlerProps {
   nodes: Node<NodeData>[];
@@ -49,59 +38,69 @@ export class CarbonFlowActionHandler {
       nodeId: action.nodeId,
       source: action.source,
       target: action.target,
-      position: action.position
+      position: action.position,
+      data: action.data,
+      description: action.description,
     });
-    
+
     // 记录操作内容
     if (action.description) {
-      // 如果存在描述字段，优先使用描述
       console.log(`[CARBONFLOW_CONTENT] ${action.description}`);
-    } 
-    
-    if (action.content) {
+    }
+
+    if (action.data) {
       try {
-        // 尝试解析content为JSON对象
-        const contentObj = JSON.parse(action.content);
+        const contentObj = JSON.parse(action.data);
         console.log(`[CARBONFLOW_CONTENT]`, contentObj);
       } catch (e) {
-        // 如果解析失败且没有描述字段，则输出原始内容
         if (!action.description) {
-          console.log(`[CARBONFLOW_CONTENT] ${action.content}`);
+          console.log(`[CARBONFLOW_CONTENT] ${action.data}`);
         }
       }
     }
 
-    switch (action.operation) {
-      case 'add':
-        this.handleAddNode(action);
-        break;
-      case 'update':
-        this.handleUpdateNode(action);
-        break;
-      case 'delete':
-        this.handleDeleteNode(action);
-        break;
-      case 'query':
-        this.handleQueryNode(action);
-        break;
-      case 'connect':
-        this.handleConnectNodes(action);
-        break;
-      case 'layout':
-        this.handleLayout(action);
-        break;
-      case 'calculate':
-        this.handleCalculate(action);
-        break;
-      default:
-        console.warn(`未知的 CarbonFlow 操作: ${(action as any).operation}`);
+    // 验证操作类型
+    const validOperations = ['create', 'update', 'delete', 'query', 'connect', 'layout', 'calculate'];
+    if (!validOperations.includes(action.operation)) {
+      console.error(`无效的 CarbonFlow 操作类型: ${action.operation}`);
+      return;
+    }
+
+    try {
+      switch (action.operation) {
+        case 'create':
+          this.handleCreateNode(action);
+          break;
+        case 'update':
+          this.handleUpdateNode(action);
+          break;
+        case 'delete':
+          this.handleDeleteNode(action);
+          break;
+        case 'query':
+          this.handleQueryNode(action);
+          break;
+        case 'connect':
+          this.handleConnectNodes(action);
+          break;
+        case 'layout':
+          this.handleLayout(action);
+          break;
+        case 'calculate':
+          this.handleCalculate(action);
+          break;
+        default:
+          console.warn(`未知的 CarbonFlow 操作: ${action.operation}`);
+      }
+    } catch (error) {
+      console.error(`处理 CarbonFlow 操作失败: ${action.operation}`, error);
     }
   }
 
   /**
    * 添加节点
    */
-  private handleAddNode(action: CarbonFlowAction): void {
+  private handleCreateNode(action: CarbonFlowAction): void {
     if (!action.nodeType) {
       console.error('添加节点操作缺少 nodeType');
       return;
@@ -110,37 +109,22 @@ export class CarbonFlowActionHandler {
     try {
       // 改进JSON解析逻辑
       let nodeData: Record<string, any> = {}; // 使用Record<string, any>類型
-      
-      if (action.content) {
+
+      if (action.data) {
         try {
-          // 尝试解析纯JSON内容
-          nodeData = JSON.parse(action.content);
+          // 尝试解析data字段
+          nodeData = JSON.parse(action.data);
         } catch (e) {
-          // 如果解析失败，检查是否存在JSON部分
-          const jsonStart = action.content.indexOf('{');
-          const jsonEnd = action.content.lastIndexOf('}');
-          
-          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-            try {
-              // 提取JSON部分并尝试解析
-              const jsonPart = action.content.substring(jsonStart, jsonEnd + 1);
-              nodeData = JSON.parse(jsonPart);
-            } catch (innerError) {
-              console.error('JSON提取和解析失败:', innerError);
-              return;
-            }
-          } else {
-            console.error('内容格式错误，找不到有效的JSON部分');
-            return;
-          }
+          console.error('解析节点数据失败:', e);
+          return;
         }
       }
-      
+
       // 補一個100 100附近的 random的範圍
       const randomX = Math.random() * 300 + 100;
       const randomY = Math.random() * 300 + 100;
       let position = { x: randomX, y: randomY }; // 默认位置
-      
+
       // 解析位置信息
       if (action.position) {
         try {
@@ -149,7 +133,7 @@ export class CarbonFlowActionHandler {
           console.warn('无法解析节点位置，使用默认位置', e);
         }
       }
-      
+
       // 创建新节点
       const newNode: Node<NodeData> = {
         id: `${action.nodeType}-${Date.now()}`,
@@ -164,8 +148,8 @@ export class CarbonFlowActionHandler {
           activitydataSource: nodeData.activitydataSource || '手动输入',
           activityScore: nodeData.activityScore || 0,
           carbonFootprint: nodeData.carbonFootprint || 0,
-          ...nodeData
-        }
+          ...nodeData,
+        },
       };
 
       // 更新节点列表
@@ -186,17 +170,17 @@ export class CarbonFlowActionHandler {
     }
 
     try {
-      const updateData = action.content ? JSON.parse(action.content) : {};
-      
+      const updateData = action.data ? JSON.parse(action.data) : {};
+
       // 查找并更新节点
-      const updatedNodes = this.nodes.map(node => {
+      const updatedNodes = this.nodes.map((node) => {
         if (node.id === action.nodeId || node.data.nodeName === action.nodeId) {
           return {
             ...node,
             data: {
               ...node.data,
-              ...updateData
-            }
+              ...updateData,
+            },
           };
         }
         return node;
@@ -221,15 +205,12 @@ export class CarbonFlowActionHandler {
 
     try {
       // 查找并删除节点
-      const filteredNodes = this.nodes.filter(node => 
-        node.id !== action.nodeId && node.data.nodeName !== action.nodeId
+      const filteredNodes = this.nodes.filter(
+        (node) => node.id !== action.nodeId && node.data.nodeName !== action.nodeId,
       );
-      
+
       // 同时删除与该节点相关的边
-      const filteredEdges = this.edges.filter(edge => 
-        edge.source !== action.nodeId && 
-        edge.target !== action.nodeId
-      );
+      const filteredEdges = this.edges.filter((edge) => edge.source !== action.nodeId && edge.target !== action.nodeId);
 
       // 更新节点和边列表
       this.setNodes(filteredNodes);
@@ -252,10 +233,8 @@ export class CarbonFlowActionHandler {
 
     try {
       // 查找节点
-      const node = this.nodes.find(node => 
-        node.id === action.nodeId || node.data.nodeName === action.nodeId
-      );
-      
+      const node = this.nodes.find((node) => node.id === action.nodeId || node.data.nodeName === action.nodeId);
+
       if (node) {
         console.log(`节点 ${action.nodeId} 信息:`, node);
         return node;
@@ -280,29 +259,25 @@ export class CarbonFlowActionHandler {
 
     try {
       // 检查源节点和目标节点是否存在
-      const sourceExists = this.nodes.some(node => 
-        node.id === action.source || node.data.nodeName === action.source
-      );
-      
-      const targetExists = this.nodes.some(node => 
-        node.id === action.target || node.data.nodeName === action.target
-      );
-      
+      const sourceExists = this.nodes.some((node) => node.id === action.source || node.data.nodeName === action.source);
+
+      const targetExists = this.nodes.some((node) => node.id === action.target || node.data.nodeName === action.target);
+
       if (!sourceExists || !targetExists) {
         console.error(`源节点或目标节点不存在: source=${action.source}, target=${action.target}`);
         return;
       }
-      
+
       // 创建连接属性
-      const edgeData = action.content ? JSON.parse(action.content) : {};
-      
+      const edgeData = action.data ? JSON.parse(action.data) : {};
+
       // 创建新边
       const newEdge: Edge = {
         id: `e-${action.source}-${action.target}-${Date.now()}`,
         source: action.source,
         target: action.target,
         label: edgeData.label,
-        data: edgeData
+        data: edgeData,
       };
 
       // 更新边列表
@@ -318,9 +293,8 @@ export class CarbonFlowActionHandler {
    */
   private handleLayout(action: CarbonFlowAction): void {
     try {
-      const layoutConfig = action.content ? JSON.parse(action.content) : {};
+      const layoutConfig = action.data ? JSON.parse(action.data) : {};
       const layoutType = layoutConfig.type || 'vertical';
-      
 
       if (layoutType === 'normal') {
         this.applyNormalLayout();
@@ -347,7 +321,7 @@ export class CarbonFlowActionHandler {
 
     // 定义节点类型的顺序（不包括最终产品节点）
     const nodeTypeOrder: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal'];
-    
+
     // 根据节点类型分组
     const nodesByType: Record<NodeType, Node<NodeData>[]> = {
       product: [],
@@ -357,9 +331,9 @@ export class CarbonFlowActionHandler {
       disposal: [],
       finalProduct: [],
     };
-    
+
     // 填充节点分组
-    this.nodes.forEach(node => {
+    this.nodes.forEach((node) => {
       const nodeType = node.type as NodeType;
       if (nodeType in nodesByType) {
         nodesByType[nodeType].push(node);
@@ -413,46 +387,50 @@ export class CarbonFlowActionHandler {
     }
 
     // 计算所有非最终产品节点的位置
-    const positionedNodes = newNodes.filter(node => node.type !== 'finalProduct').map(node => {
-      const nodeType = node.type as NodeType;
-      const typeIndex = nodeTypeOrder.indexOf(nodeType);
-      const typeNodes = nodesByType[nodeType] || [];
-      const nodeIndex = typeNodes.indexOf(node);
-      
-      // 计算水平位置（根据节点类型）
-      const x = PADDING + typeIndex * HORIZONTAL_SPACING;
-      
-      // 计算垂直位置（根据同类型节点的顺序）
-      const y = PADDING + nodeIndex * VERTICAL_SPACING;
+    const positionedNodes = newNodes
+      .filter((node) => node.type !== 'finalProduct')
+      .map((node) => {
+        const nodeType = node.type as NodeType;
+        const typeIndex = nodeTypeOrder.indexOf(nodeType);
+        const typeNodes = nodesByType[nodeType] || [];
+        const nodeIndex = typeNodes.indexOf(node);
 
-      return {
-        ...node,
-        position: { x, y },
-        style: {    
-          width: NODE_WIDTH,
-          height: NODE_HEIGHT,
-        },  
-      };
-    });
+        // 计算水平位置（根据节点类型）
+        const x = PADDING + typeIndex * HORIZONTAL_SPACING;
+
+        // 计算垂直位置（根据同类型节点的顺序）
+        const y = PADDING + nodeIndex * VERTICAL_SPACING;
+
+        return {
+          ...node,
+          position: { x, y },
+          style: {
+            width: NODE_WIDTH,
+            height: NODE_HEIGHT,
+          },
+        };
+      });
 
     // 计算最终产品节点的位置（放在最右侧）
-    const finalProductNodes = newNodes.filter(node => node.type === 'finalProduct').map(node => {
-      const x = PADDING + (nodeTypeOrder.length + 1) * HORIZONTAL_SPACING;
-      const y = PADDING + (VERTICAL_SPACING / 2); // 垂直居中
+    const finalProductNodes = newNodes
+      .filter((node) => node.type === 'finalProduct')
+      .map((node) => {
+        const x = PADDING + (nodeTypeOrder.length + 1) * HORIZONTAL_SPACING;
+        const y = PADDING + VERTICAL_SPACING / 2; // 垂直居中
 
-      return {
-        ...node,
-        position: { x, y },
-        style: {    
-          width: NODE_WIDTH,
-          height: NODE_HEIGHT,
-        },  
-      };
-    });
+        return {
+          ...node,
+          position: { x, y },
+          style: {
+            width: NODE_WIDTH,
+            height: NODE_HEIGHT,
+          },
+        };
+      });
 
     // 更新节点位置
     this.nodes = [...positionedNodes, ...finalProductNodes];
-    
+
     // 更新边
     this.updateEdges();
   }
@@ -463,16 +441,16 @@ export class CarbonFlowActionHandler {
   private applyVerticalLayout(): void {
     const spacing = 150;
     const updatedNodes = [...this.nodes];
-    
+
     // 按生命周期阶段分组
     const stages = ['product', 'manufacturing', 'distribution', 'usage', 'disposal', 'finalProduct'];
     const stageMap = new Map<string, Node<NodeData>[]>();
-    
+
     // 初始化阶段映射
-    stages.forEach(stage => stageMap.set(stage, []));
-    
+    stages.forEach((stage) => stageMap.set(stage, []));
+
     // 按阶段分组节点
-    updatedNodes.forEach(node => {
+    updatedNodes.forEach((node) => {
       const stage = node.type as string;
       if (stageMap.has(stage)) {
         stageMap.get(stage)?.push(node);
@@ -484,23 +462,23 @@ export class CarbonFlowActionHandler {
         stageMap.get('misc')?.push(node);
       }
     });
-    
+
     // 应用垂直布局
     let yOffset = 100;
     stageMap.forEach((nodes, stage) => {
       if (nodes.length === 0) return;
-      
+
       const xCenter = 400;
       const xSpacing = 200;
-      
+
       nodes.forEach((node, index) => {
         const xPos = xCenter + (index - (nodes.length - 1) / 2) * xSpacing;
         node.position = { x: xPos, y: yOffset };
       });
-      
+
       yOffset += spacing;
     });
-    
+
     // 更新节点位置
     this.setNodes([...updatedNodes]);
     console.log('成功应用垂直布局');
@@ -512,16 +490,16 @@ export class CarbonFlowActionHandler {
   private applyHorizontalLayout(): void {
     const spacing = 200;
     const updatedNodes = [...this.nodes];
-    
+
     // 按生命周期阶段分组
     const stages = ['product', 'manufacturing', 'distribution', 'usage', 'disposal', 'finalProduct'];
     const stageMap = new Map<string, Node<NodeData>[]>();
-    
+
     // 初始化阶段映射
-    stages.forEach(stage => stageMap.set(stage, []));
-    
+    stages.forEach((stage) => stageMap.set(stage, []));
+
     // 按阶段分组节点
-    updatedNodes.forEach(node => {
+    updatedNodes.forEach((node) => {
       const stage = node.type as string;
       if (stageMap.has(stage)) {
         stageMap.get(stage)?.push(node);
@@ -533,23 +511,23 @@ export class CarbonFlowActionHandler {
         stageMap.get('misc')?.push(node);
       }
     });
-    
+
     // 应用水平布局
     let xOffset = 100;
     stageMap.forEach((nodes, stage) => {
       if (nodes.length === 0) return;
-      
+
       const yCenter = 300;
       const ySpacing = 150;
-      
+
       nodes.forEach((node, index) => {
         const yPos = yCenter + (index - (nodes.length - 1) / 2) * ySpacing;
         node.position = { x: xOffset, y: yPos };
       });
-      
+
       xOffset += spacing;
     });
-    
+
     // 更新节点位置
     this.setNodes([...updatedNodes]);
     console.log('成功应用水平布局');
@@ -561,23 +539,21 @@ export class CarbonFlowActionHandler {
   private applyRadialLayout(): void {
     // 如果节点很少，不需要应用放射状布局
     if (this.nodes.length <= 1) return;
-    
+
     const centerX = 400;
     const centerY = 300;
     const radius = 250;
     const updatedNodes = [...this.nodes];
-    
+
     // 找出中心节点（通常是最终产品节点）
-    const centerNode = updatedNodes.find(node => node.type === 'finalProduct');
-    const otherNodes = centerNode 
-      ? updatedNodes.filter(node => node !== centerNode)
-      : updatedNodes;
-    
+    const centerNode = updatedNodes.find((node) => node.type === 'finalProduct');
+    const otherNodes = centerNode ? updatedNodes.filter((node) => node !== centerNode) : updatedNodes;
+
     // 设置中心节点位置
     if (centerNode) {
       centerNode.position = { x: centerX, y: centerY };
     }
-    
+
     // 环绕中心放置其他节点
     otherNodes.forEach((node, index) => {
       const angle = (2 * Math.PI * index) / otherNodes.length;
@@ -585,7 +561,7 @@ export class CarbonFlowActionHandler {
       const y = centerY + radius * Math.sin(angle);
       node.position = { x, y };
     });
-    
+
     // 更新节点位置
     this.setNodes([...updatedNodes]);
     console.log('成功应用放射状布局');
@@ -598,12 +574,12 @@ export class CarbonFlowActionHandler {
     try {
       // 计算每个节点的碳足迹
       this.calculateNodeFootprints();
-      
+
       // 如果指定了目标节点，更新其碳足迹为所有节点的总和
       if (action.target) {
         this.calculateTotalFootprint(action.target);
       }
-      
+
       console.log('成功计算碳足迹');
     } catch (error) {
       console.error('计算碳足迹失败:', error);
@@ -614,22 +590,22 @@ export class CarbonFlowActionHandler {
    * 计算各节点碳足迹
    */
   private calculateNodeFootprints(): void {
-    const updatedNodes = this.nodes.map(node => {
+    const updatedNodes = this.nodes.map((node) => {
       // 简单计算: 碳足迹 = 碳因子 * 活动数据
       // 在实际应用中，这里会有更复杂的计算逻辑
       const carbonFactor = node.data.carbonFactor || 0;
       const activityData = node.data.activityData || 1; // 假设有活动数据字段
       const carbonFootprint = carbonFactor * activityData;
-      
+
       return {
         ...node,
         data: {
           ...node.data,
-          carbonFootprint
-        }
+          carbonFootprint,
+        },
       };
     });
-    
+
     this.setNodes(updatedNodes);
   }
 
@@ -638,40 +614,38 @@ export class CarbonFlowActionHandler {
    */
   private calculateTotalFootprint(targetNodeId: string): void {
     // 寻找目标节点
-    const targetNode = this.nodes.find(node => 
-      node.id === targetNodeId || node.data.nodeName === targetNodeId
-    );
-    
+    const targetNode = this.nodes.find((node) => node.id === targetNodeId || node.data.nodeName === targetNodeId);
+
     if (!targetNode) {
       console.warn(`未找到目标节点: ${targetNodeId}`);
       return;
     }
-    
+
     // 计算所有节点的碳足迹总和
     const totalFootprint = this.nodes.reduce((sum, node) => {
       // 排除目标节点自身以避免重复计算
       if (node.id === targetNode.id) return sum;
       return sum + (node.data.carbonFootprint || 0);
     }, 0);
-    
+
     // 更新目标节点的碳足迹
-    const updatedNodes = this.nodes.map(node => {
+    const updatedNodes = this.nodes.map((node) => {
       if (node.id === targetNode.id) {
         return {
           ...node,
           data: {
             ...node.data,
-            carbonFootprint: totalFootprint
-          }
+            carbonFootprint: totalFootprint,
+          },
         };
       }
       return node;
     });
-    
+
     this.setNodes(updatedNodes);
   }
 
   private updateEdges(): void {
     // 实现更新边的逻辑
   }
-} 
+}

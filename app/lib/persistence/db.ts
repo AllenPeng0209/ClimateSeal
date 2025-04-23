@@ -129,8 +129,30 @@ export async function getNextId(db: IDBDatabase): Promise<string> {
     const request = store.getAllKeys();
 
     request.onsuccess = () => {
-      const highestId = request.result.reduce((cur, acc) => Math.max(+cur, +acc), 0);
-      resolve(String(+highestId + 1));
+      const keys = request.result;
+      if (!keys || keys.length === 0) {
+        resolve('1');
+        return;
+      }
+      
+      // 确保所有键都是有效的数字字符串
+      const numericKeys = keys
+        .map(key => {
+          if (typeof key === 'string') {
+            const num = parseInt(key, 10);
+            return isNaN(num) ? 0 : num;
+          }
+          return 0;
+        })
+        .filter(num => num > 0);
+      
+      if (numericKeys.length === 0) {
+        resolve('1');
+        return;
+      }
+      
+      const highestId = Math.max(...numericKeys);
+      resolve(String(highestId + 1));
     };
 
     request.onerror = () => reject(request.error);

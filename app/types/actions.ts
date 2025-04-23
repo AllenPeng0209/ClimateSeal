@@ -1,4 +1,5 @@
 import type { Change } from 'diff';
+import type { NodeData } from './nodes';
 
 export type ActionType = 'file' | 'shell' | 'start' | 'supabase' | 'carbonflow' | 'llm' | 'datasheet' | 'settings';
 
@@ -38,15 +39,25 @@ export interface LlmAction extends BaseAction {
   operation: 'analyze' | 'summarize' | 'recommend';
 }
 
-export interface CarbonFlowAction extends BaseAction {
-  type: 'carbonflow';
-  operation: 'add' | 'update' | 'delete' | 'query' | 'connect' | 'layout' | 'calculate';
-  nodeType?: string;
+export interface CarbonFlowAction {
+  type: string;
+  nodeId: string;
+  data?: Partial<NodeData>;
+  traceId?: string;
+}
+
+export interface CarbonFlowActionResult {
+  success: boolean;
+  traceId?: string;
   nodeId?: string;
-  source?: string;
-  target?: string;
-  position?: string;
-  layoutType?: string;
+  error?: string;
+}
+
+export interface CarbonFlowActionHandlerConfig {
+  nodes: Node<NodeData>[];
+  edges: Edge[];
+  setNodes: React.Dispatch<React.SetStateAction<Node<NodeData>[]>>;
+  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
 }
 
 export interface DatasheetAction extends BaseAction {

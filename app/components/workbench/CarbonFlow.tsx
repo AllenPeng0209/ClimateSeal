@@ -12,7 +12,7 @@ import { UsageNode } from './CarbonFlow/nodes/UsageNode';
 import { DisposalNode } from './CarbonFlow/nodes/DisposalNode';
 import { NodeProperties } from './CarbonFlow/NodeProperties';
 import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
-import { CarbonFlowActionHandler, type NodeData as ActionsNodeData } from './CarbonFlow/CarbonFlowActions';
+import { CarbonFlowActionHandler } from './CarbonFlow/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
 import { Tag, Collapse, Progress, message, Modal, Input, Row, Col, Upload, Alert, Divider, List, Empty, Typography, Button as AntButton } from 'antd';
 import { UpOutlined, DownOutlined, ReloadOutlined, SaveOutlined, HistoryOutlined, ExportOutlined, ImportOutlined, DeleteOutlined, SyncOutlined, CloudDownloadOutlined, CloudSyncOutlined, UploadOutlined } from '@ant-design/icons';
@@ -25,23 +25,9 @@ import { themeStore } from '~/lib/stores/theme';
 import { chatMessagesStore } from '~/lib/stores/chatMessagesStore';
 import { ConfigProvider } from 'antd';
 import { theme } from 'antd';
+import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData, BaseNodeData } from '~/types/nodes';
 
 const { darkAlgorithm } = theme;
-
-interface BaseNodeData extends ActionsNodeData {
-  quantity?: string;
-  activityScorelevel?: string;
-  certificationMaterials?: string;
-  emissionFactor?: string;
-  calculationMethod?: string;
-  verificationStatus?: string;
-  applicableStandard?: string;
-  completionStatus?: string;
-  carbonFactorName?: string;
-  carbonFactordataSource?: string;
-  unitConversion?: number;
-  emissionFactorQuality?: number;
-}
 
 interface ProductNodeData extends BaseNodeData {
   material?: string;
@@ -224,20 +210,23 @@ const nodeTypeReverseMapping: Record<NodeType, string> = {
 };
 
 const initialNodes: Node<NodeData>[] = [
-  // Add example initial nodes if needed, ensuring they match the structure
-  // e.g., {
-  //   id: 'product-1',
-  //   type: 'product',
-  //   position: { x: 100, y: 100 },
-  //   data: {
-  //     label: '初始材料',
-  //     nodeName: 'InitialMaterial',
-  //     lifecycleStage: 'product',
-  //     emissionType: 'default',
-  //     activityScore: 100, // Ensure required fields are present
-  //     // ... other ProductNodeData fields
-  //   }
-  // }
+  {
+    id: 'product-1',
+    type: 'product',
+    position: { x: 100, y: 100 },
+    data: {
+      label: '初始材料',
+      nodeName: 'InitialMaterial',
+      lifecycleStage: 'product',
+      emissionType: 'default',
+      activityScore: 100,
+      carbonFactor: 0,
+      activitydataSource: 'default',
+      carbonFootprint: 0,
+      material: '',
+      weight_per_unit: '0'
+    } as ProductNodeData
+  }
 ];
 
 const initialEdges: Edge[] = [];
@@ -352,7 +341,7 @@ const CarbonFlowInner = () => {
   
   const actionHandler = useMemo(() => {
     if (typeof window !== 'undefined') {
-      return new CarbonFlowActionHandler({ nodes, edges, setNodes: setNodes as React.Dispatch<React.SetStateAction<Node<ActionsNodeData>[]>>, setEdges });
+      return new CarbonFlowActionHandler({ nodes, edges, setNodes: setNodes as React.Dispatch<React.SetStateAction<Node<NodeType>[]>>, setEdges });
     }
     return null;
   }, [nodes, edges, setNodes, setEdges]);
@@ -1831,24 +1820,135 @@ const CarbonFlowInner = () => {
     </Modal>
   );
 
-  // Define a handler for node updates from NodeProperties
-  const handleNodeUpdate = useCallback((updatedNodeData: Partial<NodeData>) => {
-    if (!selectedNode) return;
-    
-    setNodes((nds) =>
+  const handleNodeUpdate = useCallback((nodeId: string, updates: Partial<NodeData>) => {
+    const updateNodes = (nds: Node<NodeData>[]) =>
       nds.map((node) => {
-        if (node.id === selectedNode.id) {
-          // Merge existing data with updated data
-          return { ...node, data: { ...node.data, ...updatedNodeData } };
+        if (node.id === nodeId) {
+          const nodeType = node.type as NodeType;
+          let updatedData: NodeData;
+
+          switch (nodeType) {
+            case 'manufacturing': {
+              const manufacturingData = node.data as ManufacturingNodeData;
+              const manufacturingUpdates = updates as Partial<ManufacturingNodeData>;
+              updatedData = {
+                ...manufacturingData,
+                ...manufacturingUpdates,
+                label: manufacturingUpdates.label || manufacturingData.label,
+                nodeName: manufacturingUpdates.nodeName || manufacturingData.nodeName,
+                lifecycleStage: manufacturingUpdates.lifecycleStage || manufacturingData.lifecycleStage,
+                emissionType: manufacturingUpdates.emissionType || manufacturingData.emissionType,
+                activityScore: manufacturingUpdates.activityScore || manufacturingData.activityScore,
+                carbonFactor: manufacturingUpdates.carbonFactor || manufacturingData.carbonFactor,
+                activitydataSource: manufacturingUpdates.activitydataSource || manufacturingData.activitydataSource,
+                carbonFootprint: manufacturingUpdates.carbonFootprint || manufacturingData.carbonFootprint,
+                energyConsumption: typeof manufacturingUpdates.energyConsumption === 'number' ? manufacturingUpdates.energyConsumption : manufacturingData.energyConsumption,
+                energyType: manufacturingUpdates.energyType || manufacturingData.energyType,
+                ElectricityAccountingMethod: manufacturingUpdates.ElectricityAccountingMethod || manufacturingData.ElectricityAccountingMethod,
+                ElectricityAllocationMethod: manufacturingUpdates.ElectricityAllocationMethod || manufacturingData.ElectricityAllocationMethod,
+                EnergyConsumptionMethodology: manufacturingUpdates.EnergyConsumptionMethodology || manufacturingData.EnergyConsumptionMethodology,
+                EnergyConsumptionAllocationMethod: manufacturingUpdates.EnergyConsumptionAllocationMethod || manufacturingData.EnergyConsumptionAllocationMethod,
+                chemicalsMaterial: manufacturingUpdates.chemicalsMaterial || manufacturingData.chemicalsMaterial,
+                MaterialAllocationMethod: manufacturingUpdates.MaterialAllocationMethod || manufacturingData.MaterialAllocationMethod,
+                WaterUseMethodology: manufacturingUpdates.WaterUseMethodology || manufacturingData.WaterUseMethodology,
+                WaterAllocationMethod: manufacturingUpdates.WaterAllocationMethod || manufacturingData.WaterAllocationMethod,
+                packagingMaterial: manufacturingUpdates.packagingMaterial || manufacturingData.packagingMaterial,
+                direct_emission: manufacturingUpdates.direct_emission || manufacturingData.direct_emission,
+                WasteGasTreatment: manufacturingUpdates.WasteGasTreatment || manufacturingData.WasteGasTreatment,
+                WasteDisposalMethod: manufacturingUpdates.WasteDisposalMethod || manufacturingData.WasteDisposalMethod,
+                WastewaterTreatment: manufacturingUpdates.WastewaterTreatment || manufacturingData.WastewaterTreatment,
+                processEfficiency: manufacturingUpdates.processEfficiency || manufacturingData.processEfficiency,
+                wasteGeneration: manufacturingUpdates.wasteGeneration || manufacturingData.wasteGeneration,
+                waterConsumption: manufacturingUpdates.waterConsumption || manufacturingData.waterConsumption,
+                recycledMaterialPercentage: manufacturingUpdates.recycledMaterialPercentage || manufacturingData.recycledMaterialPercentage,
+                productionCapacity: manufacturingUpdates.productionCapacity || manufacturingData.productionCapacity,
+                machineUtilization: manufacturingUpdates.machineUtilization || manufacturingData.machineUtilization,
+                qualityDefectRate: manufacturingUpdates.qualityDefectRate || manufacturingData.qualityDefectRate,
+                processTechnology: manufacturingUpdates.processTechnology || manufacturingData.processTechnology,
+                manufacturingStandard: manufacturingUpdates.manufacturingStandard || manufacturingData.manufacturingStandard,
+                automationLevel: manufacturingUpdates.automationLevel || manufacturingData.automationLevel,
+                manufacturingLocation: manufacturingUpdates.manufacturingLocation || manufacturingData.manufacturingLocation,
+                byproducts: manufacturingUpdates.byproducts || manufacturingData.byproducts,
+                emissionControlMeasures: manufacturingUpdates.emissionControlMeasures || manufacturingData.emissionControlMeasures
+              } as ManufacturingNodeData;
+              break;
+            }
+            case 'distribution': {
+              const distributionData = node.data as DistributionNodeData;
+              const distributionUpdates = updates as Partial<DistributionNodeData>;
+              updatedData = {
+                ...distributionData,
+                ...distributionUpdates,
+                label: distributionUpdates.label || distributionData.label,
+                nodeName: distributionUpdates.nodeName || distributionData.nodeName,
+                lifecycleStage: distributionUpdates.lifecycleStage || distributionData.lifecycleStage,
+                emissionType: distributionUpdates.emissionType || distributionData.emissionType,
+                activityScore: distributionUpdates.activityScore || distributionData.activityScore,
+                carbonFactor: distributionUpdates.carbonFactor || distributionData.carbonFactor,
+                activitydataSource: distributionUpdates.activitydataSource || distributionData.activitydataSource,
+                carbonFootprint: distributionUpdates.carbonFootprint || distributionData.carbonFootprint,
+                startPoint: distributionUpdates.startPoint || distributionData.startPoint,
+                endPoint: distributionUpdates.endPoint || distributionData.endPoint,
+                transportationDistance: typeof distributionUpdates.transportationDistance === 'number' ? distributionUpdates.transportationDistance : distributionData.transportationDistance,
+                transportationMode: distributionUpdates.transportationMode || distributionData.transportationMode,
+                vehicleType: distributionUpdates.vehicleType || distributionData.vehicleType,
+                fuelType: distributionUpdates.fuelType || distributionData.fuelType,
+                fuelEfficiency: distributionUpdates.fuelEfficiency || distributionData.fuelEfficiency,
+                loadFactor: distributionUpdates.loadFactor || distributionData.loadFactor,
+                refrigeration: distributionUpdates.refrigeration || distributionData.refrigeration,
+                packagingMaterial: distributionUpdates.packagingMaterial || distributionData.packagingMaterial,
+                packagingWeight: distributionUpdates.packagingWeight || distributionData.packagingWeight,
+                warehouseEnergy: distributionUpdates.warehouseEnergy || distributionData.warehouseEnergy,
+                storageTime: distributionUpdates.storageTime || distributionData.storageTime,
+                storageConditions: distributionUpdates.storageConditions || distributionData.storageConditions,
+                distributionNetwork: distributionUpdates.distributionNetwork || distributionData.distributionNetwork
+              } as DistributionNodeData;
+              break;
+            }
+            default: {
+              const productData = node.data as ProductNodeData;
+              const productUpdates = updates as Partial<ProductNodeData>;
+              updatedData = {
+                ...productData,
+                ...productUpdates,
+                label: productUpdates.label || productData.label,
+                nodeName: productUpdates.nodeName || productData.nodeName,
+                lifecycleStage: productUpdates.lifecycleStage || productData.lifecycleStage,
+                emissionType: productUpdates.emissionType || productData.emissionType,
+                activityScore: productUpdates.activityScore || productData.activityScore,
+                carbonFactor: productUpdates.carbonFactor || productData.carbonFactor,
+                activitydataSource: productUpdates.activitydataSource || productData.activitydataSource,
+                carbonFootprint: productUpdates.carbonFootprint || productData.carbonFootprint,
+                material: productUpdates.material || productData.material,
+                weight_per_unit: productUpdates.weight_per_unit || productData.weight_per_unit,
+                isRecycled: productUpdates.isRecycled || productData.isRecycled,
+                recycledContent: productUpdates.recycledContent || productData.recycledContent,
+                recycledContentPercentage: productUpdates.recycledContentPercentage || productData.recycledContentPercentage,
+                sourcingRegion: productUpdates.sourcingRegion || productData.sourcingRegion,
+                SourceLocation: productUpdates.SourceLocation || productData.SourceLocation,
+                Destination: productUpdates.Destination || productData.Destination,
+                SupplierName: productUpdates.SupplierName || productData.SupplierName,
+                SupplierAddress: productUpdates.SupplierAddress || productData.SupplierAddress,
+                ProcessingPlantAddress: productUpdates.ProcessingPlantAddress || productData.ProcessingPlantAddress,
+                RefrigeratedTransport: productUpdates.RefrigeratedTransport || productData.RefrigeratedTransport,
+                weight: productUpdates.weight || productData.weight,
+                supplier: productUpdates.supplier || productData.supplier,
+                certaintyPercentage: productUpdates.certaintyPercentage || productData.certaintyPercentage
+              } as ProductNodeData;
+            }
+          }
+
+          return {
+            ...node,
+            data: updatedData
+          };
         }
         return node;
-      })
-    );
-    // Optionally, update the selectedNode state as well if needed
-    // setSelectedNode(prev => prev ? { ...prev, data: { ...prev.data, ...updatedNodeData } } : null);
-    // Trigger AI summary recalculation after update
-    calculateAiSummary(); 
-  }, [selectedNode, setNodes, calculateAiSummary]);
+      });
+
+    setNodes(updateNodes);
+    calculateAiSummary();
+  }, [nodes, setNodes, calculateAiSummary]);
 
   return (
     <div className="editor-layout">
