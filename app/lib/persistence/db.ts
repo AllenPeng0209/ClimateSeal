@@ -70,8 +70,15 @@ export async function setMessages(
       return;
     }
 
+    // Validate id is a valid number
+    const numericId = parseInt(id, 10);
+    if (isNaN(numericId)) {
+      reject(new Error('Invalid id: must be a number'));
+      return;
+    }
+
     const request = store.put({
-      id,
+      id: String(numericId), // Ensure id is a string
       messages,
       urlId,
       description,
@@ -85,7 +92,26 @@ export async function setMessages(
 }
 
 export async function getMessages(db: IDBDatabase, id: string): Promise<ChatHistoryItem> {
-  return (await getMessagesById(db, id)) || (await getMessagesByUrlId(db, id));
+  console.log('Getting messages for ID:', id);
+  try {
+    const byId = await getMessagesById(db, id);
+    if (byId) {
+      console.log('Found messages by ID');
+      return byId;
+    }
+    
+    const byUrlId = await getMessagesByUrlId(db, id);
+    if (byUrlId) {
+      console.log('Found messages by URL ID');
+      return byUrlId;
+    }
+    
+    console.log('No messages found for ID:', id);
+    return null;
+  } catch (error) {
+    console.error('Error getting messages:', error);
+    throw error;
+  }
 }
 
 export async function getMessagesByUrlId(db: IDBDatabase, id: string): Promise<ChatHistoryItem> {
@@ -135,7 +161,7 @@ export async function getNextId(db: IDBDatabase): Promise<string> {
         return;
       }
       
-      // 确保所有键都是有效的数字字符串
+      // Ensure all keys are valid numbers
       const numericKeys = keys
         .map(key => {
           if (typeof key === 'string') {

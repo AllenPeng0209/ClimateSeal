@@ -137,6 +137,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const prevMessagesLengthRef = useRef(messages?.length ?? 0);
     const [csvData, setCsvData] = useState<CSVData | null>(null);
     const [showCSVPreview, setShowCSVPreview] = useState(false);
+    const [apiKey, setApiKey] = useState<string>('');
+    const [selectedModel, setSelectedModel] = useState<string>('');
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+      setIsClient(true);
+    }, []);
     
     // 简单可靠的强制滚动函数
     const forceScrollToBottom = useCallback(() => {

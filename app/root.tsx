@@ -5,7 +5,7 @@ import tailwindReset from '@unocss/reset/tailwind-compat.css?url';
 import { themeStore } from './lib/stores/theme';
 import { stripIndents } from './utils/stripIndent';
 import { createHead } from 'remix-island';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ClientOnly } from 'remix-utils/client-only';
@@ -75,8 +75,10 @@ export const Head = createHead(() => (
 
 function Document({ children }: { children: React.ReactNode }) {
   const theme = useStore(themeStore);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
     document.querySelector('html')?.setAttribute('data-theme', theme);
   }, [theme]);
 
@@ -84,13 +86,15 @@ function Document({ children }: { children: React.ReactNode }) {
     <html lang="zh-CN">
       <Head />
       <body>
-        <ClientOnly fallback={<div>Loading...</div>}>
-          {() => (
-            <DndProvider backend={HTML5Backend}>
+        {isClient ? (
+          <DndProvider backend={HTML5Backend}>
+            <AuthProvider>
               {children}
-            </DndProvider>
-          )}
-        </ClientOnly>
+            </AuthProvider>
+          </DndProvider>
+        ) : (
+          <div>Loading...</div>
+        )}
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -102,10 +106,8 @@ import { logStore } from './lib/stores/logs';
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Document>
-        <Outlet />
-      </Document>
-    </AuthProvider>
+    <Document>
+      <Outlet />
+    </Document>
   );
 }

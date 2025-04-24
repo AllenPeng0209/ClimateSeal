@@ -14,7 +14,7 @@ import { chatStore } from '~/lib/stores/chat';
 import { chatMessagesStore } from '~/lib/stores/chatMessagesStore';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
-import { cubicEasingFn } from '~/utils/easings';
+import { cubicBezier } from 'framer-motion';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
 import Cookies from 'js-cookie';
@@ -35,6 +35,8 @@ const toastAnimation = cssTransition({
 });
 
 const logger = createScopedLogger('Chat');
+
+const cubicEasingFn = cubicBezier(0.4, 0, 0.2, 1);
 
 export function Chat() {
   renderLogger.trace('Chat');
@@ -113,7 +115,7 @@ export const ChatImpl = memo(
     useShortcuts();
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const [chatStarted, setChatStarted] = useState(true);
+    const [chatStarted, setChatStarted] = useState(false);
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
     const [imageDataList, setImageDataList] = useState<string[]>([]);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -232,7 +234,15 @@ export const ChatImpl = memo(
 
     useEffect(() => {
       chatStore.setKey('started', true);
+      setChatStarted(true);
     }, []);
+
+    useEffect(() => {
+      const { started } = chatStore.get();
+      if (started !== chatStarted) {
+        setChatStarted(started);
+      }
+    }, [chatStarted]);
 
     useEffect(() => {
       processSampledMessages({
@@ -278,13 +288,32 @@ export const ChatImpl = memo(
     }, [input, textareaRef]);
 
     const runAnimation = async () => {
-      await Promise.all([
-        animate('#examples', { opacity: 0, display: 'none' }, { duration: 0.1 }),
-        animate('#intro', { opacity: 0, flex: 1 }, { duration: 0.2, ease: cubicEasingFn }),
-      ]);
+      try {
+        const examplesElement = document.getElementById('examples');
+        const introElement = document.getElementById('intro');
 
-      chatStore.setKey('started', true);
-      setChatStarted(true);
+        if (examplesElement) {
+          await animate(examplesElement, { opacity: 0 }, {
+            duration: 0.3,
+            ease: cubicEasingFn,
+          });
+          examplesElement.style.display = 'none';
+        }
+
+        if (introElement) {
+          await animate(introElement, { opacity: 0 }, {
+            duration: 0.3,
+            ease: cubicEasingFn,
+          });
+          introElement.style.display = 'none';
+        }
+
+        setChatStarted(true);
+      } catch (error) {
+        console.error('Animation error:', error);
+        // Fallback to immediate state change if animation fails
+        setChatStarted(true);
+      }
     };
 
     const sendMessage = async (_event: React.UIEvent, messageInput?: string) => {
