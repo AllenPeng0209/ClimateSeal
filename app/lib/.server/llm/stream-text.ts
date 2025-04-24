@@ -12,6 +12,13 @@ import { getFilePaths } from './select-context';
 
 export type Messages = Message[];
 
+// 新增: CarbonFlowData接口定义
+export interface CarbonFlowData {
+  nodes?: any[];
+  Score?: any;
+  State?: any; // 添加conversationState字段
+}
+
 export interface StreamingOptions extends Omit<Parameters<typeof _streamText>[0], 'model'> {
   supabaseConnection?: {
     isConnected: boolean;
@@ -21,6 +28,7 @@ export interface StreamingOptions extends Omit<Parameters<typeof _streamText>[0]
       supabaseUrl?: string;
     };
   };
+  carbonFlowData?: CarbonFlowData; // 添加carbonFlowData属性
 }
 
 const logger = createScopedLogger('stream-text');
@@ -37,6 +45,7 @@ export async function streamText(props: {
   contextFiles?: FileMap;
   summary?: string;
   messageSliceId?: number;
+  carbonFlowData?: CarbonFlowData; // 新增: 碳足迹数据参数
 }) {
   const {
     messages,
@@ -49,6 +58,7 @@ export async function streamText(props: {
     contextOptimization,
     contextFiles,
     summary,
+    carbonFlowData, // 新增: 碳足迹数据
   } = props;
   let currentModel = DEFAULT_MODEL;
   let currentProvider = DEFAULT_PROVIDER.name;
@@ -112,6 +122,100 @@ export async function streamText(props: {
         credentials: options?.supabaseConnection?.credentials || undefined,
       },
     }) ?? getSystemPrompt();
+
+  // 添加碳足迹数据到系统提示
+  if (carbonFlowData) {
+    let carbonFlowContext =
+      '\n\n### 以下是carbonflow数据, 包括階段信息、碳節點信息、打分信息, 你需要透過這三個信息, 引導用戶持續增加打分, 完成最終報告\n';
+
+    // 提取评估阶段完整信息
+    if (carbonFlowData.State) {
+      carbonFlowContext += `
+#### 当前项目进展
+\`\`\`json
+${JSON.stringify(carbonFlowData.State, null, 2)}
+\`\`\`
+
+您需要根据上述项目进展信息，确定当前处于哪个评估阶段，并引导用户完成该阶段剩余工作。
+`;
+    }
+
+    // 添加节点摘要统计和完整节点信息
+    if (carbonFlowData.nodes && carbonFlowData.nodes.length > 0) {
+      // 按生命周期阶段分组统计
+      const stageMap = new Map();
+
+      carbonFlowData.nodes.forEach((node) => {
+        const stage = node.data?.lifecycleStage || '未分类';
+
+        if (!stageMap.has(stage)) {
+          stageMap.set(stage, 0);
+        }
+
+        stageMap.set(stage, stageMap.get(stage) + 1);
+      });
+
+      carbonFlowContext += `
+#### 当前模型概况
+- 总节点数: ${carbonFlowData.nodes.length}
+- 生命周期覆盖:
+${Array.from(stageMap.entries())
+  .map(([stage, count]) => `  - ${stage}: ${count}个节点`)
+  .join('\n')}
+
+#### 关键节点
+${carbonFlowData.nodes
+  .filter((node) => node.type === 'finalProduct' || (node.data?.carbonFootprint && node.data?.carbonFootprint > 10))
+  .slice(0, 5)
+  .map((node) => `- ${node.data?.label || node.id}: ${node.data?.carbonFootprint || 0} kgCO₂e`)
+  .join('\n')}
+`;
+
+      // 添加完整的节点信息
+      carbonFlowContext += `
+#### 完整节点信息
+\`\`\`json
+${JSON.stringify(
+  carbonFlowData.nodes.map((node) => ({
+    id: node.id,
+    type: node.type,
+    data: node.data,
+  })),
+  null,
+  2,
+)}
+\`\`\`
+
+请您根据以上完整节点信息分析产品碳足迹模型的详细情况，包括各节点之间的关系和数据质量。
+`;
+    }
+
+    // 添加完整打分信息
+    if (carbonFlowData.Score) {
+      carbonFlowContext += `
+#### 完整打分信息
+\`\`\`json
+${JSON.stringify(carbonFlowData.Score, null, 2)}
+\`\`\`
+`;
+    }
+
+    // 指导模型如何解读和使用这些数据
+    carbonFlowContext += `
+### 模型解读指南
+1. 基于上述数据分析当前碳足迹评估的完成度
+2. 识别数据缺口并优先引导用户填补这些缺口
+4. 根据《数据质量评分系统》给出的标准评估数据质量
+5. 根据项目进展信息确定当前阶段，遵循该阶段的工作流程引导用户
+6. 分析节点之间的关系，找出可能的优化空间
+
+请基于当前状态为用户提供下一步行动建议，保持专业性的同时确保用户理解每一步的目的。
+`;
+
+    // 将碳足迹上下文添加到系统提示
+    systemPrompt = `${systemPrompt}${carbonFlowContext}`;
+    logger.info('Added complete CarbonFlow data to system prompt');
+  }
 
   if (files && contextFiles && contextOptimization) {
     const codeContext = createFilesContext(contextFiles, true);

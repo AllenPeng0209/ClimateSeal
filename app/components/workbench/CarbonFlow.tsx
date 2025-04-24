@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import type { DragEvent } from 'react';
-import ReactFlow, { type Node, type Edge, type Connection, type OnConnect, type OnNodesChange, type OnEdgesChange, type ReactFlowInstance, type Viewport, useNodesState, useEdgesState, addEdge, useReactFlow, ReactFlowProvider, Background, Controls, MiniMap, Panel, ConnectionLineType, ConnectionMode } from 'reactflow';
+import ReactFlow, { type Node, type Edge, type Connection, type OnConnect, type OnNodesChange, type OnEdgesChange, type ReactFlowInstance, type Viewport, useNodesState, useEdgesState, addEdge, useReactFlow, ReactFlowProvider, Background, Controls, MiniMap, Panel, ConnectionLineType, ConnectionMode, applyNodeChanges, applyEdgeChanges, MarkerType } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './CarbonFlow.css';
 import './CarbonFlow/styles.css';
@@ -14,7 +14,7 @@ import { NodeProperties } from './CarbonFlow/NodeProperties';
 import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
 import { CarbonFlowActionHandler } from './CarbonFlow/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
-import { Tag, Collapse, Progress, message, Modal, Input, Row, Col, Upload, Alert, Divider, List, Empty, Typography, Button as AntButton } from 'antd';
+import { Tag, Collapse, Progress, message, Modal, Input, Row, Col, Upload, Alert, Divider, List, Empty, Typography, Button as AntButton, ConfigProvider } from 'antd';
 import { UpOutlined, DownOutlined, ReloadOutlined, SaveOutlined, HistoryOutlined, ExportOutlined, ImportOutlined, DeleteOutlined, SyncOutlined, CloudDownloadOutlined, CloudSyncOutlined, UploadOutlined } from '@ant-design/icons';
 import { CheckpointManager } from '~/lib/checkpoints/CheckpointManager';
 import { CheckpointSyncService } from '~/lib/services/checkpointSyncService';
@@ -23,153 +23,11 @@ import { supabaseConnection } from '~/lib/stores/supabase';
 import type { RcFile, UploadChangeParam } from 'antd/es/upload/interface';
 import { themeStore } from '~/lib/stores/theme';
 import { chatMessagesStore } from '~/lib/stores/chatMessagesStore';
-import { ConfigProvider } from 'antd';
 import { theme } from 'antd';
-import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData, BaseNodeData } from '~/types/nodes';
+import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData, BaseNodeData, UsageNodeData, DisposalNodeData, FinalProductNodeData } from '~/types/nodes';
+import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowBridge';
 
 const { darkAlgorithm } = theme;
-
-interface ProductNodeData extends BaseNodeData {
-  material?: string;
-  weight_per_unit?: string;
-  isRecycled?: boolean;
-  recycledContent?: string;
-  recycledContentPercentage?: number;
-  sourcingRegion?: string;
-  SourceLocation?: string;
-  Destination?: string;
-  SupplierName?: string;
-  SupplierAddress?: string;
-  ProcessingPlantAddress?: string;
-  RefrigeratedTransport?: boolean;
-  weight?: number;
-  supplier?: string;
-  certaintyPercentage?: number;
-}
-
-interface ManufacturingNodeData extends BaseNodeData {
-  ElectricityAccountingMethod: string;
-  ElectricityAllocationMethod: string;
-  EnergyConsumptionMethodology: string;
-  EnergyConsumptionAllocationMethod: string;
-  chemicalsMaterial: string;
-  MaterialAllocationMethod: string;
-  WaterUseMethodology: string;
-  WaterAllocationMethod: string;
-  packagingMaterial: string;
-  direct_emission: string;
-  WasteGasTreatment: string;
-  WasteDisposalMethod: string;
-  WastewaterTreatment: string;
-  productionMethod?: string;
-  productionMethodDataSource?: string;
-  productionMethodVerificationStatus?: string;
-  productionMethodApplicableStandard?: string;
-  productionMethodCompletionStatus?: string;
-  energyConsumption?: number;
-  energyType?: string;
-  processEfficiency?: number;
-  wasteGeneration?: number;
-  waterConsumption?: number;
-  recycledMaterialPercentage: number;
-  productionCapacity: number;
-  machineUtilization: number;
-  qualityDefectRate: number;
-  processTechnology: string;
-  manufacturingStandard: string;
-  automationLevel: string;
-  manufacturingLocation: string;
-  byproducts: string;
-  emissionControlMeasures: string;
-}
-
-interface DistributionNodeData extends BaseNodeData {
-  transportationMode?: string;
-  transportationDistance?: number;
-  startPoint: string;
-  endPoint: string;
-  vehicleType: string;
-  fuelType: string;
-  fuelEfficiency: number;
-  loadFactor: number;
-  refrigeration: boolean;
-  packagingMaterial: string;
-  packagingWeight: number;
-  warehouseEnergy: number;
-  storageTime: number;
-  storageConditions: string;
-  distributionNetwork: string;
-  aiRecommendation?: string;
-  returnLogistics?: boolean;
-  packagingRecyclability?: number;
-  lastMileDelivery?: string;
-  distributionMode?: string;
-  distributionDistance?: number;
-  distributionStartPoint?: string;
-  distributionEndPoint?: string;
-  distributionTransportationMode?: string;
-  distributionTransportationDistance?: number;
-}
-
-interface UsageNodeData extends BaseNodeData {
-  lifespan?: number;
-  energyConsumptionPerUse?: number;
-  waterConsumptionPerUse: number;
-  consumablesUsed: string;
-  consumablesWeight: number;
-  usageFrequency: number;
-  maintenanceFrequency: number;
-  repairRate: number;
-  userBehaviorImpact: number;
-  efficiencyDegradation: number;
-  standbyEnergyConsumption: number;
-  usageLocation: string;
-  usagePattern: string;
-  userInstructions?: string;
-  upgradeability?: number;
-  secondHandMarket?: boolean;
-}
-
-interface DisposalNodeData extends BaseNodeData {
-  recyclingRate?: number;
-  landfillPercentage?: number;
-  incinerationPercentage: number;
-  compostPercentage: number;
-  reusePercentage: number;
-  hazardousWasteContent: number;
-  biodegradability: number;
-  disposalEnergyRecovery: number;
-  transportToDisposal: number;
-  disposalMethod: string;
-  endOfLifeTreatment: string;
-  recyclingEfficiency: number;
-  dismantlingDifficulty: string;
-  wasteRegulations?: string;
-  takeback?: boolean;
-  circularEconomyPotential?: number;
-  landfillRate?: number;
-}
-
-interface FinalProductNodeData extends BaseNodeData {
-  finalProductName?: string;
-  totalCarbonFootprint?: number;
-  certificationStatus: string;
-  environmentalImpact: string;
-  sustainabilityScore: number;
-  productCategory: string;
-  marketSegment: string;
-  targetRegion: string;
-  complianceStatus: string;
-  carbonLabel: string;
-}
-
-type NodeData = 
-  | ProductNodeData
-  | ManufacturingNodeData
-  | DistributionNodeData
-  | UsageNodeData
-  | DisposalNodeData
-  | FinalProductNodeData;
 
 const nodeTypes = {
   product: ProductNode,
@@ -319,25 +177,32 @@ const CarbonFlowInner = () => {
     expandedSection: null,
   });
   
+  // 使用CarbonFlowStore
+  const { setNodes: setStoreNodes, setEdges: setStoreEdges, setAiSummary: setStoreAiSummary } = useCarbonFlowStore();
+  
   const theme = useStore(themeStore);
   const chatMessages = useStore(chatMessagesStore);
 
   const connectionLineStyle = { stroke: theme === 'dark' ? '#ccc' : '#333' };
   const defaultEdgeOptions = { animated: true, style: { stroke: theme === 'dark' ? '#ccc' : '#333' } };
 
+  // 当nodes更新时，同步到store
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).carbonFlowNodes = nodes;
-      console.log('[CarbonFlow] 已更新全局 nodes 信息:', nodes);
-    }
-  }, [nodes]);
-
+    setStoreNodes(nodes);
+    emitCarbonFlowData();
+  }, [nodes, setStoreNodes]);
+  
+  // 当edges更新时，同步到store
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).carbonFlowAiSummary = aiSummary;
-      console.log('[CarbonFlow] 已更新全局 AI Summary 信息:', aiSummary);
-    }
-  }, [aiSummary]);
+    setStoreEdges(edges);
+    emitCarbonFlowData();
+  }, [edges, setStoreEdges]);
+  
+  // 当aiSummary更新时，同步到store
+  useEffect(() => {
+    setStoreAiSummary(aiSummary);
+    emitCarbonFlowData();
+  }, [aiSummary, setStoreAiSummary]);
   
   const actionHandler = useMemo(() => {
     if (typeof window !== 'undefined') {
@@ -1020,10 +885,7 @@ const CarbonFlowInner = () => {
               </div>
             </div>
 
-            <Collapse 
-              defaultActiveKey={[]} 
-              className="score-details-collapse"
-            >
+            <Collapse>
               <Collapse.Panel 
                 header={
                   <div className="score-panel-header">
