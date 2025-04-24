@@ -1,16 +1,16 @@
 import React from 'react';
 import { Navigate, useLocation } from '@remix-run/react';
-import { useAuthContext } from '../../contexts/AuthContext';
+import { useAuth } from './AuthProvider';
 
 interface PrivateRouteProps {
   children: React.ReactNode;
 }
 
 export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
-  const { user, loading } = useAuthContext();
+  const { authState } = useAuth();
   const location = useLocation();
 
-  if (loading) {
+  if (authState.loading) {
     return (
       <div style={{
         height: "100vh",
@@ -23,7 +23,7 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
     );
   }
 
-  if (!user) {
+  if (!authState.user) {
     // 保存用户尝试访问的路径
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('redirectTo', location.pathname);

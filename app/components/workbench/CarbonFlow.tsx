@@ -1,20 +1,6 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import type { DragEvent } from 'react';
-import ReactFlow, {
-  type Node,
-  type Edge,
-  type Connection,
-  type ReactFlowInstance,
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  Background,
-  Controls,
-  MiniMap,
-  Panel,
-  useReactFlow,
-  ReactFlowProvider,
-} from 'reactflow';
+import ReactFlow, { type Node, type Edge, type Connection, type OnConnect, type OnNodesChange, type OnEdgesChange, type ReactFlowInstance, type Viewport, useNodesState, useEdgesState, addEdge, useReactFlow, ReactFlowProvider, Background, Controls, MiniMap, Panel, ConnectionLineType, ConnectionMode, applyNodeChanges, applyEdgeChanges, MarkerType } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './CarbonFlow.css';
 import './CarbonFlow/styles.css';
@@ -28,10 +14,20 @@ import { NodeProperties } from './CarbonFlow/NodeProperties';
 import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
 import { CarbonFlowActionHandler } from './CarbonFlow/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
-import { Tag, Collapse, Progress, message } from 'antd';
-import { UpOutlined, DownOutlined, ReloadOutlined } from '@ant-design/icons';
-import type { NodeData, DataNode } from '~/types/nodes';
+import { Tag, Collapse, Progress, message, Modal, Input, Row, Col, Upload, Alert, Divider, List, Empty, Typography, Button as AntButton, ConfigProvider } from 'antd';
+import { UpOutlined, DownOutlined, ReloadOutlined, SaveOutlined, HistoryOutlined, ExportOutlined, ImportOutlined, DeleteOutlined, SyncOutlined, CloudDownloadOutlined, CloudSyncOutlined, UploadOutlined } from '@ant-design/icons';
+import { CheckpointManager } from '~/lib/checkpoints/CheckpointManager';
+import { CheckpointSyncService } from '~/lib/services/checkpointSyncService';
+import { useStore } from '@nanostores/react';
+import { supabaseConnection } from '~/lib/stores/supabase';
+import type { RcFile, UploadChangeParam } from 'antd/es/upload/interface';
+import { themeStore } from '~/lib/stores/theme';
+import { chatMessagesStore } from '~/lib/stores/chatMessagesStore';
+import { theme } from 'antd';
+import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData, BaseNodeData, UsageNodeData, DisposalNodeData, FinalProductNodeData } from '~/types/nodes';
 import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowBridge';
+
+const { darkAlgorithm } = theme;
 
 const nodeTypes = {
   product: ProductNode,
@@ -53,7 +49,6 @@ const nodeTypeLabels: Record<NodeType, string> = {
   finalProduct: '最终节点',
 };
 
-// 添加一个映射，用于将中文类型映射回英文类型
 const nodeTypeMapping: Record<string, NodeType> = {
   [`材料节点`]: 'product',
   [`制造节点`]: 'manufacturing',
@@ -63,7 +58,6 @@ const nodeTypeMapping: Record<string, NodeType> = {
   [`最终节点`]: 'finalProduct',
 };
 
-// 添加一个映射，用于将英文类型映射到中文类型
 const nodeTypeReverseMapping: Record<NodeType, string> = {
   'product': '材料节点',
   'manufacturing': '制造节点',
@@ -73,7 +67,25 @@ const nodeTypeReverseMapping: Record<NodeType, string> = {
   'finalProduct': '最终节点',
 };
 
-const initialNodes: Node<NodeData>[] = [];
+const initialNodes: Node<NodeData>[] = [
+  {
+    id: 'product-1',
+    type: 'product',
+    position: { x: 100, y: 100 },
+    data: {
+      label: '初始材料',
+      nodeName: 'InitialMaterial',
+      lifecycleStage: 'product',
+      emissionType: 'default',
+      activityScore: 100,
+      carbonFactor: 0,
+      activitydataSource: 'default',
+      carbonFootprint: 0,
+      material: '',
+      weight_per_unit: '0'
+    } as ProductNodeData
+  }
+];
 
 const initialEdges: Edge[] = [];
 
@@ -121,8 +133,15 @@ interface AISummary {
   expandedSection: 'overview' | 'details' | null;
 }
 
+// Define CheckpointMetadata type locally for now
+interface CheckpointMetadata {
+  name: string;
+  timestamp: number;
+  metadata?: { description?: string; tags?: string[]; version?: string };
+}
+
 const CarbonFlowInner = () => {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null);
@@ -161,6 +180,12 @@ const CarbonFlowInner = () => {
   // 使用CarbonFlowStore
   const { setNodes: setStoreNodes, setEdges: setStoreEdges, setAiSummary: setStoreAiSummary } = useCarbonFlowStore();
   
+  const theme = useStore(themeStore);
+  const chatMessages = useStore(chatMessagesStore);
+
+  const connectionLineStyle = { stroke: theme === 'dark' ? '#ccc' : '#333' };
+  const defaultEdgeOptions = { animated: true, style: { stroke: theme === 'dark' ? '#ccc' : '#333' } };
+
   // 当nodes更新时，同步到store
   useEffect(() => {
     setStoreNodes(nodes);
@@ -179,65 +204,40 @@ const CarbonFlowInner = () => {
     emitCarbonFlowData();
   }, [aiSummary, setStoreAiSummary]);
   
-  // 创建 CarbonFlow 操作处理器
-  const [actionHandler, setActionHandler] = useState<CarbonFlowActionHandler | null>(null);
-  
-  // 初始化操作处理器
-  useEffect(() => {
-    const handler = new CarbonFlowActionHandler({
-      nodes,
-      edges,
-      setNodes,
-      setEdges,
-    });
-    setActionHandler(handler);
+  const actionHandler = useMemo(() => {
     if (typeof window !== 'undefined') {
-      (window as any).carbonFlowInitialized = true;
+      return new CarbonFlowActionHandler({ nodes, edges, setNodes: setNodes as React.Dispatch<React.SetStateAction<Node<NodeType>[]>>, setEdges });
     }
+    return null;
   }, [nodes, edges, setNodes, setEdges]);
-  
-  const handleCarbonFlowAction = useCallback((action: CarbonFlowAction) => {
-    if (actionHandler) {
-      actionHandler.handleAction(action);
-    } else {
-      console.warn('CarbonFlow 操作处理器尚未初始化');
-    }
-  }, [actionHandler]);
-  
-  // 添加全局事件监听器，处理来自桥接器的操作
-  useEffect(() => {
-    if (!actionHandler) return;
-    
-    const handleActionEvent = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const action = customEvent.detail as CarbonFlowAction & { traceId?: string };
+
+  const handleActionEvent = useCallback((event: Event) => {
+    if (event instanceof CustomEvent) {
+      const action = event.detail as CarbonFlowAction & { traceId?: string };
+      if (!actionHandler) return;
       
       console.log('[CarbonFlow] 收到操作:', action);
-      handleCarbonFlowAction(action);
+      actionHandler.handleAction(action);
       
-      // 发送操作结果事件
       window.dispatchEvent(new CustomEvent('carbonflow-action-result', { 
         detail: { success: true, traceId: action.traceId, nodeId: action.nodeId } 
       }));
-    };
-    
-    // 添加事件监听器
+    }
+  }, [actionHandler]);
+
+  useEffect(() => {
     window.addEventListener('carbonflow-action', handleActionEvent);
-    
-    // 清理函数
     return () => {
       window.removeEventListener('carbonflow-action', handleActionEvent);
-      
-      // 清除初始化标记
       if (typeof window !== 'undefined') {
         (window as any).carbonFlowInitialized = false;
       }
     };
-  }, [actionHandler, handleCarbonFlowAction]);
+  }, [actionHandler, handleActionEvent]);
 
-  const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
+  const onConnect: OnConnect = useCallback(
+    (params) => setEdges((eds) => addEdge(params, eds)),
+    [setEdges],
   );
 
   const onNodeClick = useCallback(
@@ -260,7 +260,6 @@ const CarbonFlowInner = () => {
     '废弃节点': '废弃处置'
   };
 
-  // 修改 onDrop 函数，确保类型正确
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -282,79 +281,41 @@ const CarbonFlowInner = () => {
         y: event.clientY,
       });
 
-      // 创建新节点，确保所有必需属性都有默认值
       const newNode: Node<NodeData> = {
         id: `${type}-${Date.now()}`,
         type,
         position,
         data: {
-          label: chineseType,
-          nodeName: '',
-          lifecycleStage: lifecycleStageType,
-          emissionType: '',
+          label: `新 ${nodeTypeLabels[type]} 节点`,
+          nodeName: `${type}_${Date.now()}`,
+          lifecycleStage: type,
+          emissionType: 'default',
+          activityScore: 0,
           carbonFactor: 0,
-          quantity: '',
-          activitydataSource: '',
-          activityScorelevel: '',
+          activitydataSource: 'default',
           carbonFootprint: 0,
           unitConversion: 1,
           emissionFactorQuality: 0,
-          // 添加其他必需属性的默认值
-          emissionFactor: '',
-          calculationMethod: '',
-          verificationStatus: '未验证',
-          applicableStandard: '',
-          completionStatus: '未完成',
-          carbonFactorName: '',
-          // 添加其他可能需要的属性
-          material: '',
-          weight_per_unit: '',
-          isRecycled: false,
-          recycledContent: '',
-          recycledContentPercentage: 0,
-          // 添加制造节点特有的属性
-          ElectricityAccountingMethod: '',
-          ElectricityAllocationMethod: '',
-          EnergyConsumptionMethodology: '',
-          EnergyConsumptionAllocationMethod: '',
-          energyConsumption: 0,
-          // 添加其他可能需要的属性
-          disposalMethod: '',
-          recyclingRate: 0,
-          landfillRate: 0,
-          incinerationRate: 0,
-          compostingRate: 0,
-          otherDisposalRate: 0,
-          disposalEmissionFactor: 0,
-          disposalQuantity: 0,
-          disposalCarbonFootprint: 0,
-          disposalVerificationStatus: '未验证',
-          disposalApplicableStandard: '',
-          disposalCompletionStatus: '未完成',
-          disposalEmissionFactorName: '',
-          disposalCalculationMethod: '',
-          disposalActivitydataSource: '',
-          disposalActivityScorelevel: '',
-          disposalUnitConversion: 1,
-          disposalEmissionFactorQuality: 0,
-          // 添加最终产品节点特有的属性
-          productName: '',
-          productCategory: '',
-          productCarbonFootprint: 0,
-          productCertificationStatus: '未认证',
-          productApplicableStandard: '',
-          productCompletionStatus: '未完成',
-          productEmissionFactorName: '',
-          productCalculationMethod: '',
-          productVerificationStatus: '未验证',
-          productEmissionFactor: '',
-          productActivitydataSource: '',
-          productActivityScorelevel: '',
-          productUnitConversion: 1,
-          productEmissionFactorQuality: 0,
-        },
+          ...(type === 'product' && { material: '', weight_per_unit: '0' }),
+          ...(type === 'manufacturing' && { 
+            energyConsumption: 0,
+            ElectricityAccountingMethod: '',
+            ElectricityAllocationMethod: '',
+            EnergyConsumptionMethodology: '',
+            EnergyConsumptionAllocationMethod: '',
+            chemicalsMaterial: '',
+            MaterialAllocationMethod: '',
+            WaterUseMethodology: '',
+            WaterAllocationMethod: '',
+            packagingMaterial: '',
+            direct_emission: '',
+            WasteGasTreatment: '',
+            WasteDisposalMethod: '',
+            WastewaterTreatment: '',
+          }),
+          ...(type === 'disposal' && { recyclingRate: 0, landfillPercentage: 0, incinerationPercentage: 0, compostPercentage: 0 }),
+        } as NodeData,
       };
-
 
       setNodes((nds) => [...nds, newNode]);
     },
@@ -379,6 +340,7 @@ const CarbonFlowInner = () => {
         nodeName: 'Product',
         lifecycleStage: 'production',
         emissionType: 'direct',
+        activityScore: 0,
         carbonFactor: 0,
         activitydataSource: 'primary',
         activityScorelevel: '',
@@ -432,7 +394,6 @@ const CarbonFlowInner = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen();
       setIsFullscreen(true);
-      // 延迟一下再调整视图，确保全屏已经完成
       setTimeout(() => {
         fitView({ duration: 800, padding: 0.2 });
       }, 100);
@@ -451,10 +412,8 @@ const CarbonFlowInner = () => {
     const VERTICAL_SPACING = 650;
     const PADDING = 400;
 
-    // 定义节点类型的顺序（不包括最终产品节点）
     const nodeTypeOrder: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal'];
     
-    // 根据节点类型分组
     const nodesByType: Record<NodeType, Node<NodeData>[]> = {
       product: [],
       manufacturing: [],
@@ -464,7 +423,6 @@ const CarbonFlowInner = () => {
       finalProduct: [],
     };
     
-    // 填充节点分组
     nodes.forEach(node => {
       const nodeType = node.type as NodeType;
       if (nodeType in nodesByType) {
@@ -472,7 +430,6 @@ const CarbonFlowInner = () => {
       }
     });
 
-    // 确保有最终产品节点
     let finalProductNode = nodesByType.finalProduct[0];
     if (!finalProductNode) {
       finalProductNode = {
@@ -484,9 +441,9 @@ const CarbonFlowInner = () => {
           nodeName: 'final_product_1',
           lifecycleStage: 'finalProduct',
           emissionType: 'total',
+          activityScore: 0,
           carbonFactor: 0,
           activitydataSource: 'calculated',
-          activityScorelevel: '',
           carbonFootprint: 0,
           certificationMaterials: '',
           emissionFactor: '',
@@ -512,23 +469,19 @@ const CarbonFlowInner = () => {
       nodesByType.finalProduct.push(finalProductNode);
     }
 
-    // 计算新的节点位置
     const newNodes = [...nodes];
     if (!nodesByType.finalProduct.length) {
       newNodes.push(finalProductNode);
     }
 
-    // 计算所有非最终产品节点的位置
     const positionedNodes = newNodes.filter(node => node.type !== 'finalProduct').map(node => {
       const nodeType = node.type as NodeType;
       const typeIndex = nodeTypeOrder.indexOf(nodeType);
       const typeNodes = nodesByType[nodeType] || [];
       const nodeIndex = typeNodes.indexOf(node);
       
-      // 计算水平位置（根据节点类型）
       const x = PADDING + typeIndex * HORIZONTAL_SPACING;
       
-      // 计算垂直位置（根据同类型节点的顺序）
       const y = PADDING + nodeIndex * VERTICAL_SPACING;
 
       return {
@@ -541,7 +494,6 @@ const CarbonFlowInner = () => {
       };
     });
 
-    // 计算最终产品节点的位置（放在中间正下方）
     const maxX = Math.max(...positionedNodes.map(node => node.position.x));
     const maxY = Math.max(...positionedNodes.map(node => node.position.y));
     const finalProductPosition = {
@@ -549,22 +501,17 @@ const CarbonFlowInner = () => {
       y: maxY + VERTICAL_SPACING,
     };
 
-    // 添加最终产品节点
     const finalProductNodeWithPosition = {
       ...finalProductNode,
       position: finalProductPosition,
     };
 
-    // 合併所有节点
     const allNodes = [...positionedNodes, finalProductNodeWithPosition];
 
-    // 创建新的边连接
     const newEdges: Edge[] = [];
     let totalCarbonFootprint = 0;
 
-    // 连接所有非最终产品节点到最终产品节点
     positionedNodes.forEach(node => {
-      // 添加边连接
       newEdges.push({
         id: `edge-${node.id}-${finalProductNode.id}`,
         source: node.id,
@@ -573,13 +520,11 @@ const CarbonFlowInner = () => {
         animated: true,
       });
 
-      // 累加碳排放量
-      if ('carbonFootprint' in node.data) {
+      if (typeof node.data.carbonFootprint === 'number') {
         totalCarbonFootprint += node.data.carbonFootprint;
       }
     });
 
-    // 更新最终产品节点的总碳排放量
     const updatedNodes = allNodes.map(node => {
       if (node.id === finalProductNode.id) {
         return {
@@ -628,7 +573,6 @@ const CarbonFlowInner = () => {
       return;
     }
 
-    // 1. 计算模型完整性
     const lifecycle = ['原材料获取', '生产制造', '分销和储存', '产品使用', '废弃处置'];
     
     const existingStages = new Set(nodes.map(node => node.data?.lifecycleStage).filter(Boolean));
@@ -641,12 +585,11 @@ const CarbonFlowInner = () => {
 
     nodes.forEach(node => {
       const missingFields: string[] = [];
-      // 根据节点类型检查不同字段
       switch (node.data.lifecycleStage) {
         case '原材料获取': {
           const productData = node.data as ProductNodeData;
-     
-          if (typeof productData.quantity === 'undefined' || productData.quantity === null || productData.quantity === 0) {
+          const quantity = productData.quantity !== undefined && !Number.isNaN(Number(productData.quantity)) ? Number(productData.quantity) : 0;
+          if (quantity === 0) {
             totalFields++;
             missingFields.push('数量');
           } else {
@@ -667,7 +610,7 @@ const CarbonFlowInner = () => {
             completedFields++;
             totalFields++;
           }
-          if (typeof node.data.carbonFactordataSource === 'undefined' || node.data.carbonFactordataSource === null || node.data.carbonFactordataSource === 0) {
+          if (!node.data.carbonFactordataSource) { 
             totalFields++;
             missingFields.push('碳足迹因子数据来源');
           } else {
@@ -738,7 +681,6 @@ const CarbonFlowInner = () => {
         }
       }
       
-      // 只有当有缺失字段时才添加到 incompleteNodes
       if (missingFields.length > 0) {
         complete_incompleteNodes.push({
           id: node.id,
@@ -748,13 +690,9 @@ const CarbonFlowInner = () => {
       }
     });
 
-
-    // 计算模型完整度
-
     const NodeCompletenessScore = Math.round(((completedFields) / (totalFields+0.01)) * 100)
     const modelCompletenessScore = Math.round(0.25 * NodeCompletenessScore + 0.75 * lifecycleCompletenessScore);
 
-    // 2. 计算质量平衡
     const mass_incompleteNodes: { id: string; label: string; missingFields: string[]; }[] = [];
     let totalInputMass = 0;
     let totalOutputMass = 0;
@@ -762,41 +700,39 @@ const CarbonFlowInner = () => {
     nodes.forEach(node => {
       if (node.data.lifecycleStage === '原材料获取') {
         const productData = node.data as ProductNodeData;
-        if (typeof productData.quantity === 'undefined' || productData.quantity === null || productData.quantity === 0) {
+        const quantity = productData.quantity !== undefined && !Number.isNaN(Number(productData.quantity)) ? Number(productData.quantity) : 0;
+        if (quantity === 0) {
           mass_incompleteNodes.push({
             id: node.id,
             label: node.data.label,
             missingFields: ['数量']
           });
         } else {
-          totalInputMass += productData.quantity;
+          totalInputMass += quantity;
         }
       }
       
       if (node.data.lifecycleStage === '最终节点') {
         const productData = node.data as ProductNodeData;
-        if (typeof productData.quantity === 'undefined' || productData.quantity === null || productData.quantity === 0) {
+        const quantity = productData.quantity !== undefined && !Number.isNaN(Number(productData.quantity)) ? Number(productData.quantity) : 0;
+        if (quantity === 0) {
           mass_incompleteNodes.push({
             id: node.id,
             label: node.data.label,
             missingFields: ['数量']
           });
         } else {
-          totalOutputMass += productData.quantity;
+          totalOutputMass += quantity;
         }
       }
     });
 
-
-
-    // 计算质量平衡分数
     const errorPercentage = Math.abs(totalInputMass - totalOutputMass) / (totalInputMass || 1) * 100;
     let massBalanceScore = 100;
     if (errorPercentage > 5) {
       massBalanceScore = Math.max(0, 100 - Math.round(errorPercentage - 5));
     }
 
-    // 3. 计算数据可追溯性
     const traceable_incompleteNodes: { id: string; label: string; missingFields: string[]; }[] = [];
     let total_traceabe_node_number = 0;
     let data_ok_traceable_node_number = 0;
@@ -817,10 +753,8 @@ const CarbonFlowInner = () => {
     });
     console.log('total_traceabe_node_number', total_traceabe_node_number);
 
-
     const dataTraceabilityScore = Math.round((total_traceabe_node_number > 0 ? (data_ok_traceable_node_number / total_traceabe_node_number) * 100 : 0));
 
-    // 4. 计算数据准确性
     const validation_incompleteNodes: { id: string; label: string; missingFields: string[]; }[] = [];
     let totalvalidation_node_number = 0;
     let data_ok_validation_node_number = 0;
@@ -845,14 +779,12 @@ const CarbonFlowInner = () => {
 
     const validationScore = Math.round(totalvalidation_node_number > 0 ? (data_ok_validation_node_number / totalvalidation_node_number) * 100 : 0);
 
-    // 把所有值都约束到0～100之间
     const lifecycleCompletenessScore100 = Math.round(Math.max(0, Math.min(100, lifecycleCompletenessScore)));
     const NodeCompletenessScore100 = Math.round(Math.max(0, Math.min(100, NodeCompletenessScore)));
     const massBalanceScore100 = Math.round(Math.max(0, Math.min(100, massBalanceScore)));
     const dataTraceabilityScore100 = Math.round(Math.max(0, Math.min(100, dataTraceabilityScore)));
     const validationScore100 = Math.round(Math.max(0, Math.min(100, validationScore)));
 
-    // 计算总体可信度分数
     const credibilityScore = Math.round(
       0.1 * lifecycleCompletenessScore100 + 
       0.3 * NodeCompletenessScore100 + 
@@ -861,7 +793,6 @@ const CarbonFlowInner = () => {
       0.15 * validationScore100
     );
 
-    // 更新 AI Summary
     setAiSummary(prev => ({
       ...prev,
       credibilityScore,
@@ -889,7 +820,6 @@ const CarbonFlowInner = () => {
     }));
   }, [nodes]);
 
-  // 添加新的 useEffect 钩子来监听 nodes 变化
   useEffect(() => {
     calculateAiSummary();
   }, [nodes, calculateAiSummary]);
@@ -907,7 +837,6 @@ const CarbonFlowInner = () => {
     return '#f5222d';
   };  
 
-  // AI总结展示组件
   const renderAiSummary = () => {
     const { 
       credibilityScore, 
@@ -943,7 +872,6 @@ const CarbonFlowInner = () => {
         
         {isExpanded && (
           <div className="ai-summary-content">
-            {/* 总分展示区 */}
             <div className="summary-score-section">
               <div className="total-score">
                 <div className="score-circle" style={{ color: getScoreColor(credibilityScorePercent) }}>
@@ -957,12 +885,7 @@ const CarbonFlowInner = () => {
               </div>
             </div>
 
-            {/* 分项得分展示 */}
-            <Collapse 
-              defaultActiveKey={[]} 
-              className="score-details-collapse"
-            >
-              {/* 模型完整度 */}
+            <Collapse>
               <Collapse.Panel 
                 header={
                   <div className="score-panel-header">
@@ -981,7 +904,6 @@ const CarbonFlowInner = () => {
                     size="small"
                   />
                   
-                  {/* 评分总结 */}
                   <div className="score-summary">
                     <h4>评分总结</h4>
                     <div className="score-item">
@@ -994,7 +916,6 @@ const CarbonFlowInner = () => {
                     </div>
                   </div>
                   
-                  {/* 需要优化的节点 */}
                   <div className="optimization-nodes">
                     <h4>需要优化的节点</h4>
                     {modelCompleteness.incompleteNodes.map(node => (
@@ -1033,7 +954,6 @@ const CarbonFlowInner = () => {
                 </div>
               </Collapse.Panel>
 
-              {/* 质量平衡 */}
               <Collapse.Panel 
                 header={
                   <div className="score-panel-header">
@@ -1052,7 +972,6 @@ const CarbonFlowInner = () => {
                     size="small"
                   />
                   
-                  {/* 评分总结 */}
                   <div className="score-summary">
                     <h4>评分总结</h4>
                     <div className="score-item">
@@ -1061,7 +980,6 @@ const CarbonFlowInner = () => {
                     </div>
                   </div>
                   
-                  {/* 需要优化的节点 */}
                   <div className="optimization-nodes">
                     <h4>需要优化的节点</h4>
                     {massBalance.incompleteNodes.map(node => (
@@ -1100,7 +1018,6 @@ const CarbonFlowInner = () => {
                 </div>
               </Collapse.Panel>
 
-              {/* 数据可追溯性 */}
               <Collapse.Panel 
                 header={
                   <div className="score-panel-header">
@@ -1119,7 +1036,6 @@ const CarbonFlowInner = () => {
                     size="small"
                   />
                   
-                  {/* 评分总结 */}
                   <div className="score-summary">
                     <h4>评分总结</h4>
                     <div className="score-item">
@@ -1128,7 +1044,6 @@ const CarbonFlowInner = () => {
                     </div>
                   </div>
                   
-                  {/* 需要优化的节点 */}
                   <div className="optimization-nodes">
                     <h4>需要优化的节点</h4>
                     {dataTraceability.incompleteNodes.map(node => (
@@ -1167,11 +1082,10 @@ const CarbonFlowInner = () => {
                 </div>
               </Collapse.Panel>
 
-              {/* 数据验证 */}
               <Collapse.Panel 
                 header={
                   <div className="score-panel-header">
-                    <span>数据准确性</span>
+                    <span>数据验证</span>
                     <span className="score-value" style={{ color: getScoreColor(validation.score) }}>
                       {validation.score}分
                     </span>
@@ -1186,7 +1100,6 @@ const CarbonFlowInner = () => {
                     size="small"
                   />
                   
-                  {/* 评分总结 */}
                   <div className="score-summary">
                     <h4>评分总结</h4>
                     <div className="score-item">
@@ -1195,7 +1108,6 @@ const CarbonFlowInner = () => {
                     </div>
                   </div>
                   
-                  {/* 需要优化的节点 */}
                   <div className="optimization-nodes">
                     <h4>需要优化的节点</h4>
                     {validation.incompleteNodes.map(node => (
@@ -1240,38 +1152,30 @@ const CarbonFlowInner = () => {
     );
   };
 
-  // 添加一键补全功能
   const autoCompleteMissingFields = useCallback(async () => {
     if (!nodes || nodes.length === 0) return;
 
-
-    // 显示AI优化中的消息
     message.info('AI优化中...');
 
-    // 创建一个Promise来模拟暂停
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // 等待3秒，让用户看到消息
     await sleep(3000);
 
-    // 清除消息
     message.destroy();
-
 
     const updatedNodes = nodes.map(node => {
       const updatedData = { ...node.data };
       
-      // 根据节点类型和缺失字段自动填充
       switch (node.data.lifecycleStage) {
         case '原材料获取': {
           const productData = node.data as ProductNodeData;
 
-          if (!productData.quantity) {
-            updatedData.quantity = '1'; // 默认数量为1
+          if (!productData.quantity || Number.isNaN(Number(productData.quantity))) {
+            updatedData.quantity = '1';
           }
 
           if (!productData.carbonFactor) {
-            updatedData.carbonFactor = 0.5; // 默认碳因子
+            updatedData.carbonFactor = 0.5;
           }
 
           if (!productData.carbonFactorName) {
@@ -1289,11 +1193,11 @@ const CarbonFlowInner = () => {
           const manufacturingData = node.data as ManufacturingNodeData;
 
           if (!manufacturingData.carbonFactor) {
-            updatedData.carbonFactor = 0.3; // 默认制造碳因子
+            updatedData.carbonFactor = 0.3;
           }
 
-          if (!manufacturingData.energyConsumption) {
-            updatedData.energyConsumption = 100; // 默认能源消耗
+          if (!manufacturingData.energyConsumption || Number.isNaN(Number(manufacturingData.energyConsumption))) {
+            updatedData.energyConsumption = 100;
           }
 
           if (!manufacturingData.energyType) {
@@ -1307,7 +1211,7 @@ const CarbonFlowInner = () => {
           const distributionData = node.data as DistributionNodeData;
 
           if (!distributionData.carbonFactor) {
-            updatedData.carbonFactor = 0.2; // 默认运输碳因子
+            updatedData.carbonFactor = 0.2;
           }
 
           if (!distributionData.startPoint) {
@@ -1318,8 +1222,8 @@ const CarbonFlowInner = () => {
             updatedData.endPoint = '终点';
           }
 
-          if (!distributionData.transportationDistance) {
-            updatedData.transportationDistance = 100; // 默认运输距离
+          if (!distributionData.transportationDistance || Number.isNaN(Number(distributionData.transportationDistance))) {
+            updatedData.transportationDistance = 100;
           }
 
           break;
@@ -1328,16 +1232,16 @@ const CarbonFlowInner = () => {
         case '产品使用': {
           const usageData = node.data as UsageNodeData;
 
-          if (!usageData.lifespan) {
-            updatedData.lifespan = 5; // 默认使用寿命
+          if (!usageData.lifespan || Number.isNaN(Number(usageData.lifespan))) {
+            updatedData.lifespan = 5;
           }
 
           if (!usageData.energyConsumptionPerUse) {
-            updatedData.energyConsumptionPerUse = 0.5; // 默认每次使用能耗
+            updatedData.energyConsumptionPerUse = 0.5;
           }
 
           if (!usageData.usageFrequency) {
-            updatedData.usageFrequency = 365; // 默认每年使用次数
+            updatedData.usageFrequency = 365;
           }
 
           break;
@@ -1346,24 +1250,22 @@ const CarbonFlowInner = () => {
         case '废弃处置': {
           const disposalData = node.data as DisposalNodeData;
 
-          if (!disposalData.recyclingRate) {
-            updatedData.recyclingRate = 80; // 默认回收率
+          if (!disposalData.recyclingRate || Number.isNaN(Number(disposalData.recyclingRate))) {
+            updatedData.recyclingRate = 80;
           }
 
-          if (!disposalData.landfillPercentage) {
-            updatedData.landfillPercentage = 10; // 默认填埋比例
+          if (!disposalData.landfillPercentage || Number.isNaN(Number(disposalData.landfillPercentage))) {
+            updatedData.landfillPercentage = 10;
           }
 
-          if (!disposalData.incinerationPercentage) {
-            updatedData.incinerationPercentage = 10; // 默认焚烧比例
+          if (!disposalData.incinerationPercentage || Number.isNaN(Number(disposalData.incinerationPercentage))) {
+            updatedData.incinerationPercentage = 10;
           }
 
           break;
         }
       }
 
-
-      // 更新验证状态
       const randomNumber = Math.random();
 
       if (randomNumber < 0.8) {
@@ -1398,11 +1300,517 @@ const CarbonFlowInner = () => {
     });
 
     setNodes(updatedNodes);
-    calculateAiSummary(); // 重新计算AI分析结果
+    calculateAiSummary();
   }, [nodes, setNodes, calculateAiSummary]);
 
+  const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
+  const [checkpointName, setCheckpointName] = useState('');
+  const [checkpoints, setCheckpoints] = useState<Array<{
+    name: string;
+    timestamp: number;
+    metadata?: { description?: string; tags?: string[]; version?: string };
+  }>>([]);
 
+  useEffect(() => {
+    const loadCheckpoints = async () => {
+      try {
+        const list = await CheckpointManager.listCheckpoints();
+        setCheckpoints(list);
+      } catch (error) {
+        console.error('加载检查点列表失败:', error);
+      }
+    };
+    loadCheckpoints();
+  }, []);
 
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveCheckpoint = async () => {
+    if (!checkpointName.trim()) {
+      message.error('请输入检查点名称');
+      return;
+    }
+    if (isSaving) return;
+
+    setIsSaving(true);
+    message.loading({ content: '正在保存检查点...', key: 'saveCheckpoint' });
+
+    try {
+      await CheckpointManager.saveCheckpoint(
+        checkpointName,
+        {
+          nodes,
+          edges,
+          aiSummary,
+          settings: {
+            theme: localStorage.getItem('theme') || 'light',
+            language: localStorage.getItem('language') || 'zh-CN',
+            notifications: localStorage.getItem('notifications') === 'true',
+            eventLogs: localStorage.getItem('eventLogs') === 'true',
+            timezone: localStorage.getItem('timezone') || 'UTC',
+            contextOptimization: localStorage.getItem('contextOptimization') === 'true',
+            autoSelectTemplate: localStorage.getItem('autoSelectTemplate') === 'true',
+          },
+          chatHistory: chatMessages
+        },
+        {
+          description: '手动保存的检查点',
+          tags: ['manual-save'],
+        }
+      );
+      message.success({ content: '本地保存成功!', key: 'saveCheckpoint', duration: 1 });
+
+      const updatedLocalCheckpoints = await CheckpointManager.listCheckpoints();
+      setCheckpoints(updatedLocalCheckpoints);
+
+      message.loading({ content: '正在同步到数据库...', key: 'syncDb' });
+      const syncResult = await CheckpointSyncService.syncSingleCheckpointToSupabase(checkpointName);
+      
+      if (syncResult.success) {
+        message.success({ content: '成功同步到数据库!', key: 'syncDb', duration: 2 });
+      } else {
+        throw new Error(syncResult.error || '同步到数据库失败');
+      }
+
+      setCheckpointName('');
+      setIsCheckpointModalVisible(false);
+      
+    } catch (error: any) {
+      const errorMessage = `保存检查点失败: ${error.message || error}`;
+      console.error(errorMessage);
+      message.error({ content: errorMessage, key: 'saveCheckpoint', duration: 3 });
+      message.error({ content: '数据库同步可能也已失败', key: 'syncDb', duration: 3 });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRestoreCheckpoint = async (name: string) => {
+    try {
+      const data = await CheckpointManager.restoreCheckpoint(name);
+      setNodes(data.nodes);
+      setEdges(data.edges);
+      setAiSummary(data.aiSummary);
+      
+      if (data.settings) {
+        Object.entries(data.settings).forEach(([key, value]) => {
+          if (value !== undefined) {
+            localStorage.setItem(key, String(value));
+          }
+        });
+      }
+
+      if (data.chatHistory && Array.isArray(data.chatHistory)) {
+        chatMessagesStore.set(data.chatHistory);
+        window.dispatchEvent(new CustomEvent('chatHistoryUpdated', {
+          detail: { messages: data.chatHistory }
+        }));
+      } else {
+        chatMessagesStore.set([]);
+        window.dispatchEvent(new CustomEvent('chatHistoryUpdated', {
+          detail: { messages: [] }
+        }));
+      }
+
+      setIsCheckpointModalVisible(false);
+      message.success('检查点恢复成功');
+    } catch (error) {
+      console.error('恢复检查点失败:', error);
+      message.error('恢复检查点失败');
+    }
+  };
+
+  const handleExportCheckpoint = async (name: string) => {
+    try {
+      const checkpointData = await CheckpointManager.exportCheckpoint(name);
+      if (!checkpointData) {
+        message.error('导出检查点失败');
+        return;
+      }
+      const blob = new Blob([checkpointData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${name}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      message.success('检查点导出成功');
+    } catch (error) {
+      message.error('导出检查点失败');
+    }
+  };
+
+  const handleImportAntdUpload = (file: RcFile): Promise<boolean> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const content = e.target?.result as string;
+          await CheckpointManager.importCheckpoint(content);
+          const updatedCheckpoints = await CheckpointManager.listCheckpoints();
+          setCheckpoints(updatedCheckpoints);
+          message.success('检查点导入成功');
+          resolve(false); // Prevent default upload behavior
+        };
+        reader.onerror = (error) => {
+          console.error('文件读取错误:', error);
+          message.error('读取文件失败');
+          reject(false);
+        };
+        reader.readAsText(file);
+      } catch (error) {
+        console.error('导入检查点失败:', error);
+        message.error('导入检查点失败');
+        reject(false);
+      }
+    });
+  };
+
+  const handleDeleteCheckpoint = async (name: string) => {
+    try {
+      await CheckpointManager.deleteCheckpoint(name);
+      const updatedCheckpoints = await CheckpointManager.listCheckpoints();
+      setCheckpoints(updatedCheckpoints);
+      message.success('检查点删除成功');
+    } catch (error) {
+      console.error('删除检查点失败:', error);
+      message.error('删除检查点失败');
+    }
+  };
+
+  const [syncStatus, setSyncStatus] = useState(CheckpointSyncService.getSyncStatus());
+  const supabaseState = useStore(supabaseConnection);
+
+  useEffect(() => {
+    if (supabaseState.isConnected) {
+      const cleanup = CheckpointSyncService.startAutoSync();
+      return cleanup;
+    }
+  }, [supabaseState.isConnected]);
+
+  const handleSyncCheckpoints = async () => {
+    try {
+      await CheckpointSyncService.syncToSupabase();
+      setSyncStatus(CheckpointSyncService.getSyncStatus());
+    } catch (error) {
+      console.error('同步检查点失败:', error);
+    }
+  };
+
+  const handleRestoreFromCloud = async () => {
+    try {
+      const result = await CheckpointSyncService.restoreFromSupabase();
+      if (result.success) {
+        const updatedCheckpoints = await CheckpointManager.listCheckpoints();
+        setCheckpoints(updatedCheckpoints);
+        setSyncStatus(CheckpointSyncService.getSyncStatus());
+      }
+    } catch (error) {
+      message.error('从云端恢复检查点失败');
+    }
+  };
+
+  const renderCheckpointModal = () => (
+    <Modal
+      title="检查点管理"
+      open={isCheckpointModalVisible}
+      onCancel={() => setIsCheckpointModalVisible(false)}
+      footer={null}
+      width={800}
+      bodyStyle={{ 
+        backgroundColor: '#1f1f1f',
+        color: '#e0e0e0',
+        padding: '24px',
+        maxHeight: '70vh', 
+        overflowY: 'auto' 
+      }}
+      styles={{
+        header: { 
+          backgroundColor: '#1f1f1f',
+          color: '#e0e0e0',
+          borderBottom: '1px solid #303030'
+        },
+        content: { 
+          backgroundColor: '#1f1f1f',
+        },
+        mask: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)'
+        }
+      }}
+    >
+      <Row gutter={[16, 16]}>
+        <Col span={16}>
+          <Input
+            placeholder="输入检查点名称 (可选)"
+            value={checkpointName}
+            onChange={(e) => setCheckpointName(e.target.value)}
+            style={{ 
+              backgroundColor: '#2a2a2a',
+              color: '#e0e0e0',
+              borderColor: '#444'
+            }}
+          />
+        </Col>
+        <Col span={8}>
+          <AntButton 
+            type="primary" 
+            onClick={handleSaveCheckpoint} 
+            icon={<SaveOutlined />} 
+            block
+            loading={isSaving}
+            disabled={isSaving}
+          >
+            {isSaving ? '保存中...' : '保存当前状态'}
+          </AntButton>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginTop: '20px' }}>
+         <Col span={8}>
+            <Upload 
+              accept=".json"
+              showUploadList={false}
+              beforeUpload={handleImportAntdUpload}
+            >
+              <AntButton 
+                icon={<UploadOutlined />} 
+                block
+                style={{
+                  backgroundColor: '#333',
+                  borderColor: '#555',
+                  color: '#e0e0e0'
+                }}
+              >
+                导入检查点
+              </AntButton>
+            </Upload>
+        </Col>
+        <Col span={8}>
+          <AntButton 
+            icon={<CloudSyncOutlined />} 
+            onClick={handleSyncCheckpoints} 
+            loading={syncStatus.status === 'pending'}
+            block
+            style={{
+              backgroundColor: '#333', 
+              borderColor: '#555', 
+              color: '#e0e0e0',
+            }}
+          >
+            {syncStatus.status === 'pending' ? '同步中...' : '同步到云端'}
+          </AntButton>
+        </Col>
+        <Col span={8}>
+          <AntButton 
+            icon={<CloudDownloadOutlined />} 
+            onClick={handleRestoreFromCloud} 
+            loading={syncStatus.status === 'pending'}
+            block
+            style={{
+              backgroundColor: '#333',
+              borderColor: '#555', 
+              color: '#e0e0e0' 
+            }}
+          >
+            {syncStatus.status === 'pending' ? '恢复中...' : '从云端恢复'}
+          </AntButton>
+        </Col>
+      </Row>
+
+      <Divider style={{ borderColor: '#444' }} />
+
+      <Typography.Title level={5} style={{ color: '#e0e0e0', marginBottom: '16px' }}>已保存的检查点</Typography.Title>
+      <List
+        itemLayout="horizontal"
+        dataSource={checkpoints}
+        locale={{ emptyText: <Empty description={<span style={{ color: '#aaa' }}>暂无检查点</span>} /> }}
+        renderItem={(item: CheckpointMetadata) => (
+          <List.Item
+            style={{ 
+              backgroundColor: '#2a2a2a',
+              marginBottom: '8px', 
+              padding: '12px 16px', 
+              borderRadius: '4px',
+              border: '1px solid #333'
+            }}
+            actions={[
+              <AntButton 
+                icon={<HistoryOutlined />} 
+                onClick={() => handleRestoreCheckpoint(item.name)}
+                type="primary"
+              >
+                恢复
+              </AntButton>,
+              <AntButton 
+                icon={<ExportOutlined />} 
+                onClick={() => handleExportCheckpoint(item.name)}
+                style={{
+                  backgroundColor: '#333',
+                  borderColor: '#555',
+                  color: '#e0e0e0'
+                }}
+              >
+                导出
+              </AntButton>,
+              <AntButton 
+                icon={<DeleteOutlined />} 
+                onClick={() => handleDeleteCheckpoint(item.name)}
+                style={{
+                  backgroundColor: '#333',
+                  borderColor: '#555', 
+                  color: '#e0e0e0' 
+                }}
+              >
+                删除
+              </AntButton>
+            ]}
+          >
+            <List.Item.Meta
+              title={<span style={{ color: '#e0e0e0' }}>{item.name}</span>}
+              description={
+                 <span style={{ color: '#aaa' }}>
+                   {new Date(item.timestamp).toLocaleString()}
+                   {item.metadata?.description ? ` - ${item.metadata.description}` : ''}
+                 </span>
+               }
+            />
+          </List.Item>
+        )}
+      />
+    </Modal>
+  );
+
+  const handleNodeUpdate = useCallback((nodeId: string, updates: Partial<NodeData>) => {
+    const updateNodes = (nds: Node<NodeData>[]) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          const nodeType = node.type as NodeType;
+          let updatedData: NodeData;
+
+          switch (nodeType) {
+            case 'manufacturing': {
+              const manufacturingData = node.data as ManufacturingNodeData;
+              const manufacturingUpdates = updates as Partial<ManufacturingNodeData>;
+              updatedData = {
+                ...manufacturingData,
+                ...manufacturingUpdates,
+                label: manufacturingUpdates.label || manufacturingData.label,
+                nodeName: manufacturingUpdates.nodeName || manufacturingData.nodeName,
+                lifecycleStage: manufacturingUpdates.lifecycleStage || manufacturingData.lifecycleStage,
+                emissionType: manufacturingUpdates.emissionType || manufacturingData.emissionType,
+                activityScore: manufacturingUpdates.activityScore || manufacturingData.activityScore,
+                carbonFactor: manufacturingUpdates.carbonFactor || manufacturingData.carbonFactor,
+                activitydataSource: manufacturingUpdates.activitydataSource || manufacturingData.activitydataSource,
+                carbonFootprint: manufacturingUpdates.carbonFootprint || manufacturingData.carbonFootprint,
+                energyConsumption: typeof manufacturingUpdates.energyConsumption === 'number' ? manufacturingUpdates.energyConsumption : manufacturingData.energyConsumption,
+                energyType: manufacturingUpdates.energyType || manufacturingData.energyType,
+                ElectricityAccountingMethod: manufacturingUpdates.ElectricityAccountingMethod || manufacturingData.ElectricityAccountingMethod,
+                ElectricityAllocationMethod: manufacturingUpdates.ElectricityAllocationMethod || manufacturingData.ElectricityAllocationMethod,
+                EnergyConsumptionMethodology: manufacturingUpdates.EnergyConsumptionMethodology || manufacturingData.EnergyConsumptionMethodology,
+                EnergyConsumptionAllocationMethod: manufacturingUpdates.EnergyConsumptionAllocationMethod || manufacturingData.EnergyConsumptionAllocationMethod,
+                chemicalsMaterial: manufacturingUpdates.chemicalsMaterial || manufacturingData.chemicalsMaterial,
+                MaterialAllocationMethod: manufacturingUpdates.MaterialAllocationMethod || manufacturingData.MaterialAllocationMethod,
+                WaterUseMethodology: manufacturingUpdates.WaterUseMethodology || manufacturingData.WaterUseMethodology,
+                WaterAllocationMethod: manufacturingUpdates.WaterAllocationMethod || manufacturingData.WaterAllocationMethod,
+                packagingMaterial: manufacturingUpdates.packagingMaterial || manufacturingData.packagingMaterial,
+                direct_emission: manufacturingUpdates.direct_emission || manufacturingData.direct_emission,
+                WasteGasTreatment: manufacturingUpdates.WasteGasTreatment || manufacturingData.WasteGasTreatment,
+                WasteDisposalMethod: manufacturingUpdates.WasteDisposalMethod || manufacturingData.WasteDisposalMethod,
+                WastewaterTreatment: manufacturingUpdates.WastewaterTreatment || manufacturingData.WastewaterTreatment,
+                processEfficiency: manufacturingUpdates.processEfficiency || manufacturingData.processEfficiency,
+                wasteGeneration: manufacturingUpdates.wasteGeneration || manufacturingData.wasteGeneration,
+                waterConsumption: manufacturingUpdates.waterConsumption || manufacturingData.waterConsumption,
+                recycledMaterialPercentage: manufacturingUpdates.recycledMaterialPercentage || manufacturingData.recycledMaterialPercentage,
+                productionCapacity: manufacturingUpdates.productionCapacity || manufacturingData.productionCapacity,
+                machineUtilization: manufacturingUpdates.machineUtilization || manufacturingData.machineUtilization,
+                qualityDefectRate: manufacturingUpdates.qualityDefectRate || manufacturingData.qualityDefectRate,
+                processTechnology: manufacturingUpdates.processTechnology || manufacturingData.processTechnology,
+                manufacturingStandard: manufacturingUpdates.manufacturingStandard || manufacturingData.manufacturingStandard,
+                automationLevel: manufacturingUpdates.automationLevel || manufacturingData.automationLevel,
+                manufacturingLocation: manufacturingUpdates.manufacturingLocation || manufacturingData.manufacturingLocation,
+                byproducts: manufacturingUpdates.byproducts || manufacturingData.byproducts,
+                emissionControlMeasures: manufacturingUpdates.emissionControlMeasures || manufacturingData.emissionControlMeasures
+              } as ManufacturingNodeData;
+              break;
+            }
+            case 'distribution': {
+              const distributionData = node.data as DistributionNodeData;
+              const distributionUpdates = updates as Partial<DistributionNodeData>;
+              updatedData = {
+                ...distributionData,
+                ...distributionUpdates,
+                label: distributionUpdates.label || distributionData.label,
+                nodeName: distributionUpdates.nodeName || distributionData.nodeName,
+                lifecycleStage: distributionUpdates.lifecycleStage || distributionData.lifecycleStage,
+                emissionType: distributionUpdates.emissionType || distributionData.emissionType,
+                activityScore: distributionUpdates.activityScore || distributionData.activityScore,
+                carbonFactor: distributionUpdates.carbonFactor || distributionData.carbonFactor,
+                activitydataSource: distributionUpdates.activitydataSource || distributionData.activitydataSource,
+                carbonFootprint: distributionUpdates.carbonFootprint || distributionData.carbonFootprint,
+                startPoint: distributionUpdates.startPoint || distributionData.startPoint,
+                endPoint: distributionUpdates.endPoint || distributionData.endPoint,
+                transportationDistance: typeof distributionUpdates.transportationDistance === 'number' ? distributionUpdates.transportationDistance : distributionData.transportationDistance,
+                transportationMode: distributionUpdates.transportationMode || distributionData.transportationMode,
+                vehicleType: distributionUpdates.vehicleType || distributionData.vehicleType,
+                fuelType: distributionUpdates.fuelType || distributionData.fuelType,
+                fuelEfficiency: distributionUpdates.fuelEfficiency || distributionData.fuelEfficiency,
+                loadFactor: distributionUpdates.loadFactor || distributionData.loadFactor,
+                refrigeration: distributionUpdates.refrigeration || distributionData.refrigeration,
+                packagingMaterial: distributionUpdates.packagingMaterial || distributionData.packagingMaterial,
+                packagingWeight: distributionUpdates.packagingWeight || distributionData.packagingWeight,
+                warehouseEnergy: distributionUpdates.warehouseEnergy || distributionData.warehouseEnergy,
+                storageTime: distributionUpdates.storageTime || distributionData.storageTime,
+                storageConditions: distributionUpdates.storageConditions || distributionData.storageConditions,
+                distributionNetwork: distributionUpdates.distributionNetwork || distributionData.distributionNetwork
+              } as DistributionNodeData;
+              break;
+            }
+            default: {
+              const productData = node.data as ProductNodeData;
+              const productUpdates = updates as Partial<ProductNodeData>;
+              updatedData = {
+                ...productData,
+                ...productUpdates,
+                label: productUpdates.label || productData.label,
+                nodeName: productUpdates.nodeName || productData.nodeName,
+                lifecycleStage: productUpdates.lifecycleStage || productData.lifecycleStage,
+                emissionType: productUpdates.emissionType || productData.emissionType,
+                activityScore: productUpdates.activityScore || productData.activityScore,
+                carbonFactor: productUpdates.carbonFactor || productData.carbonFactor,
+                activitydataSource: productUpdates.activitydataSource || productData.activitydataSource,
+                carbonFootprint: productUpdates.carbonFootprint || productData.carbonFootprint,
+                material: productUpdates.material || productData.material,
+                weight_per_unit: productUpdates.weight_per_unit || productData.weight_per_unit,
+                isRecycled: productUpdates.isRecycled || productData.isRecycled,
+                recycledContent: productUpdates.recycledContent || productData.recycledContent,
+                recycledContentPercentage: productUpdates.recycledContentPercentage || productData.recycledContentPercentage,
+                sourcingRegion: productUpdates.sourcingRegion || productData.sourcingRegion,
+                SourceLocation: productUpdates.SourceLocation || productData.SourceLocation,
+                Destination: productUpdates.Destination || productData.Destination,
+                SupplierName: productUpdates.SupplierName || productData.SupplierName,
+                SupplierAddress: productUpdates.SupplierAddress || productData.SupplierAddress,
+                ProcessingPlantAddress: productUpdates.ProcessingPlantAddress || productData.ProcessingPlantAddress,
+                RefrigeratedTransport: productUpdates.RefrigeratedTransport || productData.RefrigeratedTransport,
+                weight: productUpdates.weight || productData.weight,
+                supplier: productUpdates.supplier || productData.supplier,
+                certaintyPercentage: productUpdates.certaintyPercentage || productData.certaintyPercentage
+              } as ProductNodeData;
+            }
+          }
+
+          return {
+            ...node,
+            data: updatedData
+          };
+        }
+        return node;
+      });
+
+    setNodes(updateNodes);
+    calculateAiSummary();
+  }, [nodes, setNodes, calculateAiSummary]);
 
   return (
     <div className="editor-layout">
@@ -1438,7 +1846,6 @@ const CarbonFlowInner = () => {
           </Button>
           <Button 
             onClick={() => {
-              // TODO: 实现生成报告功能
               console.log('生成报告');
             }}
             style={{ 
@@ -1448,6 +1855,9 @@ const CarbonFlowInner = () => {
             }}
           >
             生成报告
+          </Button>
+          <Button onClick={() => setIsCheckpointModalVisible(true)}>
+            检查点管理
           </Button>
         </div>
       </div>
@@ -1494,9 +1904,14 @@ const CarbonFlowInner = () => {
               onPaneClick={handlePaneClick}
               nodeTypes={nodeTypes}
               fitView
-              minZoom={0.1}
-              maxZoom={2}
-              defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+              style={{ background: theme === 'dark' ? '#1a1a1a' : '#ffffff' }}
+              connectionLineStyle={connectionLineStyle}
+              defaultEdgeOptions={defaultEdgeOptions}
+              connectionLineType={ConnectionLineType.SmoothStep}
+              attributionPosition="bottom-left"
+              connectionMode={ConnectionMode.Loose}
+              deleteKeyCode={['Backspace', 'Delete']}
+              elevateNodesOnSelect={true}
             >
               <Background />
               <Controls />
@@ -1507,7 +1922,8 @@ const CarbonFlowInner = () => {
                     node={selectedNode}
                     onClose={() => setSelectedNode(null)}
                     setNodes={setNodes}
-                    setSelectedNode={setSelectedNode}
+                    selectedNode={selectedNode}
+                    onUpdate={handleNodeUpdate}
                     updateAiSummary={calculateAiSummary}
                   />
                 </Panel>
@@ -1518,15 +1934,41 @@ const CarbonFlowInner = () => {
         </div>
         
       </div>
-      
+      {renderCheckpointModal()}
     </div>
   );
 };
 
 export const CarbonFlow = () => {
   return (
-    <ReactFlowProvider>
-      <CarbonFlowInner />
-    </ReactFlowProvider>
+    <ConfigProvider
+      theme={{
+        algorithm: darkAlgorithm,
+        token: {
+          colorBgElevated: '#1f1f1f',
+          colorText: '#e0e0e0',
+        },
+        components: {
+          Message: {
+            contentBg: '#1f1f1f',
+            colorText: '#e0e0e0',
+          },
+        },
+      }}
+    >
+      <style>{`
+        .ant-message-notice-content {
+          background-color: #1f1f1f !important;
+          color: #e0e0e0 !important;
+          border: 1px solid #333 !important;
+        }
+        .ant-message-custom-content {
+          color: #e0e0e0 !important;
+        }
+      `}</style>
+      <ReactFlowProvider>
+        <CarbonFlowInner />
+      </ReactFlowProvider>
+    </ConfigProvider>
   );
 };

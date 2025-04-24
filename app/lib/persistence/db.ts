@@ -70,8 +70,15 @@ export async function setMessages(
       return;
     }
 
+    // Validate id is a valid number
+    const numericId = parseInt(id, 10);
+    if (isNaN(numericId)) {
+      reject(new Error('Invalid id: must be a number'));
+      return;
+    }
+
     const request = store.put({
-      id,
+      id: String(numericId), // Ensure id is a string
       messages,
       urlId,
       description,
@@ -85,7 +92,26 @@ export async function setMessages(
 }
 
 export async function getMessages(db: IDBDatabase, id: string): Promise<ChatHistoryItem> {
-  return (await getMessagesById(db, id)) || (await getMessagesByUrlId(db, id));
+  console.log('Getting messages for ID:', id);
+  try {
+    const byId = await getMessagesById(db, id);
+    if (byId) {
+      console.log('Found messages by ID');
+      return byId;
+    }
+    
+    const byUrlId = await getMessagesByUrlId(db, id);
+    if (byUrlId) {
+      console.log('Found messages by URL ID');
+      return byUrlId;
+    }
+    
+    console.log('No messages found for ID:', id);
+    return null;
+  } catch (error) {
+    console.error('Error getting messages:', error);
+    throw error;
+  }
 }
 
 export async function getMessagesByUrlId(db: IDBDatabase, id: string): Promise<ChatHistoryItem> {
@@ -129,8 +155,30 @@ export async function getNextId(db: IDBDatabase): Promise<string> {
     const request = store.getAllKeys();
 
     request.onsuccess = () => {
-      const highestId = request.result.reduce((cur, acc) => Math.max(+cur, +acc), 0);
-      resolve(String(+highestId + 1));
+      const keys = request.result;
+      if (!keys || keys.length === 0) {
+        resolve('1');
+        return;
+      }
+      
+      // Ensure all keys are valid numbers
+      const numericKeys = keys
+        .map(key => {
+          if (typeof key === 'string') {
+            const num = parseInt(key, 10);
+            return isNaN(num) ? 0 : num;
+          }
+          return 0;
+        })
+        .filter(num => num > 0);
+      
+      if (numericKeys.length === 0) {
+        resolve('1');
+        return;
+      }
+      
+      const highestId = Math.max(...numericKeys);
+      resolve(String(highestId + 1));
     };
 
     request.onerror = () => reject(request.error);

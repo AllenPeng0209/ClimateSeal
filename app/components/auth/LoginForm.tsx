@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { Alert, Button, Form, Input, Divider, Typography } from "antd";
 import { useNavigate, useLocation } from "@remix-run/react";
 import { GoogleOutlined } from "@ant-design/icons";
-import { useAuthContext } from "../../contexts/AuthContext";
+import { useAuth } from "./AuthProvider";
+import { supabase } from "../../lib/supabase";
 import "../../styles/auth/login-form.css";
 
 // 错误消息映射
@@ -15,22 +16,14 @@ const ERROR_MESSAGES: { [key: string]: string } = {
 export const LoginForm: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, loginWithGoogle } = useAuthContext();
-  const [loading, setLoading] = useState(false);
+  const { login, authState } = useAuth();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onFinish = async (values: { email: string; password: string }) => {
     try {
-      setLoading(true);
       setError(null);
-
-      const result = await login(values.email, values.password);
-
-      if (!result.success) {
-        throw new Error(result.error || "登录失败");
-      }
-
+      await login(values);
       // 登录成功，获取重定向路径
       const from = location.state?.from || "/dashboard";
       navigate(from, { replace: true });
@@ -40,8 +33,6 @@ export const LoginForm: React.FC = () => {
         ? ERROR_MESSAGES[err.message]
         : err.message || "登录失败，请重试";
       setError(errorMessage);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -50,8 +41,16 @@ export const LoginForm: React.FC = () => {
     try {
       setGoogleLoading(true);
       setError(null);
-      await loginWithGoogle();
-      // GoogleOAuth将处理重定向
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) throw error;
+      
     } catch (err: any) {
       console.error("Google登录错误:", err);
       setError(err.message || "Google登录失败，请重试");
@@ -104,7 +103,7 @@ export const LoginForm: React.FC = () => {
         <Button
           type="primary"
           htmlType="submit"
-          loading={loading}
+          loading={authState?.loading}
           block
           size="large"
         >

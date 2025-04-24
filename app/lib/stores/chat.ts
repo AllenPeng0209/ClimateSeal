@@ -1,7 +1,7 @@
 import { map } from 'nanostores';
 
 export const chatStore = map({
-  started: false,
+  started: true,
   aborted: false,
   showChat: true,
 });

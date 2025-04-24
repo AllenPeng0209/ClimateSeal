@@ -1,8 +1,8 @@
 import type { Node, Edge } from 'reactflow';
 import type { CarbonFlowAction } from '~/types/actions';
-import type { NodeData } from 'app/types/nodes';
+import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData } from '~/types/nodes';
 
-type NodeType = 'product' | 'manufacturing' | 'distribution' | 'usage' | 'disposal' | 'finalProduct';
+export type NodeType = 'product' | 'manufacturing' | 'distribution' | 'usage' | 'disposal' | 'finalProduct';
 
 export interface CarbonFlowActionHandlerProps {
   nodes: Node<NodeData>[];

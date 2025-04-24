@@ -1,9 +1,13 @@
 import type { Change } from 'diff';
+import type { NodeData } from './nodes';
 
-export type ActionType = 'file' | 'shell' | 'start' | 'supabase' | 'carbonflow';
+export type ActionType = 'file' | 'shell' | 'start' | 'supabase' | 'carbonflow' | 'llm' | 'datasheet' | 'settings';
 
 export interface BaseAction {
+  type: 'llm' | 'carbonflow' | 'datasheet' | 'settings';
   content: string;
+  description?: string;
+  traceId?: string;
 }
 
 export interface FileAction extends BaseAction {
@@ -30,21 +34,44 @@ export interface SupabaseAction extends BaseAction {
   projectId?: string;
 }
 
-export interface CarbonFlowAction extends BaseAction {
-  type: 'carbonflow';
-  operation: 'create' | 'update' | 'delete' | 'query' | 'connect' | 'layout' | 'calculate';
-  nodeId?: string;
-  nodeType?: string;
-  source?: string;
-  target?: string;
-  position?: string;
-  data: string;
-  description?: string;
-  
+export interface LlmAction extends BaseAction {
+  type: 'llm';
+  operation: 'analyze' | 'summarize' | 'recommend';
 }
 
+export interface CarbonFlowAction {
+  type: string;
+  nodeId: string;
+  data?: Partial<NodeData>;
+  traceId?: string;
+}
 
-export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction;
+export interface CarbonFlowActionResult {
+  success: boolean;
+  traceId?: string;
+  nodeId?: string;
+  error?: string;
+}
+
+export interface CarbonFlowActionHandlerConfig {
+  nodes: Node<NodeData>[];
+  edges: Edge[];
+  setNodes: React.Dispatch<React.SetStateAction<Node<NodeData>[]>>;
+  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+}
+
+export interface DatasheetAction extends BaseAction {
+  type: 'datasheet';
+  operation: string;
+  filePath?: string;
+}
+
+export interface SettingsAction extends BaseAction {
+  type: 'settings';
+  operation: string;
+}
+
+export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction | LlmAction | DatasheetAction | SettingsAction;
 
 export type BoltActionData = BoltAction | BaseAction;
 

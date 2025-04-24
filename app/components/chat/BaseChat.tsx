@@ -3,7 +3,7 @@
  * Preventing TS checks with files presented in the video for a better presentation.
  */
 import type { JSONValue, Message } from 'ai';
-import React, { type RefCallback, useEffect, useState, useRef, useCallback } from 'react';
+import React, { type RefCallback, useEffect, useState, useRef, useCallback, type RefObject } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
@@ -51,9 +51,9 @@ interface CSVData {
 }
 
 interface BaseChatProps {
-  textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
+  textareaRef?: RefObject<HTMLTextAreaElement> | undefined;
   messageRef?: RefCallback<HTMLDivElement> | undefined;
-  scrollRef?: React.RefObject<HTMLDivElement> | undefined;
+  scrollRef?: RefObject<HTMLDivElement> | undefined;
   showChat?: boolean;
   chatStarted?: boolean;
   isStreaming?: boolean;
@@ -137,6 +137,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const prevMessagesLengthRef = useRef(messages?.length ?? 0);
     const [csvData, setCsvData] = useState<CSVData | null>(null);
     const [showCSVPreview, setShowCSVPreview] = useState(false);
+    const [apiKey, setApiKey] = useState<string>('');
+    const [selectedModel, setSelectedModel] = useState<string>('');
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+      setIsClient(true);
+    }, []);
     
     // 简单可靠的强制滚动函数
     const forceScrollToBottom = useCallback(() => {

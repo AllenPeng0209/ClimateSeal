@@ -155,8 +155,8 @@ export class PreviewsStore {
       // Watch for file changes
       const watcher = await webcontainer.fs.watch('**/*', { persistent: true });
 
-      // Use the native watch events
-      (watcher as any).addEventListener('change', async () => {
+      // Use the correct event handling method for WebContainer
+      watcher.on('change', async () => {
         const previews = this.previews.get();
 
         for (const preview of previews) {
