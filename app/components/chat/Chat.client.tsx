@@ -27,6 +27,8 @@ import { logStore } from '~/lib/stores/logs';
 import { streamingState } from '~/lib/stores/streaming';
 import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
+import { subscribeToCarbonFlowData } from '~/components/workbench/CarbonFlow/CarbonFlowBridge';
+import type { CarbonFlowData } from '~/types/carbonFlow';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -146,6 +148,19 @@ export const ChatImpl = memo(
 
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
 
+    const [carbonFlowData, setCarbonFlowData] = useState<CarbonFlowData | null>(null);
+    
+    useEffect(() => {
+      const unsubscribe = subscribeToCarbonFlowData((data) => {
+        console.log('[Chat] 收到CarbonFlow数据更新:', data);
+        setCarbonFlowData(data);
+      });
+      
+      return () => {
+        unsubscribe();
+      };
+    }, []);
+
     const {
       messages,
       isLoading,
@@ -166,6 +181,7 @@ export const ChatImpl = memo(
         files,
         promptId,
         contextOptimization: contextOptimizationEnabled,
+        carbonFlowData,
         supabase: {
           isConnected: supabaseConn.isConnected,
           hasSelectedProject: !!selectedProject,

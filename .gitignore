@@ -40,7 +40,7 @@ modelfiles
 
 # docs ignore
 site
-
+*.xlsx
 # commit file ignore
 app/commit.json
 changelogUI.md

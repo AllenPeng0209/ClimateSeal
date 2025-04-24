@@ -31,6 +31,7 @@ import type { CarbonFlowAction } from '~/types/actions';
 import { Tag, Collapse, Progress, message } from 'antd';
 import { UpOutlined, DownOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { NodeData, DataNode } from '~/types/nodes';
+import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowBridge';
 
 const nodeTypes = {
   product: ProductNode,
@@ -157,21 +158,26 @@ const CarbonFlowInner = () => {
     expandedSection: null,
   });
   
-  // 添加一个全局变量来存储 nodes 信息
+  // 使用CarbonFlowStore
+  const { setNodes: setStoreNodes, setEdges: setStoreEdges, setAiSummary: setStoreAiSummary } = useCarbonFlowStore();
+  
+  // 当nodes更新时，同步到store
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).carbonFlowNodes = nodes;
-      console.log('[CarbonFlow] 已更新全局 nodes 信息:', nodes);
-    }
-  }, [nodes]);
-
-  // 添加一个全局变量来存储 AI Summary 信息
+    setStoreNodes(nodes);
+    emitCarbonFlowData();
+  }, [nodes, setStoreNodes]);
+  
+  // 当edges更新时，同步到store
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).carbonFlowAiSummary = aiSummary;
-      console.log('[CarbonFlow] 已更新全局 AI Summary 信息:', aiSummary);
-    }
-  }, [aiSummary]);
+    setStoreEdges(edges);
+    emitCarbonFlowData();
+  }, [edges, setStoreEdges]);
+  
+  // 当aiSummary更新时，同步到store
+  useEffect(() => {
+    setStoreAiSummary(aiSummary);
+    emitCarbonFlowData();
+  }, [aiSummary, setStoreAiSummary]);
   
   // 创建 CarbonFlow 操作处理器
   const [actionHandler, setActionHandler] = useState<CarbonFlowActionHandler | null>(null);
