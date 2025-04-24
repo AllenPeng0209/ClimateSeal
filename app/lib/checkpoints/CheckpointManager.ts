@@ -89,7 +89,11 @@ export class CheckpointManager {
         const tx = db.transaction(this.STORE_NAME, 'readwrite');
         const store = tx.objectStore(this.STORE_NAME);
 
-        await store.put(data, trimmedName);
+        const dataWithKey = {
+            ...data,
+            name: trimmedName
+        };
+        await store.put(dataWithKey);
 
         let currentMetadata = this.getMetadata();
         const existingIndex = currentMetadata.findIndex(m => m.name === trimmedName);
