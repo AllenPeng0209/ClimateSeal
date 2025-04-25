@@ -670,13 +670,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const baseChat = (
       <div
         ref={ref}
-        className={classNames(styles.BaseChat, 'flex h-full w-full fixed bottom-0 left-0 z-50 w-[600px] h-[600px] overflow-hidden bg-black/90 border border-bolt-elements-borderColor rounded-tl-lg shadow-lg')}
-
+        className={classNames(styles.BaseChat, 'flex h-full w-full overflow-hidden bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor')}
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
         <div ref={scrollRef} className="flex flex-col lg:flex-row overflow-hidden w-full h-full">
-          <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
+          <div className={classNames(styles.Chat, 'flex flex-col flex-grow h-full')}>
             {!chatStarted && (
               <div id="intro" className="mt-[18vh] max-w-chat mx-auto text-center px-4 lg:px-0">
                 <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-6 animate-fade-in bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -1069,15 +1068,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               {!chatStarted && <StarterTemplates />}
             </div>
           </div>
-          <ClientOnly>
-            {() => (
-              <Workbench
-                actionRunner={actionRunner ?? ({} as ActionRunner)}
-                chatStarted={chatStarted}
-                isStreaming={isStreaming}
-              />
-            )}
-          </ClientOnly>
         </div>
       </div>
     );

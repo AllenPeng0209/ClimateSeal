@@ -14,6 +14,7 @@ import { useSearchFilter } from '~/lib/hooks/useSearchFilter';
 import { classNames } from '~/utils/classNames';
 import { useStore } from '@nanostores/react';
 import { profileStore } from '~/lib/stores/profile';
+import { isMenuOpen } from '~/lib/stores/menuStore';
 
 const menuVariants = {
   closed: {
@@ -64,7 +65,7 @@ export const Menu = () => {
   const { duplicateCurrentChat, exportChat } = useChatHistory();
   const menuRef = useRef<HTMLDivElement>(null);
   const [list, setList] = useState<ChatHistoryItem[]>([]);
-  const [open, setOpen] = useState(false);
+  const _isMenuOpen = useStore(isMenuOpen);
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const profile = useStore(profileStore);
@@ -108,10 +109,10 @@ export const Menu = () => {
   };
 
   useEffect(() => {
-    if (open) {
+    if (_isMenuOpen) {
       loadEntries();
     }
-  }, [open]);
+  }, [_isMenuOpen, loadEntries]);
 
   useEffect(() => {
     const enterThreshold = 40;
@@ -123,11 +124,11 @@ export const Menu = () => {
       }
 
       if (event.pageX < enterThreshold) {
-        setOpen(true);
+        isMenuOpen.set(true);
       }
 
       if (menuRef.current && event.clientX > menuRef.current.getBoundingClientRect().right + exitThreshold) {
-        setOpen(false);
+        isMenuOpen.set(false);
       }
     }
 
@@ -150,7 +151,7 @@ export const Menu = () => {
 
   const handleSettingsClick = () => {
     setIsSettingsOpen(true);
-    setOpen(false);
+    isMenuOpen.set(false);
   };
 
   const handleSettingsClose = () => {
@@ -162,7 +163,7 @@ export const Menu = () => {
       <motion.div
         ref={menuRef}
         initial="closed"
-        animate={open ? 'open' : 'closed'}
+        animate={_isMenuOpen ? 'open' : 'closed'}
         variants={menuVariants}
         style={{ width: '340px' }}
         className={classNames(

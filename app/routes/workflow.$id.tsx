@@ -5,6 +5,7 @@ import { message } from "antd";
 import { Chat } from "~/components/chat/Chat.client";
 import { useStore } from "@nanostores/react";
 import { themeStore } from "~/lib/stores/theme";
+import { CarbonCalculatorPanelClient } from '~/components/carbon/CarbonCalculatorPanel.client';
 
 import { ClientOnly } from 'remix-utils/client-only';
 import { BaseChat } from '~/components/chat/BaseChat';
@@ -89,8 +90,15 @@ export default function WorkflowPage() {
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-bolt-elements-background-depth-1">
-      <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>
+    <div className="flex h-full w-full bg-bolt-elements-background-depth-1">
+      {/* 左侧聊天区域，占据屏幕 1/3 宽度 */}
+      <div className="w-1/3 h-full border-r border-bolt-elements-borderColor">
+        <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>
+      </div>
+      {/* 右侧计算器面板区域，占据屏幕 2/3 宽度 */}
+      <div className="w-2/3 h-full overflow-hidden">
+         <CarbonCalculatorPanelClient />
+      </div>
     </div>
   );
 } 
