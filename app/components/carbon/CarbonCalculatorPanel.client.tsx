@@ -41,6 +41,7 @@ const lifecycleStages = [
 
 const emissionCategories = ['原材料', '包装材料', '能耗', '运输', '废弃物'];
 
+
 export function CarbonCalculatorPanel() {
   const [sceneInfo, setSceneInfo] = useState<SceneInfoType>({}); // Placeholder state
   const [modelScore, setModelScore] = useState<ModelScoreType>({}); // Placeholder state
@@ -170,10 +171,9 @@ export function CarbonCalculatorPanel() {
         <Col>
           <Button type="primary" onClick={handleAIComplete}>一键AI补全</Button>
         </Col>
-        {/* 移除检查点管理按钮 */}
-        {/* <Col>
+        <Col>
           <Button onClick={handleCheckpointManage}>检查点管理</Button>
-        </Col> */}
+        </Col>
       </Row>
 
       {/* 2. Upper Row */}
@@ -341,7 +341,7 @@ export function CarbonCalculatorPanel() {
   );
 }
 
-// 恢复 CarbonCalculatorPanelClient 原始导出
+// 添加 ClientOnly 包装器，如果需要确保此组件仅在客户端渲染
 export const CarbonCalculatorPanelClient = () => (
   <ClientOnly fallback={<div>Loading Panel...</div>}>
     {() => <CarbonCalculatorPanel />}
