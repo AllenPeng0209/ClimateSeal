@@ -9,6 +9,8 @@ import { LLMManager } from '~/lib/modules/llm/manager';
 import { createScopedLogger } from '~/utils/logger';
 import { createFilesContext, extractPropertiesFromMessage } from './utils';
 import { getFilePaths } from './select-context';
+import { processFile } from '../file-processor';
+import { processFileWithLLM } from './file-parser';
 
 export type Messages = Message[];
 
@@ -32,6 +34,23 @@ export interface StreamingOptions extends Omit<Parameters<typeof _streamText>[0]
 }
 
 const logger = createScopedLogger('stream-text');
+
+interface BoltAction {
+  type: string;
+  file?: File;
+  [key: string]: any;
+}
+
+function extractBoltAction(content: string): BoltAction | null {
+  const match = content.match(/<boltAction\s+([^>]+)\/>/);
+  if (!match) return null;
+  const attrs: BoltAction = { type: '' };
+  match[1].replace(/(\w+)="([^"]+)"/g, (_, key, value) => {
+    attrs[key] = value;
+    return '';
+  });
+  return attrs;
+}
 
 export async function streamText(props: {
   messages: Omit<Message, 'id'>[];
@@ -292,7 +311,7 @@ ${props.summary}
           : [{ type: 'text', text: typeof msg.content === 'string' ? msg.content : String(msg.content || '') }],
       }));
 
-      return await _streamText({
+      const result = await _streamText({
         model: provider.getModelInstance({
           model: modelDetails.name,
           serverEnv,
@@ -304,14 +323,32 @@ ${props.summary}
         messages: multimodalMessages as any,
         ...options,
       });
+
+      // 检测并处理 boltAction
+      const boltAction = extractBoltAction(await result.text);
+      if (boltAction) {
+        if (boltAction.type === 'parseFile' && boltAction.file) {
+          // 获取文件信息
+          const fileInfo = await processFile(boltAction.file);
+          // 使用LLM解析文件
+          const parseResult = await processFileWithLLM(fileInfo);
+          
+          // 返回原始LLM回复和解析结果
+          return {
+            ...result,
+            text: `${await result.text}\n\n文件解析结果：\n${JSON.stringify(parseResult, null, 2)}`
+          };
+        }
+      }
+
+      return result;
     } else {
-      // For non-multimodal content, we use the standard approach
       const normalizedTextMessages = processedMessages.map((msg) => ({
         role: msg.role === 'system' || msg.role === 'user' || msg.role === 'assistant' ? msg.role : 'user',
         content: typeof msg.content === 'string' ? msg.content : String(msg.content || ''),
       }));
 
-      return await _streamText({
+      const result = await _streamText({
         model: provider.getModelInstance({
           model: modelDetails.name,
           serverEnv,
@@ -323,6 +360,25 @@ ${props.summary}
         messages: convertToCoreMessages(normalizedTextMessages),
         ...options,
       });
+
+      // 检测并处理 boltAction
+      const boltAction = extractBoltAction(await result.text);
+      if (boltAction) {
+        if (boltAction.type === 'parseFile' && boltAction.file) {
+          // 获取文件信息
+          const fileInfo = await processFile(boltAction.file);
+          // 使用LLM解析文件
+          const parseResult = await processFileWithLLM(fileInfo);
+          
+          // 返回原始LLM回复和解析结果
+          return {
+            ...result,
+            text: `${await result.text}\n\n文件解析结果：\n${JSON.stringify(parseResult, null, 2)}`
+          };
+        }
+      }
+
+      return result;
     }
   } catch (error: any) {
     // Special handling for format errors
