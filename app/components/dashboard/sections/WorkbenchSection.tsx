@@ -98,70 +98,72 @@ const WorkbenchSection: React.FC<WorkbenchSectionProps> = ({
         <List
           dataSource={filteredWorkflows}
           locale={{ emptyText: "暂无工作流，请点击\"创建新工作流\"开始使用" }}
-          renderItem={(item) => (
-            <List.Item
-              key={item.id}
-              actions={[
-                <Button
-                  type="link"
-                  onClick={() => navigateToWorkflow(item.id, "workflow")}
-                  style={{ color: 'var(--carbon-green-primary)' }}
-                >
-                  编辑
-                </Button>,
-                <Button
-                  type="link"
-                  onClick={() => navigateToWorkflow(item.id, "report")}
-                  style={{ color: 'var(--carbon-blue)' }}
-                >
-                  查看报告
-                </Button>,
-                <Button
-                  type="link"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => showDeleteModal(item)}
-                >
-                  删除
-                </Button>,
-              ]}
-            >
-              <List.Item.Meta
-                avatar={
-                  <SafetyOutlined
-                    style={{ 
-                      fontSize: "24px", 
-                      color: "var(--carbon-green-primary)",
-                      background: "rgba(46, 139, 87, 0.1)",
-                      padding: "8px",
-                      borderRadius: "50%"  
-                    }}
-                  />
-                }
-                title={
-                  <>
-                    {item.name}
-                    {item.industry_type && (
-                      <Tag color="blue" style={{ marginLeft: "8px" }}>
-                        {item.industry_type}
-                      </Tag>
-                    )}
-                  </>
-                }
-                description={
-                  <>
-                    <div>{item.description || "暂无描述"}</div>
-                    <div style={{ marginTop: "8px", color: "var(--carbon-text-light)" }}>
-                      创建时间: {new Date(item.createdAt).toLocaleDateString()}
-                      <span style={{ marginLeft: "16px" }}>
-                        碳足迹: {item.total_carbon_footprint?.toFixed(2) || "0.00"} kgCO₂e
-                      </span>
-                    </div>
-                  </>
-                }
-              />
-            </List.Item>
-          )}
+          renderItem={(item) => {
+            return (
+              <List.Item
+                key={item.id}
+                actions={[
+                  <Button
+                    type="link"
+                    onClick={() => navigateToWorkflow(item.id, "workflow")}
+                    style={{ color: 'var(--carbon-green-primary)' }}
+                  >
+                    编辑
+                  </Button>,
+                  <Button
+                    type="link"
+                    onClick={() => navigateToWorkflow(item.id, "report")}
+                    style={{ color: 'var(--carbon-blue)' }}
+                  >
+                    查看报告
+                  </Button>,
+                  <Button
+                    type="link"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => showDeleteModal(item)}
+                  >
+                    删除
+                  </Button>,
+                ]}
+              >
+                <List.Item.Meta
+                  avatar={
+                    <SafetyOutlined
+                      style={{ 
+                        fontSize: "24px", 
+                        color: "var(--carbon-green-primary)",
+                        background: "rgba(46, 139, 87, 0.1)",
+                        padding: "8px",
+                        borderRadius: "50%"  
+                      }}
+                    />
+                  }
+                  title={
+                    <>
+                      {item.name}
+                      {item.industry && (
+                        <Tag color="blue" style={{ marginLeft: "8px" }}>
+                          {item.industry}
+                        </Tag>
+                      )}
+                    </>
+                  }
+                  description={
+                    <>
+                      <div>{item.description || "暂无描述"}</div>
+                      <div style={{ marginTop: "8px", color: "var(--carbon-text-light)" }}>
+                        创建时间: {new Date(item.createdAt).toLocaleDateString()}
+                        <span style={{ marginLeft: "16px" }}>
+                          碳足迹: {item.total_carbon_footprint?.toFixed(2) || "0.00"} kgCO₂e
+                        </span>
+                      </div>
+                    </>
+                  }
+                />
+              </List.Item>
+            );
+          }}
         />
       </Card>
     </>

@@ -233,7 +233,7 @@ export default function Dashboard() {
         {
           key: 'dashboard:carbon-factor-search',
           label: '碳排因子搜索',
-        }
+        },
       ]
     },
     {

@@ -1,7 +1,7 @@
 import { json, type LoaderFunction } from "@remix-run/cloudflare";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import { useEffect } from "react";
-import { message } from "antd";
+import { message, Button } from "antd";
 import { Chat } from "~/components/chat/Chat.client";
 import { useStore } from "@nanostores/react";
 import { themeStore } from "~/lib/stores/theme";
@@ -88,8 +88,35 @@ export default function WorkflowPage() {
     );
   }
 
+  // --- Handler for the new button --- 
+  const handleInitiateCertification = () => {
+    if (workflow) {
+      // Navigate to the new confirmation page
+      navigate(`/workflow/${workflow.id}/initiate-certification`);
+    } else {
+      // Should not happen if button is only shown for existing workflows
+      message.error("无法获取工作流信息"); 
+    }
+  };
+  // --- End of handler --- 
+
   return (
-    <div className="flex flex-col h-full w-full bg-bolt-elements-background-depth-1">
+    <div className="flex flex-col h-full w-full bg-bolt-elements-background-depth-1 relative">
+       {/* --- Added Initiate Certification Button --- */}
+       {workflow && ( // Only show button if workflow exists (not for /new)
+         <div style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 10 }}>
+           <Button 
+             type="primary" 
+             onClick={handleInitiateCertification}
+             // TODO: Add condition based on workflow status later
+             // disabled={workflow.status !== 'completed'} 
+           >
+             发起认证
+           </Button>
+         </div>
+       )}
+       {/* --- End of Added Button --- */}
+
       <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>
     </div>
   );

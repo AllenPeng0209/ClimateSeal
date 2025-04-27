@@ -15,7 +15,11 @@ import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
 import { CarbonFlowActionHandler } from './CarbonFlow/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
 import { Tag, Collapse, Progress, message, Modal, Input, Row, Col, Upload, Alert, Divider, List, Empty, Typography, Button as AntButton, ConfigProvider } from 'antd';
-import { UpOutlined, DownOutlined, ReloadOutlined, SaveOutlined, HistoryOutlined, ExportOutlined, ImportOutlined, DeleteOutlined, SyncOutlined, CloudDownloadOutlined, CloudSyncOutlined, UploadOutlined } from '@ant-design/icons';
+import { 
+  UpOutlined, DownOutlined, ReloadOutlined, SaveOutlined, HistoryOutlined, ExportOutlined, 
+  ImportOutlined, DeleteOutlined, SyncOutlined, CloudDownloadOutlined, CloudSyncOutlined, UploadOutlined,
+  FileExcelOutlined, FilePdfOutlined, FileWordOutlined, PlusOutlined // <-- Add needed icons
+} from '@ant-design/icons';
 import { CheckpointManager } from '~/lib/checkpoints/CheckpointManager';
 import { CheckpointSyncService } from '~/lib/services/checkpointSyncService';
 import { useStore } from '@nanostores/react';
@@ -26,6 +30,7 @@ import { chatMessagesStore } from '~/lib/stores/chatMessagesStore';
 import { theme } from 'antd';
 import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData, BaseNodeData, UsageNodeData, DisposalNodeData, FinalProductNodeData } from '~/types/nodes';
 import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowBridge';
+import { useNavigate, useParams } from '@remix-run/react';
 
 const { darkAlgorithm } = theme;
 
@@ -148,7 +153,6 @@ const CarbonFlowInner = () => {
   const [siderWidth, setSiderWidth] = useState(250);
   const [isResizing, setIsResizing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const { project, fitView } = useReactFlow();
   const [aiSummary, setAiSummary] = useState<AISummary>({
     credibilityScore: 0,
     missingLifecycleStages: [],
@@ -180,8 +184,19 @@ const CarbonFlowInner = () => {
   // 使用CarbonFlowStore
   const { setNodes: setStoreNodes, setEdges: setStoreEdges, setAiSummary: setStoreAiSummary } = useCarbonFlowStore();
   
+  const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
+  const [checkpointName, setCheckpointName] = useState('');
+  const [checkpoints, setCheckpoints] = useState<CheckpointMetadata[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(CheckpointSyncService.getSyncStatus());
+  const [isChecklistModalVisible, setIsChecklistModalVisible] = useState(false);
+
+  const { project, fitView } = useReactFlow();
+  const navigate = useNavigate();
+  const { id: workflowId } = useParams();
   const theme = useStore(themeStore);
   const chatMessages = useStore(chatMessagesStore);
+  const supabaseState = useStore(supabaseConnection);
 
   const connectionLineStyle = { stroke: theme === 'dark' ? '#ccc' : '#333' };
   const defaultEdgeOptions = { animated: true, style: { stroke: theme === 'dark' ? '#ccc' : '#333' } };
@@ -1303,14 +1318,6 @@ const CarbonFlowInner = () => {
     calculateAiSummary();
   }, [nodes, setNodes, calculateAiSummary]);
 
-  const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
-  const [checkpointName, setCheckpointName] = useState('');
-  const [checkpoints, setCheckpoints] = useState<Array<{
-    name: string;
-    timestamp: number;
-    metadata?: { description?: string; tags?: string[]; version?: string };
-  }>>([]);
-
   useEffect(() => {
     const loadCheckpoints = async () => {
       try {
@@ -1322,8 +1329,6 @@ const CarbonFlowInner = () => {
     };
     loadCheckpoints();
   }, []);
-
-  const [isSaving, setIsSaving] = useState(false);
 
   const handleSaveCheckpoint = async () => {
     if (!checkpointName.trim()) {
@@ -1479,9 +1484,6 @@ const CarbonFlowInner = () => {
       message.error('删除检查点失败');
     }
   };
-
-  const [syncStatus, setSyncStatus] = useState(CheckpointSyncService.getSyncStatus());
-  const supabaseState = useStore(supabaseConnection);
 
   useEffect(() => {
     if (supabaseState.isConnected) {
@@ -1682,6 +1684,129 @@ const CarbonFlowInner = () => {
     </Modal>
   );
 
+  const renderChecklistModal = () => {
+    // TODO: Fetch actual product info, standard, and materials based on workflowId
+    const productInfo = {
+      name: '有机米粽 (示例)',
+      model: 'ZC-OMS-2024',
+      description: '采用有机糯米、精选猪肉及天然粽叶制成的端午节令食品。'
+    };
+    const disclosureStandard = 'ISO 14067:2018 产品碳足迹量化要求及指南';
+    const materials = [
+      { id: 'bom', name: '有机米粽BOM清单.xlsx', type: 'Excel', status: '已上传', icon: <FileExcelOutlined style={{ color: '#1DA57A', fontSize: '20px' }} /> },
+      { id: 'electricity', name: '2023全年电费发票汇总.pdf', type: 'PDF', status: '已上传', icon: <FilePdfOutlined style={{ color: '#FF5555', fontSize: '20px' }} /> },
+      { id: 'capacity', name: '车间人均产能报告_Q4.docx', type: 'Word', status: '已上传', icon: <FileWordOutlined style={{ color: '#2B579A', fontSize: '20px' }} /> },
+    ];
+
+    return (
+      <Modal
+        wrapClassName="glow-modal"
+        open={isChecklistModalVisible}
+        onCancel={() => setIsChecklistModalVisible(false)}
+        width={700}
+        style={{
+          boxShadow: theme === 'dark'
+            ? '0 0 20px 5px rgba(112, 161, 255, 0.3)'
+            : '0 0 15px 3px rgba(112, 161, 255, 0.4)',
+          borderRadius: '8px',
+        }}
+        maskStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.65)' }}
+        bodyStyle={{
+          backgroundColor: theme === 'dark' ? '#1f1f1f' : '#f9f9f9',
+          color: theme === 'dark' ? '#e0e0e0' : '#333',
+          padding: '24px',
+          borderRadius: '8px',
+          maxHeight: '70vh',
+          overflowY: 'auto'
+        }}
+        footer={[
+          <AntButton key="close" onClick={() => setIsChecklistModalVisible(false)}>
+            关闭
+          </AntButton>,
+          <AntButton
+            key="confirm"
+            type="primary"
+            onClick={() => {
+              message.success('提交成功');
+              setIsChecklistModalVisible(false);
+            }}
+          >
+            确认并提交认证
+          </AntButton>,
+        ]}
+        closable={false}
+      >
+        <Typography.Title 
+          level={4} 
+          style={{ 
+            color: theme === 'dark' ? '#e0e0e0' : '#333', 
+            marginBottom: '24px',
+            textAlign: 'center',
+            paddingBottom: '16px',
+            borderBottom: `1px solid ${theme === 'dark' ? '#444' : '#e8e8e8'}`
+          }}
+        >
+          产品碳足迹认证 - 待提交材料核验
+        </Typography.Title>
+        
+        <div style={{ marginBottom: '24px' }}>
+          <Typography.Text strong style={{ color: theme === 'dark' ? '#ccc' : '#555' }}>工作流 ID: </Typography.Text>
+          <Typography.Text style={{ color: theme === 'dark' ? '#e0e0e0' : '#333' }}>{workflowId}</Typography.Text>
+        </div>
+
+        <Divider style={{ borderColor: theme === 'dark' ? '#444' : '#e8e8e8' }} />
+
+        <Row gutter={24} style={{ marginBottom: '24px' }}>
+          <Col span={12}>
+            <Typography.Title level={5} style={{ color: theme === 'dark' ? '#d0d0d0' : '#444', marginBottom: '12px' }}>产品信息</Typography.Title>
+            <p style={{ margin: '4px 0', color: theme === 'dark' ? '#bbb' : '#666' }}><Typography.Text strong>名称:</Typography.Text> {productInfo.name}</p>
+            <p style={{ margin: '4px 0', color: theme === 'dark' ? '#bbb' : '#666' }}><Typography.Text strong>型号:</Typography.Text> {productInfo.model}</p>
+            <p style={{ margin: '4px 0', color: theme === 'dark' ? '#bbb' : '#666' }}><Typography.Text strong>描述:</Typography.Text> {productInfo.description}</p>
+          </Col>
+          <Col span={12}>
+            <Typography.Title level={5} style={{ color: theme === 'dark' ? '#d0d0d0' : '#444', marginBottom: '12px' }}>遵循标准</Typography.Title>
+            <p style={{ color: theme === 'dark' ? '#bbb' : '#666' }}>{disclosureStandard}</p>
+          </Col>
+        </Row>
+
+        <Divider style={{ borderColor: theme === 'dark' ? '#444' : '#e8e8e8' }} />
+
+        <Typography.Title level={5} style={{ color: theme === 'dark' ? '#d0d0d0' : '#444', marginBottom: '16px' }}>核验清单</Typography.Title>
+        {materials.length > 0 ? (
+          <List
+            itemLayout="horizontal"
+            dataSource={materials}
+            renderItem={(item) => (
+              <List.Item
+                style={{
+                  backgroundColor: theme === 'dark' ? '#2a2a2a' : '#ffffff',
+                  marginBottom: '8px',
+                  padding: '12px 16px',
+                  borderRadius: '4px',
+                  border: theme === 'dark' ? '1px solid #333' : '1px solid #e8e8e8'
+                }}
+                actions={[
+                  <AntButton type="link" size="small" onClick={() => message.info(`查看 ${item.name} 功能待实现`)}>
+                    查看
+                  </AntButton>
+                ]}
+              >
+                <List.Item.Meta
+                  avatar={item.icon}
+                  title={<span style={{ color: theme === 'dark' ? '#e0e0e0' : '#333' }}>{item.name}</span>}
+                  description={<span style={{ color: theme === 'dark' ? '#aaa' : '#777' }}>状态: {item.status}</span>}
+                />
+              </List.Item>
+            )}
+            style={{ border: 'none', background: 'transparent' }}
+          />
+        ) : (
+          <Empty description={<span style={{ color: theme === 'dark' ? '#aaa' : '#555' }}>暂无待核验的材料文件</span>} />
+        )}
+      </Modal>
+    );
+  };
+
   const handleNodeUpdate = useCallback((nodeId: string, updates: Partial<NodeData>) => {
     const updateNodes = (nds: Node<NodeData>[]) =>
       nds.map((node) => {
@@ -1819,6 +1944,14 @@ const CarbonFlowInner = () => {
           <h2 className="workflow-title">碳足迹流程图</h2>
         </div>
         <div className="header-right">
+          {workflowId && (
+            <Button
+              onClick={() => setIsChecklistModalVisible(true)}
+              style={{ marginRight: '8px' }}
+            >
+              发起认证
+            </Button>
+          )}
           <Button onClick={addNewNode}>新增节点</Button>
           <Button 
             onClick={deleteSelectedNode} 
@@ -1935,6 +2068,7 @@ const CarbonFlowInner = () => {
         
       </div>
       {renderCheckpointModal()}
+      {renderChecklistModal()}
     </div>
   );
 };

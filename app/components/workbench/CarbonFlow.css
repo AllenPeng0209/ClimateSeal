@@ -726,3 +726,10 @@ body.resizing {
 .sync-status .ant-tag {
   margin-right: 8px;
 }
+
+/* 新增：核验清单 Modal 发光边框样式 */
+.glow-modal .ant-modal-content {
+  border: 2px solid #70a1ff; /* 浅蓝色边框 */
+  box-shadow: 0 0 20px 5px rgba(112, 161, 255, 0.4); /* 发光阴影 */
+  border-radius: 8px; /* 与 Modal 圆角一致 */
+}
