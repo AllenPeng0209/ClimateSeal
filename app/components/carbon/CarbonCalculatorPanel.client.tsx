@@ -130,8 +130,8 @@ export function CarbonCalculatorPanel() {
   // --- Render functions ---
 
   const renderScore = (scoreData?: { score: number; total: number }) => {
-    if (!scoreData) return 'N/A';
-    return `${scoreData.score}/${scoreData.total}分`;
+    if (!scoreData || typeof scoreData.score !== 'number') return 'XX/100';
+    return `${scoreData.score}/${scoreData.total || 100}分`;
   };
 
   const emissionTableColumns = [
@@ -194,19 +194,38 @@ export function CarbonCalculatorPanel() {
           </Card>
         </Col>
 
-        {/* 2.2 Model Score (Top Right) - Adjusted span to 18 */}
-        <Col span={18}>
+        {/* 2.2 Model Score (Top Right) - Adjusted span to 9 and updated content */}
+        <Col span={9}>
           <Card
             title="模型评分"
             size="small"
-            className="h-full bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor"
+            className="h-full bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col" // Added flex for layout
+            bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} // Make body grow and use flex
             >
-             <Space direction="vertical" className="w-full">
-                <div>模型完整度评分: {renderScore(modelScore.completeness)}</div>
-                <div>数据可追溯性评分: {renderScore(modelScore.traceability)}</div>
-                <div>质量平衡评分: {renderScore(modelScore.massBalance)}</div>
-                <div>数据验证评分: {renderScore(modelScore.validation)}</div>
-             </Space>
+             {/* Centered Credibility Score */}
+             <div className="text-center mb-4 flex-grow flex flex-col justify-center">
+                <div className="text-sm text-bolt-elements-textSecondary mb-1">可信得分</div>
+                <div className="text-4xl font-bold text-bolt-elements-textPrimary">{/* Placeholder */}60</div>
+             </div>
+
+             {/* Sub Scores - 2x2 Grid */}
+             <div className="flex-shrink-0">
+                 <Row gutter={[16, 8]}> {/* Add vertical gutter */}
+                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        模型完整度: {renderScore(modelScore.completeness)}
+                    </Col>
+                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        数据可追溯性: {renderScore(modelScore.traceability)}
+                    </Col>
+                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        质量平衡: {renderScore(modelScore.massBalance)}
+                    </Col>
+                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        {/* Changed from validation to accuracy as per image */}
+                        数据准确性: {renderScore(modelScore.validation)} {/* Assuming validation score is used for accuracy for now */}
+                    </Col>
+                 </Row>
+             </div>
           </Card>
         </Col>
       </Row>
