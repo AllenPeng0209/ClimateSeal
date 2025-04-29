@@ -285,8 +285,8 @@ export function CarbonCalculatorPanel() {
   };
 
   const emissionTableColumns = [
-      { title: '序号', dataIndex: 'index', key: 'index', render: (_: any, __: any, index: number) => index + 1, width: 60 },
-      { title: '排放源名称', dataIndex: 'name', key: 'name' },
+      { title: '序号', dataIndex: 'index', key: 'index', render: (_: any, __: any, index: number) => index + 1, width: 60, fixed: 'left' as 'left' },
+      { title: '排放源名称', dataIndex: 'name', key: 'name', fixed: 'left' as 'left' },
       { title: '排放源类别', dataIndex: 'category', key: 'category' },
       { title: '活动数据', dataIndex: 'activityData', key: 'activityData' },
       { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit' },
@@ -664,12 +664,15 @@ const customStyles = `
 
 /* Fix for fixed column background overlap */
 .emission-source-table .ant-table-thead > tr > th.ant-table-cell-fix-right,
-.emission-source-table .ant-table-tbody > tr > td.ant-table-cell-fix-right {
+.emission-source-table .ant-table-tbody > tr > td.ant-table-cell-fix-right,
+.emission-source-table .ant-table-thead > tr > th.ant-table-cell-fix-left,
+.emission-source-table .ant-table-tbody > tr > td.ant-table-cell-fix-left {
     background: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Keep base background same as row */
 }
 
 /* Ensure fixed column hover is OPAQUE */
-.emission-source-table .ant-table-tbody > tr:hover > td.ant-table-cell-fix-right {
+.emission-source-table .ant-table-tbody > tr:hover > td.ant-table-cell-fix-right,
+.emission-source-table .ant-table-tbody > tr:hover > td.ant-table-cell-fix-left {
     background: var(--bolt-elements-background-depth-1, #2a2a2a) !important; /* Use a slightly lighter opaque color */
 }
 
@@ -1066,6 +1069,11 @@ const customStyles = `
 
 /* Reduce font size in file upload table */
 .file-upload-table .ant-table-tbody > tr > td {
+    font-size: 12px !important; /* Smaller font size */
+}
+
+/* Reduce font size in emission source table */
+.emission-source-table .ant-table-tbody > tr > td {
     font-size: 12px !important; /* Smaller font size */
 }
 
