@@ -1025,6 +1025,36 @@ const customStyles = `
     color: var(--bolt-primary, #5165f9) !important;
 }
 
+/* --- Ant Design Message (Toast) Dark Theme Styles --- */
+.ant-message-notice-content {
+    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important; /* Darker background */
+    color: var(--bolt-elements-textPrimary, #fff) !important;
+    border: 1px solid var(--bolt-elements-borderColor, #444) !important; /* Subtle border */
+    box-shadow: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 9px 28px 8px rgba(0, 0, 0, 0.25) !important; /* Adjusted shadow for dark */
+    border-radius: 4px !important;
+}
+
+.ant-message-success .anticon {
+    color: var(--bolt-success, #52c41a) !important; /* Use a success variable or fallback */
+}
+
+.ant-message-error .anticon {
+    color: var(--bolt-danger, #ff4d4f) !important; /* Use danger variable or fallback (antd default red) */
+}
+
+.ant-message-info .anticon {
+    color: var(--bolt-primary, #5165f9) !important; /* Use primary variable or fallback */
+}
+
+.ant-message-warning .anticon {
+    color: var(--bolt-warning, #faad14) !important; /* Use warning variable or fallback */
+}
+
+.ant-message-loading .anticon {
+    color: var(--bolt-primary, #5165f9) !important; /* Use primary for loading too */
+}
+/* --- End Toast Styles --- */
+
 `;
 
 // 注入样式到 head
