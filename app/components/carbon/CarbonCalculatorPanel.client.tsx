@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Button, Card, Col, Row, Space, Table, Input, Select, Modal, Drawer, Form, message, Popconfirm, Upload, Tooltip, Progress } from 'antd';
+import { Button, Card, Col, Row, Space, Table, Input, Select, Modal, Drawer, Form, message, Popconfirm, Upload, Tooltip } from 'antd';
 import type { FormInstance } from 'antd';
-import { SettingOutlined, PlusOutlined, SearchOutlined, RedoOutlined, UploadOutlined, EyeOutlined, DeleteOutlined, ExperimentOutlined, EditOutlined, InboxOutlined, ClearOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { SettingOutlined, PlusOutlined, SearchOutlined, RedoOutlined, UploadOutlined, EyeOutlined, DeleteOutlined, ExperimentOutlined, EditOutlined, InboxOutlined, ClearOutlined } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 
@@ -396,11 +396,11 @@ export function CarbonCalculatorPanel() {
                            [...uploadedFiles].sort((a, b) => new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime())
                         }
                         rowKey="id"
-                        className="file-upload-table" // Add class for potential specific styling & hover effects
                         size="small"
                         pagination={{ pageSize: 5 }} // Example pagination
                         /* Add scroll if needed, similar to emission table */
                         // scroll={{ y: 'calc(100% - 40px)' }} // Adjust based on card header/padding
+                        className="file-upload-table" // Add class for potential specific styling
                     />
                 </div>
             </Card>
@@ -628,35 +628,7 @@ export function CarbonCalculatorPanel() {
                     fileList={modalFileList} // Control the file list
                     // beforeUpload={() => false} // Prevent automatic upload if handling manually
                     className="upload-modal-dragger" // Class for styling
-                    itemRender={(originNode, file) => {
-                        // Based on screenshot, show name and progress/status
-                        return (
-                            <div
-                                key={file.uid}
-                                style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    padding: '4px 0',
-                                    borderBottom: `1px solid var(--bolt-elements-borderColor, #333)`,
-                                    color: `var(--bolt-elements-textPrimary, #fff)`,
-                                    fontSize: '12px' // Smaller font size for the list
-                                }}
-                            >
-                                <span style={{ flexGrow: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '16px' }}>
-                                    {file.name}
-                                </span>
-                                <span style={{ flexShrink: 0, width: '60px', textAlign: 'right' }}>
-                                    {file.status === 'uploading' && file.percent !== undefined && (
-                                        <Progress percent={Math.round(file.percent)} size="small" showInfo={false} strokeColor="var(--bolt-primary)" trailColor="var(--bolt-elements-borderColor)"/>
-                                    )}
-                                    {file.status === 'done' && (
-                                        <CheckCircleOutlined style={{ color: 'var(--bolt-success)' }} />
-                                    )}
-                                </span>
-                            </div>
-                        );
-                    }}
+                    // Custom itemRender could be added here later for progress styling
                  >
                     <p className="ant-upload-drag-icon">
                         <InboxOutlined />
@@ -1049,16 +1021,6 @@ const customStyles = `
 .ant-modal-footer .ant-btn-default:hover {
     border-color: var(--bolt-primary, #5165f9) !important;
     color: var(--bolt-primary, #5165f9) !important;
-}
-
-/* --- Main Table Action Icon Hover --- */
-.file-upload-table .ant-table-tbody .ant-btn-link {
-    transition: box-shadow 0.2s ease-out !important;
-    border-radius: 4px; /* Add radius for the shadow */
-}
-.file-upload-table .ant-table-tbody .ant-btn-link:hover {
-    /* "亮边特效" using box-shadow */
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
 }
 
 `;
