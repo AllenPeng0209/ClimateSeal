@@ -943,7 +943,8 @@ const customStyles = `
     background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
 }
 .ant-modal-header {
-    background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+    /* background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important; */ /* Commented out original */
+    background-color: transparent !important; /* Set to transparent */
     border-bottom: 1px solid var(--bolt-elements-borderColor, #333) !important;
 }
 .ant-modal-title {
@@ -959,7 +960,8 @@ const customStyles = `
     /* Inherits from content */
 }
 .ant-modal-footer {
-     background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+     /* background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important; */ /* Commented out original */
+     background-color: transparent !important; /* Set to transparent */
      border-top: 1px solid var(--bolt-elements-borderColor, #333) !important;
 }
 
