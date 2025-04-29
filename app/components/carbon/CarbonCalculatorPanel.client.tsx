@@ -412,7 +412,7 @@ export function CarbonCalculatorPanel() {
               <Card
                 title="模型评分"
                 size="small"
-                className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col" // Added flex-grow, min-h-0
+                className="flex-grow min-h-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col" 
                 bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'auto' }}
                 >
                  <div className="text-center mb-4 flex-grow flex flex-col justify-center">
