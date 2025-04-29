@@ -1021,4 +1021,54 @@ input[type="number"].node-properties-input:focus {
   /* ... 保留之前的特定样式 ... */
   background: rgba(10, 25, 47, 0.8) !important; /* 确保覆盖ant-input */
   /* ... */
+}
+
+/* 新增：修复带图标输入框的背景问题 */
+.ant-input-affix-wrapper {
+  background: rgba(10, 25, 47, 0.8) !important;
+  border: 1px solid rgba(100, 255, 218, 0.3) !important;
+  border-radius: 8px !important;
+  padding-left: 12px !important; /* 调整内边距 */
+  transition: all 0.2s !important;
+}
+
+.ant-input-affix-wrapper:hover {
+  border-color: rgba(100, 255, 218, 0.5) !important;
+  background: rgba(16, 32, 61, 0.9) !important;
+}
+
+.ant-input-affix-wrapper-focused,
+.ant-input-affix-wrapper:focus-within { /* 使用 :focus-within 确保聚焦时样式正确 */
+  border-color: #64ffda !important;
+  box-shadow: 0 0 10px rgba(100, 255, 218, 0.3) !important;
+  background: rgba(16, 32, 61, 0.95) !important;
+  outline: none !important;
+}
+
+.ant-input-prefix,
+.ant-input-suffix {
+  color: #a8b2d1 !important; /* 设置图标颜色 */
+  background: transparent !important; /* 确保图标容器背景透明 */
+}
+
+.ant-input-affix-wrapper .ant-input {
+  background: transparent !important; /* 输入框本身背景透明 */
+  border: none !important; /* 移除内部输入框边框 */
+  box-shadow: none !important; /* 移除内部输入框阴影 */
+  height: 38px !important; /* 调整高度以适应容器 */
+  padding-left: 8px !important; /* 调整左内边距 */
+}
+
+/* 确保 hover/focus 时图标颜色变化 */
+.ant-input-affix-wrapper:hover .ant-input-prefix,
+.ant-input-affix-wrapper:hover .ant-input-suffix,
+.ant-input-affix-wrapper-focused .ant-input-prefix,
+.ant-input-affix-wrapper-focused .ant-input-suffix,
+.ant-input-affix-wrapper:focus-within .ant-input-prefix,
+.ant-input-affix-wrapper:focus-within .ant-input-suffix {
+  color: #64ffda !important;
+}
+
+.ant-input::placeholder {
+  color: rgba(230, 241, 255, 0.5) !important;
 } 
