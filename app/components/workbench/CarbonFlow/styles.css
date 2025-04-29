@@ -509,6 +509,11 @@
 .node-properties-form {
   display: grid;
   gap: 24px;
+  grid-template-columns: 1fr;
+}
+
+.emission-source-filters .ant-form-item {
+  margin-bottom: 16px;
 }
 
 .workflow-section-title {
@@ -769,10 +774,6 @@ input[type="number"].node-properties-input:focus {
   display: flex !important;
   align-items: center !important;
   width: 100% !important;
-  /* 宽度为120% */
-  min-width: 362px !important;
-  /* 往左移 */
-  margin-left: -20px !important;
 }
 
 .ant-select:not(.ant-select-disabled):hover .ant-select-selector {
@@ -885,4 +886,139 @@ input[type="number"].node-properties-input:focus {
 
 .info-item .value {
   color: #e6f1ff !important;
+}
+
+/* 新增：统一样式 - Ant Design 默认按钮 */
+.ant-btn-default {
+  background: rgba(10, 25, 47, 0.8) !important;
+  border-color: rgba(100, 255, 218, 0.3) !important;
+  color: #e6f1ff !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.2s !important;
+}
+
+.ant-btn-default:hover,
+.ant-btn-default:focus {
+  background: rgba(16, 32, 61, 0.9) !important;
+  border-color: rgba(100, 255, 218, 0.5) !important;
+  color: #64ffda !important;
+  box-shadow: 0 0 10px rgba(100, 255, 218, 0.2) !important;
+}
+
+/* 新增：统一样式 - Ant Design 文本/链接按钮 (常用于取消) */
+.ant-btn-text,
+.ant-btn-link {
+  color: #a8b2d1 !important; /* 稍微柔和的颜色 */
+  transition: all 0.2s !important;
+}
+
+.ant-btn-text:hover,
+.ant-btn-link:hover,
+.ant-btn-text:focus,
+.ant-btn-link:focus {
+  color: #64ffda !important;
+  background: rgba(100, 255, 218, 0.1) !important;
+}
+
+/* 新增：统一样式 - Ant Design 输入框 */
+.ant-input {
+  background: rgba(10, 25, 47, 0.8) !important;
+  border: 1px solid rgba(100, 255, 218, 0.3) !important;
+  border-radius: 8px !important;
+  color: #e6f1ff !important;
+  height: 40px !important; /* 统一高度 */
+  padding: 0 12px !important;
+  transition: all 0.2s !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+.ant-input:hover {
+  border-color: rgba(100, 255, 218, 0.5) !important;
+  background: rgba(16, 32, 61, 0.9) !important;
+}
+
+.ant-input:focus,
+.ant-input-focused {
+  border-color: #64ffda !important;
+  box-shadow: 0 0 10px rgba(100, 255, 218, 0.3) !important;
+  background: rgba(16, 32, 61, 0.95) !important;
+  outline: none !important;
+}
+
+.ant-input::placeholder {
+  color: rgba(230, 241, 255, 0.5) !important;
+}
+
+/* 新增：统一样式 - Ant Design 列表 */
+.ant-list {
+  background: rgba(10, 25, 47, 0.5) !important; /* 半透明背景 */
+  border-radius: 8px;
+  border: 1px solid rgba(100, 255, 218, 0.1);
+}
+
+.ant-list-items .ant-list-item {
+  background: rgba(16, 32, 61, 0.7) !important;
+  border-bottom: 1px solid rgba(100, 255, 218, 0.15) !important;
+  padding: 12px 16px !important;
+  color: #e6f1ff !important;
+  transition: background 0.2s;
+}
+
+.ant-list-items .ant-list-item:last-child {
+  border-bottom: none !important;
+}
+
+.ant-list-items .ant-list-item:hover {
+  background: rgba(10, 25, 47, 0.9) !important;
+}
+
+/* 新增：统一样式 - Ant Design 弹窗 */
+.ant-modal-content {
+  background: linear-gradient(135deg, rgba(10, 25, 47, 0.98), rgba(17, 34, 64, 0.98)) !important;
+  backdrop-filter: blur(15px) !important;
+  border: 1px solid rgba(100, 255, 218, 0.3) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(100, 255, 218, 0.2) !important;
+  color: #e6f1ff !important;
+}
+
+.ant-modal-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(100, 255, 218, 0.2) !important;
+  padding: 16px 24px !important;
+}
+
+.ant-modal-title {
+  color: #64ffda !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+}
+
+.ant-modal-body {
+  padding: 24px !important;
+  color: #e6f1ff !important;
+}
+
+.ant-modal-footer {
+  background: transparent !important;
+  border-top: 1px solid rgba(100, 255, 218, 0.2) !important;
+  padding: 12px 24px !important;
+}
+
+.ant-modal-close {
+   color: #a8b2d1 !important;
+}
+
+.ant-modal-close:hover {
+   color: #64ffda !important;
+   background-color: rgba(100, 255, 218, 0.1) !important;
+}
+
+/* 确保之前添加的样式优先级 */
+.node-properties-input,
+.node-properties-select,
+.node-properties-textarea {
+  /* ... 保留之前的特定样式 ... */
+  background: rgba(10, 25, 47, 0.8) !important; /* 确保覆盖ant-input */
+  /* ... */
 } 
