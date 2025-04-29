@@ -360,8 +360,8 @@ export function CarbonCalculatorPanel() {
 
       {/* 2. Upper Row */}
       <Row gutter={16} className="flex-shrink-0">
-        {/* 2.1 Scene Info (Top Left) - Adjusted span to 6 */}
-        <Col span={6}>
+        {/* 2.1 Scene Info (Top Left) - Adjusted span to 5 */}
+        <Col span={5}>
           <Card
             title="场景信息"
             size="small"
@@ -376,8 +376,8 @@ export function CarbonCalculatorPanel() {
           </Card>
         </Col>
 
-        {/* 2.2 File Upload (Moved to middle) - Adjusted span to 9 */}
-        <Col span={9}>
+        {/* 2.2 File Upload (Moved to middle) - Adjusted span to 14 */}
+        <Col span={14}>
             <Card
                 title="原始文件"
                 size="small"
@@ -406,8 +406,8 @@ export function CarbonCalculatorPanel() {
             </Card>
         </Col>
 
-         {/* 2.3 Model Score (Moved to right) - Adjusted span to 9 and updated content */}
-        <Col span={9}>
+         {/* 2.3 Model Score (Moved to right) - Adjusted span to 5 */}
+        <Col span={5}>
           <Card
             title="模型评分"
             size="small"
@@ -449,8 +449,8 @@ export function CarbonCalculatorPanel() {
 
       {/* 3. Lower Row */}
       <Row gutter={16} className="flex-grow min-h-0"> {/* flex-grow + min-h-0 allows flex item to shrink/grow */}
-         {/* 3.1 Lifecycle Navigation (Bottom Left) */}
-         <Col span={6} className="flex flex-col h-full">
+         {/* 3.1 Lifecycle Navigation (Bottom Left) - Adjusted span to 5 */}
+         <Col span={5} className="flex flex-col h-full">
            <Card title="生命周期阶段" size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor">
                 <div className="flex-grow overflow-y-auto"> {/* Scrollable list */}
                  <Space direction="vertical" className="w-full">
@@ -470,8 +470,8 @@ export function CarbonCalculatorPanel() {
            </Card>
          </Col>
 
-         {/* 3.2 Emission Source List (Bottom Right) */}
-         <Col span={18} className="flex flex-col h-full">
+         {/* 3.2 Emission Source List (Bottom Right) - Adjusted span to 19 */}
+         <Col span={19} className="flex flex-col h-full">
            <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
                 {/* Filters: Use flex justify-between, wrap left items in Space */}
                 <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
