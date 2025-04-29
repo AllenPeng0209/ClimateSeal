@@ -361,8 +361,8 @@ export function CarbonCalculatorPanel() {
       {/* Wrapper for Card Rows to manage height distribution */}
       <div className="flex-grow flex flex-col space-y-4 min-h-0">
 
-          {/* 2. Upper Row - Fixed proportional height (e.g., 40%) */}
-          <Row gutter={16} className="h-[40%] flex-shrink-0"> {/* Set height and prevent shrinking */}
+          {/* 2. Upper Row - Fixed proportional height (e.g., 30%) */}
+          <Row gutter={16} className="h-[30%] flex-shrink-0"> {/* Changed height to 30% */}
             {/* 2.1 Scene Info (Top Left) - Adjusted span to 5 */}
             <Col span={5} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
               <Card
@@ -1044,6 +1044,11 @@ const customStyles = `
 /* Ensure all form validation errors are red */
 .ant-form-item-explain-error {
     color: var(--bolt-danger, #ff4d4f) !important; /* Use danger variable or Antd default red */
+}
+
+/* Reduce font size in file upload table */
+.file-upload-table .ant-table-tbody > tr > td {
+    font-size: 12px !important; /* Smaller font size */
 }
 
 `;
