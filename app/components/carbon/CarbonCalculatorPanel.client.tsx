@@ -10,11 +10,18 @@ type SceneInfoType = {
   productName?: string;
 };
 
+// Define a type for individual scores (0-1 range) based on AISummary logic
+type AIScoreType = {
+    score: number; // Score between 0 and 1
+};
+
+// Update ModelScoreType to use AIScoreType for sub-scores and store overall score (0-1)
 type ModelScoreType = {
-  completeness?: { score: number; total: number };
-  traceability?: { score: number; total: number };
-  massBalance?: { score: number; total: number };
-  validation?: { score: number; total: number };
+    credibilityScore?: number; // Overall score (assume 0-1 from calculation)
+    completeness?: AIScoreType;
+    traceability?: AIScoreType;
+    massBalance?: AIScoreType;
+    validation?: AIScoreType; // Maps to "数据准确性"
 };
 
 type EmissionSource = {
@@ -129,9 +136,13 @@ export function CarbonCalculatorPanel() {
 
   // --- Render functions ---
 
-  const renderScore = (scoreData?: { score: number; total: number }) => {
-    if (!scoreData || typeof scoreData.score !== 'number') return 'XX/100';
-    return `${scoreData.score}/${scoreData.total || 100}分`;
+  // Updated renderScore to return the score value (0-100, rounded) or 0 if invalid/missing/zero
+  const renderScore = (scoreData?: AIScoreType): number => {
+    if (!scoreData || typeof scoreData.score !== 'number' || isNaN(scoreData.score)) {
+        return 0; // Return 0 if data is missing/invalid
+    }
+    // Convert 0-1 score to 0-100 score, rounded. Handles score === 0 correctly.
+    return Math.round(scoreData.score * 100);
   };
 
   const emissionTableColumns = [
@@ -202,27 +213,32 @@ export function CarbonCalculatorPanel() {
             className="h-full bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col" // Added flex for layout
             bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} // Make body grow and use flex
             >
-             {/* Centered Credibility Score */}
+             {/* Centered Credibility Score - Updated to display actual score */}
              <div className="text-center mb-4 flex-grow flex flex-col justify-center">
                 <div className="text-sm text-bolt-elements-textSecondary mb-1">可信得分</div>
-                <div className="text-4xl font-bold text-bolt-elements-textPrimary">{/* Placeholder */}60</div>
+                <div className="text-4xl font-bold text-bolt-elements-textPrimary">
+                    {/* Display overall score (0-1 converted to 0-100, rounded), or 0 if unavailable/invalid/zero */}
+                    {typeof modelScore.credibilityScore === 'number' && !isNaN(modelScore.credibilityScore)
+                        ? Math.round(modelScore.credibilityScore * 100)
+                        : 0}
+                </div>
              </div>
 
-             {/* Sub Scores - 2x2 Grid */}
+             {/* Sub Scores - 2x2 Grid - Updated to use renderScore with actual data */}
              <div className="flex-shrink-0">
                  <Row gutter={[16, 8]}> {/* Add vertical gutter */}
                     <Col span={12} className="text-xs text-bolt-elements-textSecondary">
-                        模型完整度: {renderScore(modelScore.completeness)}
+                        模型完整度: {renderScore(modelScore.completeness)}/100
                     </Col>
                     <Col span={12} className="text-xs text-bolt-elements-textSecondary">
-                        数据可追溯性: {renderScore(modelScore.traceability)}
+                        数据可追溯性: {renderScore(modelScore.traceability)}/100
                     </Col>
                     <Col span={12} className="text-xs text-bolt-elements-textSecondary">
-                        质量平衡: {renderScore(modelScore.massBalance)}
+                        质量平衡: {renderScore(modelScore.massBalance)}/100
                     </Col>
                     <Col span={12} className="text-xs text-bolt-elements-textSecondary">
                         {/* Changed from validation to accuracy as per image */}
-                        数据准确性: {renderScore(modelScore.validation)} {/* Assuming validation score is used for accuracy for now */}
+                        数据准确性: {renderScore(modelScore.validation)}/100 {/* Assuming validation score maps to accuracy */}
                     </Col>
                  </Row>
              </div>
