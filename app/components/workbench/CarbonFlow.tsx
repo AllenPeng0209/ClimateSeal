@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import type { DragEvent } from 'react';
 import ReactFlow, {
   type Node,
@@ -181,6 +181,7 @@ const CarbonFlowInner = () => {
   
   // 创建 CarbonFlow 操作处理器
   const [actionHandler, setActionHandler] = useState<CarbonFlowActionHandler | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // 初始化操作处理器
   useEffect(() => {
@@ -1401,8 +1402,58 @@ const CarbonFlowInner = () => {
     calculateAiSummary(); // 重新计算AI分析结果
   }, [nodes, setNodes, calculateAiSummary]);
 
+  // Handle file upload and trigger file_parser action
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!actionHandler) {
+      message.error('操作处理器未初始化');
+      return;
+    }
+    message.info(`正在解析文件: ${file.name}`);
+    const reader = new FileReader();
+    reader.onload = e => {
+      const content = e.target?.result as string;
+      const fileAction: CarbonFlowAction = {
+        type: 'carbonflow',
+        operation: 'file_parser',
+        data: content,
+        content: `上传文件: ${file.name}`,
+        description: `Parse uploaded file ${file.name}`,
+      };
+      handleCarbonFlowAction(fileAction);
+      message.success('文件解析已发送');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.onerror = () => {
+      message.error('读取文件失败');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  }, [actionHandler, handleCarbonFlowAction]);
 
-
+  // Trigger the hidden file input
+  const triggerFileInput = () => fileInputRef.current?.click();
+  
+  // 直接触发碳因子匹配操作
+  const handleCarbonFactorMatch = useCallback(() => {
+    if (!actionHandler) {
+      message.error('操作处理器未初始化');
+      return;
+    }
+    
+    message.info('正在进行碳因子匹配...');
+    
+    const matchAction: CarbonFlowAction = {
+      type: 'carbonflow',
+      operation: 'carbon_factor_match',
+      content: '碳因子匹配',
+      description: '进行碳因子匹配操作',
+    };
+    
+    handleCarbonFlowAction(matchAction);
+    message.success('碳因子匹配请求已发送');
+  }, [actionHandler, handleCarbonFlowAction]);
 
   return (
     <div className="editor-layout">
@@ -1411,7 +1462,9 @@ const CarbonFlowInner = () => {
           <h2 className="workflow-title">碳足迹流程图</h2>
         </div>
         <div className="header-right">
-          <Button onClick={addNewNode}>新增节点</Button>
+          <Button onClick={triggerFileInput}>上传文件</Button>
+          <Button onClick={handleCarbonFactorMatch}>碳因子匹配</Button>
+
           <Button 
             onClick={deleteSelectedNode} 
             variant="destructive"
@@ -1449,6 +1502,14 @@ const CarbonFlowInner = () => {
           >
             生成报告
           </Button>
+          {/* 隐藏文件输入 */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+            accept=".csv,.txt,.pdf"
+          />
         </div>
       </div>
       <div className="main-content">

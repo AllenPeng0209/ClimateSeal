@@ -605,7 +605,7 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
                 />
               </Form.Item>
               <Form.Item label="数量" className="form-item">
-                      <InputNumber
+                      <Input
                         className="node-properties-input"
                         value={node?.data.quantity}
 
@@ -656,7 +656,7 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
                       <Option value="数据库匹配 - 处置库">数据库匹配 - 处置库</Option>
                     
                       <Option value="AI生成 - DeepSeek查询">AI生成 - DeepSeek查询</Option>
-                      <Option value="AI生成 - DeepSeek (专家估算)">AI生成 - DeepSeek (专家估算)</Option>
+                      <Option valuex="AI生成 - DeepSeek (专家估算)">AI生成 - DeepSeek (专家估算)</Option>
                       <Option value="AI生成 - DeepSeek (文本提取)">AI生成 - DeepSeek (文本提取)</Option>
                       <Option value="AI生成 - DeepSeek (行业报告)">AI生成 - DeepSeek (行业报告)</Option>
                       <Option value="AI生成 - DeepSeek (学术文献)">AI生成 - DeepSeek (学术文献)</Option>

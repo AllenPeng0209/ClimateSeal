@@ -32,17 +32,24 @@ export interface SupabaseAction extends BaseAction {
 
 export interface CarbonFlowAction extends BaseAction {
   type: 'carbonflow';
-  operation: 'create' | 'update' | 'delete' | 'query' | 'connect' | 'layout' | 'calculate';
+  operation:
+    | 'create'
+    | 'update'
+    | 'delete'
+    | 'query'
+    | 'connect'
+    | 'layout'
+    | 'calculate'
+    | 'file_parser'
+    | 'carbon_factor_match';
   nodeId?: string;
   nodeType?: string;
   source?: string;
   target?: string;
   position?: string;
-  data: string;
+  data?: string;
   description?: string;
-  
 }
-
 
 export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction;
 

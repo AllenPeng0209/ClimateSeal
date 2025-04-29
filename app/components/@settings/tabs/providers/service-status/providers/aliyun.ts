@@ -22,7 +22,7 @@ export class AliyunStatusChecker extends BaseProviderChecker {
           operational: text.includes('通义千问 ? 正常'),
           degraded: text.includes('通义千问 ? 性能下降'),
           outage: text.includes('通义千问 ? 服务中断') || text.includes('通义千问 ? 部分中断'),
-        }
+        },
       };
 
       // 提取最近事件

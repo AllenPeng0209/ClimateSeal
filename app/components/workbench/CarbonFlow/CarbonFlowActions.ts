@@ -1,14 +1,53 @@
 import type { Node, Edge } from 'reactflow';
 import type { CarbonFlowAction } from '~/types/actions';
-import type { NodeData } from 'app/types/nodes';
+import type {
+  NodeData,
+  ManufacturingNodeData,
+  DistributionNodeData,
+  UsageNodeData,
+  DisposalNodeData,
+  FinalProductNodeData,
+  ProductNodeData,
+} from '~/types/nodes';
+import type { CsvParseResultItem } from '~/lib/agents/csv-parser';
+
+// 定义碳因子匹配结果的返回类型
+type CarbonFactorResult = {
+  factor: number;
+  activityName: string;
+  unit: string;
+}
 
 type NodeType = 'product' | 'manufacturing' | 'distribution' | 'usage' | 'disposal' | 'finalProduct';
+
+/**
+ * Helper function to safely get properties from potentially partial data.
+ * Handles null/undefined objects and keys not present, returning a default value.
+ */
+function safeGet<T extends object, K extends keyof T>(
+  obj: T | Partial<T> | Record<string, any> | null | undefined,
+  key: K,
+  defaultValue: T[K],
+): T[K] {
+  if (!obj || typeof obj !== 'object') {
+    return defaultValue;
+  }
+  /*
+   * We check if the key is in the object to satisfy TypeScript
+   * even though Record<string, any> complicates direct K indexing.
+   * The `as T[K]` assertion is used because Record<string, any> accepts any string key.
+   */
+  if (key in obj) {
+    return (obj as any)[key] ?? defaultValue;
+  }
+  return defaultValue;
+}
 
 export interface CarbonFlowActionHandlerProps {
   nodes: Node<NodeData>[];
   edges: Edge[];
-  setNodes: (nodes: Node<NodeData>[]) => void;
-  setEdges: (edges: Edge[]) => void;
+  setNodes: (nodesOrUpdater: Node<NodeData>[] | ((nodes: Node<NodeData>[]) => Node<NodeData>[])) => void; // Allow functional updates
+  setEdges: (edgesOrUpdater: Edge[] | ((edges: Edge[]) => Edge[])) => void; // Allow functional updates
 }
 
 /**
@@ -16,22 +55,29 @@ export interface CarbonFlowActionHandlerProps {
  * 处理所有 carbonflow 类型的操作，包括增删查改节点和连接
  */
 export class CarbonFlowActionHandler {
-  private nodes: Node<NodeData>[];
-  private edges: Edge[];
-  private setNodes: (nodes: Node<NodeData>[]) => void;
-  private setEdges: (edges: Edge[]) => void;
+  private _nodes: Node<NodeData>[];
+  private _edges: Edge[];
+  private _setNodes: (nodesOrUpdater: Node<NodeData>[] | ((nodes: Node<NodeData>[]) => Node<NodeData>[])) => void;
+  private _setEdges: (edgesOrUpdater: Edge[] | ((edges: Edge[]) => Edge[])) => void;
+
+  /*
+   * Linter expects private statics to start with _, reverting rename for now.
+   * It's a common convention, though not strictly required by JS/TS.
+   */
+  private static readonly _nodeWidth = 250;
+  private static readonly _nodeHeight = 150;
 
   constructor({ nodes, edges, setNodes, setEdges }: CarbonFlowActionHandlerProps) {
-    this.nodes = nodes;
-    this.edges = edges;
-    this.setNodes = setNodes;
-    this.setEdges = setEdges;
+    this._nodes = nodes;
+    this._edges = edges;
+    this._setNodes = setNodes;
+    this._setEdges = setEdges;
   }
 
   /**
    * 处理 CarbonFlow 操作
    */
-  public handleAction(action: CarbonFlowAction): void {
+  async handleAction(action: CarbonFlowAction): Promise<void> {
     // 记录CarbonFlow操作到日志
     console.log(`[CARBONFLOW_ACTION] Operation: ${action.operation}`, {
       nodeType: action.nodeType,
@@ -39,7 +85,7 @@ export class CarbonFlowActionHandler {
       source: action.source,
       target: action.target,
       position: action.position,
-      data: action.data,
+      data: (action.operation === 'file_parser' || !action.data) ? '<data handled separately or missing>' : '<data provided>',
       description: action.description,
     });
 
@@ -48,19 +94,35 @@ export class CarbonFlowActionHandler {
       console.log(`[CARBONFLOW_CONTENT] ${action.description}`);
     }
 
-    if (action.data) {
+    // Don't log raw file content here if it's file_parser
+    if (action.data && action.operation !== 'file_parser') {
       try {
         const contentObj = JSON.parse(action.data);
         console.log(`[CARBONFLOW_CONTENT]`, contentObj);
-      } catch (e) {
+      } catch (error) { // Use the error variable
+        console.warn(`Could not parse action.data as JSON for logging: ${action.data?.substring(0,100)}...`, error);
+
         if (!action.description) {
-          console.log(`[CARBONFLOW_CONTENT] ${action.data}`);
+          // Log truncated data if it's too long and not file content
+          const logData = action.data.length > 200 ? action.data.substring(0, 200) + '...' : action.data;
+          console.log(`[CARBONFLOW_CONTENT] ${logData}`);
         }
       }
     }
 
     // 验证操作类型
-    const validOperations = ['create', 'update', 'delete', 'query', 'connect', 'layout', 'calculate'];
+    const validOperations = [
+      'create',
+      'update',
+      'delete',
+      'query',
+      'connect',
+      'layout',
+      'calculate',
+      'file_parser',
+      'carbon_factor_match',
+    ];
+
     if (!validOperations.includes(action.operation)) {
       console.error(`无效的 CarbonFlow 操作类型: ${action.operation}`);
       return;
@@ -69,126 +131,513 @@ export class CarbonFlowActionHandler {
     try {
       switch (action.operation) {
         case 'create':
-          this.handleCreateNode(action);
+          this._handleCreateNode(action);
           break;
         case 'update':
-          this.handleUpdateNode(action);
+          this._handleUpdateNode(action);
           break;
         case 'delete':
-          this.handleDeleteNode(action);
+          this._handleDeleteNode(action);
           break;
         case 'query':
-          this.handleQueryNode(action);
+          this._handleQueryNode(action);
           break;
         case 'connect':
-          this.handleConnectNodes(action);
+          this._handleConnectNodes(action);
           break;
         case 'layout':
-          this.handleLayout(action);
+          this._handleLayout(action);
           break;
         case 'calculate':
-          this.handleCalculate(action);
+          this._handleCalculate(action);
           break;
-        default:
-          console.warn(`未知的 CarbonFlow 操作: ${action.operation}`);
+        case 'carbon_factor_match':
+          await this._handleCarbonFactorMatch(action);
+          break;
+        case 'file_parser':
+          await this._handleFileParseAndCreateNodes(action);
+          break;
+        default: {
+          // Use type assertion for exhaustive check
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const _exhaustiveCheck: never = action.operation;
+          console.warn(`未知的 CarbonFlow 操作: ${action.operation}`); // Log the unknown operation directly
+          break; // Added break statement
+        }
       }
     } catch (error) {
       console.error(`处理 CarbonFlow 操作失败: ${action.operation}`, error);
     }
   }
 
-  /**
-   * 添加节点
-   */
-  private handleCreateNode(action: CarbonFlowAction): void {
-    if (!action.nodeType) {
-      console.error('添加节点操作缺少 nodeType');
+  // Removed _parseCsv function
+
+  // Removed _mapCsvRowToNodeData function
+
+  // Renamed from _handleBomParser and refactored to call the API and then _handleCreateNode
+  // Make this async as it now calls fetch
+  private async _handleFileParseAndCreateNodes(action: CarbonFlowAction): Promise<void> {
+    console.log('Handling File Parse action (Calling API)...');
+    if (!action.data) {
+      console.error('File Parse 操作缺少 data (file content) 字段');
+      // TODO: Add user feedback (e.g., show an error message)
+      return;
+    }
+    // ---- IMPORTANT: Get nodeTypeForFile ----
+    // This assumes 'nodeTypeForFile' is now part of the action payload for 'file_parser'
+
+    // ---- End Get nodeTypeForFile ----
+
+    const fileContent = action.data;
+    console.log('[File Content Provided]:', fileContent.substring(0, 100) + '...');
+
+    let aiResult: CsvParseResultItem[] = []; // Initialize with correct type
+
+    try {
+      const response = await fetch('/api/parse-csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ csvContent: fileContent }), // Send required data
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' })); // Try to get error details
+        throw new Error(`API Error (${response.status}): ${errorData?.error || response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (!result.success || !Array.isArray(result.data)) {
+        throw new Error(`API returned unsuccessful or invalid data: ${JSON.stringify(result)}`);
+      }
+
+      // Assign the successfully parsed data from the API
+      aiResult = result.data as CsvParseResultItem[];
+      console.log(`[API Response] Received ${aiResult.length} parsed items from backend.`);
+
+    } catch (error) {
+      console.error('调用 /api/parse-csv 失败:', error);
+      // TODO: Add user feedback (e.g., show an error message to the user)
+      return; // Stop processing if API call fails
+    }
+    console.log('aiResult', aiResult);
+    // --- Process the results from the real API call --- //
+    if (aiResult.length === 0) {
+      console.warn('AI parsing (via API) resulted in no nodes.');
+      // TODO: Add user feedback
       return;
     }
 
-    try {
-      // 改进JSON解析逻辑
-      let nodeData: Record<string, any> = {}; // 使用Record<string, any>類型
+    console.log(`AI parsed ${aiResult.length} potential nodes. Attempting creation...`);
+    let createdNodeCount = 0;
+    let nodeCreationErrors = 0;
 
-      if (action.data) {
-        try {
-          // 尝试解析data字段
-          nodeData = JSON.parse(action.data);
-        } catch (e) {
-          console.error('解析节点数据失败:', e);
-          return;
-        }
+    // Call _handleCreateNode for each item from AI result
+    aiResult.forEach((item) => {
+      // Basic validation (redundant? parseCsvWithLlmAgent should ensure this structure)
+      // Keep it as a safeguard against unexpected API responses
+      if (
+        !item ||
+        typeof item !== 'object' ||
+        !item.nodeType ||
+        typeof item.nodeType !== 'string' ||
+        !item.data ||
+        typeof item.data !== 'object'
+      ) {
+        console.warn(`Skipping invalid item structure from API response:`, item);
+        nodeCreationErrors++;
+        return; // Skip this item
       }
 
-      // 補一個100 100附近的 random的範圍
-      const randomX = Math.random() * 300 + 100;
-      const randomY = Math.random() * 300 + 100;
-      let position = { x: randomX, y: randomY }; // 默认位置
+      try {
+        // Pass nodeType and stringified data to _handleCreateNode
+        this._handleCreateNode({
+          type: 'carbonflow',
+          operation: 'create',
+          nodeType: item.nodeType,
+          data: JSON.stringify(item.data), // Pass data received from API
+          // Generate a more descriptive content message
+          content: `Create node from file: ${item.data.label || `Unnamed ${item.nodeType}`}`,
+          //log
+        });
+        console.log('item.data', item.data);
 
-      // 解析位置信息
-      if (action.position) {
-        try {
-          position = JSON.parse(action.position.replace(/'/g, '"'));
-        } catch (e) {
-          console.warn('无法解析节点位置，使用默认位置', e);
-        }
+        createdNodeCount++;
+      } catch (createError) {
+        console.error(`Failed to create node for item: ${item.data.label || item.nodeType}`, createError, item);
+        nodeCreationErrors++;
       }
+    });
 
-      // 创建新节点
-      const newNode: Node<NodeData> = {
-        id: `${action.nodeType}-${Date.now()}`,
-        type: action.nodeType,
-        position,
-        data: {
-          label: nodeData.label || `${action.nodeType} 节点`,
-          nodeName: nodeData.nodeName || `${action.nodeType}_${Date.now()}`,
-          lifecycleStage: nodeData.lifecycleStage || action.nodeType,
-          emissionType: nodeData.emissionType || '直接排放',
-          carbonFactor: nodeData.carbonFactor || 0,
-          activitydataSource: nodeData.activitydataSource || '手动输入',
-          activityScore: nodeData.activityScore || 0,
-          carbonFootprint: nodeData.carbonFootprint || 0,
-          ...nodeData,
-        },
-      };
+    console.log(`文件解析和节点创建尝试完成。成功创建: ${createdNodeCount}, 失败: ${nodeCreationErrors}。`);
+    // TODO: Add user feedback about success/failures
 
-      // 更新节点列表
-      this.setNodes([...this.nodes, newNode]);
-      console.log(`成功添加 ${action.nodeType} 节点: ${newNode.id}`);
-    } catch (error) {
-      console.error('添加节点失败:', error);
+    // Optionally trigger layout and calculation after all creation attempts
+    if (createdNodeCount > 0) {
+      this._handleLayout({ type: 'carbonflow', operation: 'layout', content: 'Layout after file parse' });
+      this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Calculate after file parse' });
     }
+  }
+
+  /**
+   * 创建新节点 (Now handles data parsing and type safety internally)
+   */
+  private _handleCreateNode(action: CarbonFlowAction): void {
+    if (!action.nodeType) {
+      console.error('创建节点操作缺少 nodeType');
+      return;
+    }
+
+    const nodeType = action.nodeType as NodeType;
+    const nodeId = action.nodeId || `${nodeType}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+
+    let inputData: Record<string, any> = {}; // Use Record<string, any> for flexibility
+    if (action.data) {
+      try {
+        inputData = JSON.parse(action.data);
+      } catch (e) {
+        console.error(`解析节
+          .点数据失败 for ${nodeType} (${action.data?.substring(0, 50)}...):`, e);
+        // Create a node with minimal default data on parsing failure
+        inputData = { label: `无效数据 - ${nodeType}` };
+      }
+    }
+
+    let data: NodeData;
+
+    /*
+     * Use safeGet for all properties, providing defaults matching the interface
+     * IMPORTANT: Ensure safeGet handles basic type conversion if needed, or perform checks here
+     */
+    switch (nodeType) {
+      case 'product':
+        data = {
+          label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
+          nodeName: String(safeGet(inputData, 'nodeName', nodeId)), // Default nodeName to nodeId
+          lifecycleStage: 'product',
+          emissionType: String(safeGet(inputData, 'emissionType', 'unknown')),
+          quantity: String(safeGet(inputData, 'quantity', '')),
+          unit: String(safeGet(inputData, 'unit', '')),
+          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          carbonFactorName: String(safeGet(inputData, 'carbonFactorName', '')),
+          unitConversion: Number(safeGet(inputData, 'unitConversion', 0)),
+          carbonFactordataSource: String(safeGet(inputData, 'carbonFactordataSource', '')),
+          activitydataSource: String(safeGet(inputData, 'activitydataSource', 'unknown')),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
+          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
+          // Product specific, ensuring types
+          material: String(safeGet(inputData, 'material', '')),
+          weight_per_unit: String(safeGet(inputData, 'weight_per_unit', '')),
+          isRecycled: Boolean(safeGet(inputData, 'isRecycled', false)),
+          recycledContent: String(safeGet(inputData, 'recycledContent', '')),
+          recycledContentPercentage: Number(safeGet(inputData, 'recycledContentPercentage', 0)),
+          sourcingRegion: String(safeGet(inputData, 'sourcingRegion', '')),
+          SourceLocation: String(safeGet(inputData, 'SourceLocation', '')),
+          Destination: String(safeGet(inputData, 'Destination', '')),
+          SupplierName: String(safeGet(inputData, 'SupplierName', '')),
+          SupplierAddress: String(safeGet(inputData, 'SupplierAddress', '')),
+          ProcessingPlantAddress: String(safeGet(inputData, 'ProcessingPlantAddress', '')),
+          RefrigeratedTransport: Boolean(safeGet(inputData, 'RefrigeratedTransport', false)),
+          weight: Number(safeGet(inputData, 'weight', 0)), // Expecting number
+          supplier: String(safeGet(inputData, 'supplier', '')),
+          certaintyPercentage: Number(safeGet(inputData, 'certaintyPercentage', 0)),
+          dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
+          // REMOVED quantity and unit as they are not defined in ProductNodeData
+        } as ProductNodeData; // Cast to specific type
+        break;
+      case 'manufacturing':
+        data = {
+          label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
+          nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
+          lifecycleStage: 'manufacturing',
+          emissionType: String(safeGet(inputData, 'emissionType', 'unknown')),
+          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          activitydataSource: String(safeGet(inputData, 'activitydataSource', 'unknown')),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
+          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
+          // Manufacturing specific
+          ElectricityAccountingMethod: String(safeGet(inputData, 'ElectricityAccountingMethod', '')),
+          ElectricityAllocationMethod: String(safeGet(inputData, 'ElectricityAllocationMethod', '')),
+          EnergyConsumptionMethodology: String(safeGet(inputData, 'EnergyConsumptionMethodology', '')),
+          EnergyConsumptionAllocationMethod: String(safeGet(inputData, 'EnergyConsumptionAllocationMethod', '')),
+          energyConsumption: Number(safeGet(inputData, 'energyConsumption', 0)),
+          energyType: String(safeGet(inputData, 'energyType', '')),
+          chemicalsMaterial: String(safeGet(inputData, 'chemicalsMaterial', '')),
+          MaterialAllocationMethod: String(safeGet(inputData, 'MaterialAllocationMethod', '')),
+          WaterUseMethodology: String(safeGet(inputData, 'WaterUseMethodology', '')),
+          WaterAllocationMethod: String(safeGet(inputData, 'WaterAllocationMethod', '')),
+          waterConsumption: Number(safeGet(inputData, 'waterConsumption', 0)),
+          packagingMaterial: String(safeGet(inputData, 'packagingMaterial', '')),
+          direct_emission: String(safeGet(inputData, 'direct_emission', '')),
+          WasteGasTreatment: String(safeGet(inputData, 'WasteGasTreatment', '')),
+          WasteDisposalMethod: String(safeGet(inputData, 'WasteDisposalMethod', '')),
+          WastewaterTreatment: String(safeGet(inputData, 'WastewaterTreatment', '')),
+          productionMethod: String(safeGet(inputData, 'productionMethod', '')),
+          processEfficiency: Number(safeGet(inputData, 'processEfficiency', 0)),
+          wasteGeneration: Number(safeGet(inputData, 'wasteGeneration', 0)),
+          recycledMaterialPercentage: Number(safeGet(inputData, 'recycledMaterialPercentage', 0)),
+          productionCapacity: Number(safeGet(inputData, 'productionCapacity', 0)),
+          machineUtilization: Number(safeGet(inputData, 'machineUtilization', 0)),
+          qualityDefectRate: Number(safeGet(inputData, 'qualityDefectRate', 0)),
+          processTechnology: String(safeGet(inputData, 'processTechnology', '')),
+          manufacturingStandard: String(safeGet(inputData, 'manufacturingStandard', '')),
+          automationLevel: String(safeGet(inputData, 'automationLevel', '')),
+          manufacturingLocation: String(safeGet(inputData, 'manufacturingLocation', '')),
+          byproducts: String(safeGet(inputData, 'byproducts', '')),
+          emissionControlMeasures: String(safeGet(inputData, 'emissionControlMeasures', '')),
+          dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
+          productionMethodDataSource: String(safeGet(inputData, 'productionMethodDataSource', '')),
+          productionMethodVerificationStatus: String(safeGet(inputData, 'productionMethodVerificationStatus', '')),
+          productionMethodApplicableStandard: String(safeGet(inputData, 'productionMethodApplicableStandard', '')),
+          productionMethodCompletionStatus: String(safeGet(inputData, 'productionMethodCompletionStatus', '')),
+        } as ManufacturingNodeData;
+        break;
+      case 'distribution':
+        data = {
+          label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
+          nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
+          lifecycleStage: 'distribution',
+          emissionType: String(safeGet(inputData, 'emissionType', 'unknown')),
+          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          activitydataSource: String(safeGet(inputData, 'activitydataSource', 'unknown')),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
+          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
+          dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
+          // Distribution specific
+          transportationMode: String(safeGet(inputData, 'transportationMode', '')),
+          transportationDistance: Number(safeGet(inputData, 'transportationDistance', 0)),
+          startPoint: String(safeGet(inputData, 'startPoint', '')),
+          endPoint: String(safeGet(inputData, 'endPoint', '')),
+          vehicleType: String(safeGet(inputData, 'vehicleType', '')),
+          fuelType: String(safeGet(inputData, 'fuelType', '')),
+          fuelEfficiency: Number(safeGet(inputData, 'fuelEfficiency', 0)),
+          loadFactor: Number(safeGet(inputData, 'loadFactor', 0)),
+          refrigeration: Boolean(safeGet(inputData, 'refrigeration', false)),
+          packagingMaterial: String(safeGet(inputData, 'packagingMaterial', '')),
+          packagingWeight: Number(safeGet(inputData, 'packagingWeight', 0)),
+          warehouseEnergy: Number(safeGet(inputData, 'warehouseEnergy', 0)),
+          storageTime: Number(safeGet(inputData, 'storageTime', 0)),
+          storageConditions: String(safeGet(inputData, 'storageConditions', '')),
+          distributionNetwork: String(safeGet(inputData, 'distributionNetwork', '')),
+          aiRecommendation: String(safeGet(inputData, 'aiRecommendation', '')),
+          returnLogistics: Boolean(safeGet(inputData, 'returnLogistics', false)),
+          packagingRecyclability: Number(safeGet(inputData, 'packagingRecyclability', 0)),
+          lastMileDelivery: String(safeGet(inputData, 'lastMileDelivery', '')),
+          distributionMode: String(safeGet(inputData, 'distributionMode', '')),
+          distributionDistance: Number(safeGet(inputData, 'distributionDistance', 0)),
+          distributionStartPoint: String(safeGet(inputData, 'distributionStartPoint', '')),
+          distributionEndPoint: String(safeGet(inputData, 'distributionEndPoint', '')),
+          distributionTransportationMode: String(safeGet(inputData, 'distributionTransportationMode', '')),
+          distributionTransportationDistance: Number(safeGet(inputData, 'distributionTransportationDistance', 0)),
+        } as DistributionNodeData;
+        break;
+      case 'usage':
+        data = {
+          label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
+          nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
+          lifecycleStage: 'usage',
+          emissionType: String(safeGet(inputData, 'emissionType', 'unknown')),
+          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          activitydataSource: String(safeGet(inputData, 'activitydataSource', 'unknown')),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
+          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
+          dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
+          // Usage specific
+          lifespan: Number(safeGet(inputData, 'lifespan', 0)),
+          energyConsumptionPerUse: Number(safeGet(inputData, 'energyConsumptionPerUse', 0)),
+          waterConsumptionPerUse: Number(safeGet(inputData, 'waterConsumptionPerUse', 0)),
+          consumablesUsed: String(safeGet(inputData, 'consumablesUsed', '')),
+          consumablesWeight: Number(safeGet(inputData, 'consumablesWeight', 0)),
+          usageFrequency: Number(safeGet(inputData, 'usageFrequency', 0)),
+          maintenanceFrequency: Number(safeGet(inputData, 'maintenanceFrequency', 0)),
+          repairRate: Number(safeGet(inputData, 'repairRate', 0)),
+          userBehaviorImpact: Number(safeGet(inputData, 'userBehaviorImpact', 0)),
+          efficiencyDegradation: Number(safeGet(inputData, 'efficiencyDegradation', 0)),
+          standbyEnergyConsumption: Number(safeGet(inputData, 'standbyEnergyConsumption', 0)),
+          usageLocation: String(safeGet(inputData, 'usageLocation', '')),
+          usagePattern: String(safeGet(inputData, 'usagePattern', '')),
+          userInstructions: String(safeGet(inputData, 'userInstructions', '')),
+          upgradeability: Number(safeGet(inputData, 'upgradeability', 0)),
+          secondHandMarket: Boolean(safeGet(inputData, 'secondHandMarket', false)),
+        } as UsageNodeData;
+        break;
+      case 'disposal':
+        data = {
+          label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
+          nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
+          lifecycleStage: 'disposal',
+          emissionType: String(safeGet(inputData, 'emissionType', 'unknown')),
+          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          activitydataSource: String(safeGet(inputData, 'activitydataSource', 'unknown')),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
+          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
+          dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
+          // Disposal specific
+          recyclingRate: Number(safeGet(inputData, 'recyclingRate', 0)),
+          landfillPercentage: Number(safeGet(inputData, 'landfillPercentage', 0)),
+          incinerationPercentage: Number(safeGet(inputData, 'incinerationPercentage', 0)),
+          compostPercentage: Number(safeGet(inputData, 'compostPercentage', 0)),
+          reusePercentage: Number(safeGet(inputData, 'reusePercentage', 0)),
+          hazardousWasteContent: Number(safeGet(inputData, 'hazardousWasteContent', 0)),
+          biodegradability: Number(safeGet(inputData, 'biodegradability', 0)),
+          disposalEnergyRecovery: Number(safeGet(inputData, 'disposalEnergyRecovery', 0)),
+          transportToDisposal: Number(safeGet(inputData, 'transportToDisposal', 0)),
+          disposalMethod: String(safeGet(inputData, 'disposalMethod', '')),
+          endOfLifeTreatment: String(safeGet(inputData, 'endOfLifeTreatment', '')),
+          recyclingEfficiency: Number(safeGet(inputData, 'recyclingEfficiency', 0)),
+          dismantlingDifficulty: String(safeGet(inputData, 'dismantlingDifficulty', '')),
+          wasteRegulations: String(safeGet(inputData, 'wasteRegulations', '')),
+          takeback: Boolean(safeGet(inputData, 'takeback', false)),
+          circularEconomyPotential: Number(safeGet(inputData, 'circularEconomyPotential', 0)),
+        } as DisposalNodeData;
+        break;
+      case 'finalProduct':
+        data = {
+          label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
+          nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
+          lifecycleStage: 'finalProduct',
+          emissionType: String(safeGet(inputData, 'emissionType', 'total')),
+          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          activitydataSource: String(safeGet(inputData, 'activitydataSource', 'calculated')),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
+          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
+          dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
+          // FinalProduct specific
+          finalProductName: String(safeGet(inputData, 'finalProductName', String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)))), // Default to label if not present
+          totalCarbonFootprint: Number(safeGet(inputData, 'totalCarbonFootprint', 0)),
+          certificationStatus: String(safeGet(inputData, 'certificationStatus', 'pending')),
+          environmentalImpact: String(safeGet(inputData, 'environmentalImpact', '')),
+          sustainabilityScore: Number(safeGet(inputData, 'sustainabilityScore', 0)),
+          productCategory: String(safeGet(inputData, 'productCategory', '')),
+          marketSegment: String(safeGet(inputData, 'marketSegment', '')),
+          targetRegion: String(safeGet(inputData, 'targetRegion', '')),
+          complianceStatus: String(safeGet(inputData, 'complianceStatus', 'pending')),
+          carbonLabel: String(safeGet(inputData, 'carbonLabel', '')),
+        } as FinalProductNodeData;
+        break;
+      default: {
+        // Should not happen due to earlier check, but good for type safety
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const _exhaustiveCheck: never = nodeType;
+        console.error(`创建节点时遇到未知类型: ${nodeType as string}`);
+        return; // Do not create node if type is somehow invalid
+      }
+    }
+
+
+
+    // Determine position: Use provided, or calculate default
+    let position = { x: Math.random() * 400, y: Math.random() * 400 }; // Default random position
+    if (action.position) {
+      try {
+        const parsedPosition = JSON.parse(action.position);
+        if (typeof parsedPosition.x === 'number' && typeof parsedPosition.y === 'number') {
+          position = parsedPosition;
+        } else {
+          console.warn(`Provided position data is invalid: ${action.position}, using default.`);
+        }
+      } catch (e) {
+        console.warn(`Failed to parse position data: ${action.position}, using default.`, e);
+      }
+    }
+
+    const newNode: Node<NodeData> = {
+      id: nodeId,
+      type: nodeType,
+      position,
+      data, // Use the fully constructed and typed data object (property shorthand)
+    };
+
+    // Use functional update for setNodes
+    this._setNodes((currentNodes) => {
+      // Check if node with the same ID already exists to prevent duplicates
+      if (currentNodes.some((node) => node.id === newNode.id)) {
+        console.warn(`Node with ID ${newNode.id} already exists. Skipping creation.`);
+        return currentNodes;
+      }
+
+      console.log(`成功创建节点: ${newNode.id} (${newNode.data.label})`);
+
+      return [...currentNodes, newNode];
+    });
+
+    /* Optional: Trigger layout or calculate after creation if needed
+     * this._handleLayout({ type: 'carbonflow', operation: 'layout', content: 'Layout after create'});
+     * this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Calculate after create'});
+     */
   }
 
   /**
    * 更新节点
    */
-  private handleUpdateNode(action: CarbonFlowAction): void {
+  private _handleUpdateNode(action: CarbonFlowAction): void {
     if (!action.nodeId) {
       console.error('更新节点操作缺少 nodeId');
       return;
     }
 
     try {
-      const updateData = action.data ? JSON.parse(action.data) : {};
+      let updateData: Record<string, any> = {};
 
-      // 查找并更新节点
-      const updatedNodes = this.nodes.map((node) => {
-        if (node.id === action.nodeId || node.data.nodeName === action.nodeId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              ...updateData,
-            },
-          };
+      if (action.data) {
+        try {
+          updateData = JSON.parse(action.data);
+        } catch (e) {
+          console.error('解析更新数据失败:', e);
+          return;
         }
-        return node;
+      }
+
+      let updated = false;
+      // Use functional update for setNodes to ensure atomicity if possible, though direct map is common
+      this._setNodes((currentNodes) => {
+        let nodesChangedInUpdate = false;
+        const updatedNodesResult = currentNodes.map((node) => {
+          if (node.id === action.nodeId || node.data.nodeName === action.nodeId) {
+            const originalDataString = JSON.stringify(node.data);
+            // Ensure potentialNewData conforms to NodeData (loosely for now)
+            const potentialNewData = { ...node.data, ...updateData } as NodeData;
+
+            if (originalDataString === JSON.stringify(potentialNewData)) {
+              return node; // No actual change
+            }
+
+            // Basic update without complex type guards for now
+            updated = true; // Mark that an update happened (for logging/recalc)
+            nodesChangedInUpdate = true;
+            return {
+              ...node,
+              data: potentialNewData, // Data should now be NodeData (or a subtype)
+            };
+          }
+          return node;
+        });
+
+        // Only return the new array if changes actually occurred within the map
+        return nodesChangedInUpdate ? updatedNodesResult : currentNodes;
       });
 
-      // 更新节点列表
-      this.setNodes(updatedNodes);
-      console.log(`成功更新节点: ${action.nodeId}`);
+      if (updated) {
+        // this._setNodes(updatedNodes); // setNodes is now handled functionally above
+        console.log(`成功更新节点: ${action.nodeId}`);
+        // Recalculate if relevant data changed
+
+        if (Object.keys(updateData).some((key) =>
+          ['carbonFactor', 'weight', 'energyConsumption', 'transportationDistance', 'lifespan'].includes(key)
+        )) {
+          this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Recalculate after update' });
+        }
+      } else {
+        console.log(`节点 ${action.nodeId} 无需更新。`);
+      }
     } catch (error) {
       console.error('更新节点失败:', error);
     }
@@ -197,25 +646,47 @@ export class CarbonFlowActionHandler {
   /**
    * 删除节点
    */
-  private handleDeleteNode(action: CarbonFlowAction): void {
+  private _handleDeleteNode(action: CarbonFlowAction): void {
     if (!action.nodeId) {
       console.error('删除节点操作缺少 nodeId');
       return;
     }
 
     try {
-      // 查找并删除节点
-      const filteredNodes = this.nodes.filter(
-        (node) => node.id !== action.nodeId && node.data.nodeName !== action.nodeId,
-      );
+      let nodeDeleted = false;
+      let relatedEdgesDeleted = false;
+      let nodeIdToDelete = '';
 
-      // 同时删除与该节点相关的边
-      const filteredEdges = this.edges.filter((edge) => edge.source !== action.nodeId && edge.target !== action.nodeId);
+      this._setNodes((currentNodes) => {
+        const nodeToDelete = currentNodes.find((n) => n.id === action.nodeId || n.data.nodeName === action.nodeId);
+        if (!nodeToDelete) {
+          console.log(`未找到要删除的节点: ${action.nodeId}`);
+          return currentNodes; // No change
+        }
+        nodeIdToDelete = nodeToDelete.id;
+        const filteredNodes = currentNodes.filter((node) => node.id !== nodeIdToDelete);
+        if (filteredNodes.length !== currentNodes.length) {
+          nodeDeleted = true;
+          return filteredNodes;
+        }
+        return currentNodes;
+      });
 
-      // 更新节点和边列表
-      this.setNodes(filteredNodes);
-      this.setEdges(filteredEdges);
-      console.log(`成功删除节点: ${action.nodeId}`);
+      this._setEdges((currentEdges) => {
+        const filteredEdges = currentEdges.filter(
+          (edge) => edge.source !== nodeIdToDelete && edge.target !== nodeIdToDelete
+        );
+        if (filteredEdges.length !== currentEdges.length) {
+          relatedEdgesDeleted = true;
+          return filteredEdges;
+        }
+        return currentEdges;
+      });
+
+      if (nodeDeleted || relatedEdgesDeleted) {
+        console.log(`成功删除节点: ${nodeIdToDelete} and related edges.`);
+        this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Recalculate after delete' });
+      }
     } catch (error) {
       console.error('删除节点失败:', error);
     }
@@ -225,19 +696,20 @@ export class CarbonFlowActionHandler {
    * 查询节点
    * @returns 找到的节点或null
    */
-  private handleQueryNode(action: CarbonFlowAction): Node<NodeData> | null {
+  private _handleQueryNode(action: CarbonFlowAction): Node<NodeData> | null {
     if (!action.nodeId) {
       console.error('查询节点操作缺少 nodeId');
       return null;
     }
 
     try {
-      // 查找节点
-      const node = this.nodes.find((node) => node.id === action.nodeId || node.data.nodeName === action.nodeId);
+      // Find within the current state (_nodes might be stale if updates happen quickly)
+      // Consider using a getter if state management becomes complex
+      const node = this._nodes.find((n) => n.id === action.nodeId || n.data.nodeName === action.nodeId);
 
       if (node) {
-        console.log(`节点 ${action.nodeId} 信息:`, node);
-        return node;
+        console.log(`节点 ${action.nodeId} 信息:`, JSON.stringify(node));
+        return JSON.parse(JSON.stringify(node)); // Return a deep copy
       } else {
         console.warn(`未找到节点: ${action.nodeId}`);
         return null;
@@ -251,401 +723,708 @@ export class CarbonFlowActionHandler {
   /**
    * 连接节点
    */
-  private handleConnectNodes(action: CarbonFlowAction): void {
+  private _handleConnectNodes(action: CarbonFlowAction): void {
     if (!action.source || !action.target) {
       console.error('连接节点操作缺少 source 或 target');
       return;
     }
 
     try {
-      // 检查源节点和目标节点是否存在
-      const sourceExists = this.nodes.some((node) => node.id === action.source || node.data.nodeName === action.source);
+      // Find nodes based on the current state
+      const sourceNode = this._nodes.find((node) => node.id === action.source || node.data.nodeName === action.source);
+      const targetNode = this._nodes.find((node) => node.id === action.target || node.data.nodeName === action.target);
 
-      const targetExists = this.nodes.some((node) => node.id === action.target || node.data.nodeName === action.target);
-
-      if (!sourceExists || !targetExists) {
+      if (!sourceNode || !targetNode) {
         console.error(`源节点或目标节点不存在: source=${action.source}, target=${action.target}`);
         return;
       }
 
-      // 创建连接属性
-      const edgeData = action.data ? JSON.parse(action.data) : {};
+      if (sourceNode.id === targetNode.id) {
+        console.warn(`不允许创建自环连接: ${sourceNode.id}`);
+        return;
+      }
 
-      // 创建新边
+      // Check against current edges state
+      const edgeExists = this._edges.some(
+        (edge) => edge.source === sourceNode.id && edge.target === targetNode.id
+      );
+
+      if (edgeExists) {
+        console.warn(`连接已存在: ${sourceNode.id} -> ${targetNode.id}`);
+        return;
+      }
+
+      const edgeData = action.data ? JSON.parse(action.data) : {};
       const newEdge: Edge = {
-        id: `e-${action.source}-${action.target}-${Date.now()}`,
-        source: action.source,
-        target: action.target,
-        label: edgeData.label,
+        id: `e-${sourceNode.id}-${targetNode.id}-${Date.now()}`,
+        source: sourceNode.id,
+        target: targetNode.id,
+        label: edgeData.label || '',
         data: edgeData,
       };
 
-      // 更新边列表
-      this.setEdges([...this.edges, newEdge]);
-      console.log(`成功连接节点: ${action.source} -> ${action.target}`);
+      this._setEdges((currentEdges) => [...currentEdges, newEdge]); // Use functional update
+      console.log(`成功连接节点: ${sourceNode.id} -> ${targetNode.id}`);
+      this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Recalculate after connect' });
     } catch (error) {
       console.error('连接节点失败:', error);
     }
   }
 
   /**
-   * 自动布局
+   * 自动布局 - Use static constants
    */
-  private handleLayout(action: CarbonFlowAction): void {
+  private _handleLayout(action: CarbonFlowAction): void {
     try {
       const layoutConfig = action.data ? JSON.parse(action.data) : {};
       const layoutType = layoutConfig.type || 'vertical';
+      console.log(`Applying layout: ${layoutType}`);
+      let layoutApplied = false;
 
-      if (layoutType === 'normal') {
-        this.applyNormalLayout();
-      } else if (layoutType === 'vertical') {
-        this.applyVerticalLayout();
-      } else if (layoutType === 'horizontal') {
-        this.applyHorizontalLayout();
-      } else if (layoutType === 'radial') {
-        this.applyRadialLayout();
+      switch (layoutType) {
+        case 'normal':
+          layoutApplied = this._applyNormalLayout();
+          break;
+        case 'vertical':
+          layoutApplied = this._applyVerticalLayout();
+          break;
+        case 'horizontal':
+          layoutApplied = this._applyHorizontalLayout();
+          break;
+        case 'radial':
+          layoutApplied = this._applyRadialLayout();
+          break;
+        default: {
+          console.warn(`未知的布局类型: ${layoutType}, defaulting to vertical.`);
+          layoutApplied = this._applyVerticalLayout();
+        }
+      }
+
+      if (layoutApplied) {
+        console.log('Layout application finished.');
       } else {
-        console.warn(`未知的布局类型: ${layoutType}`);
+        console.log('Layout application resulted in no changes.');
       }
     } catch (error) {
       console.error('应用布局失败:', error);
     }
   }
 
-  private applyNormalLayout(): void {
-    const NODE_WIDTH = 250;
-    const NODE_HEIGHT = 150;
-    const HORIZONTAL_SPACING = 600;
-    const VERTICAL_SPACING = 650;
-    const PADDING = 400;
+  // --- Layout Implementations return true if changes applied ---
 
-    // 定义节点类型的顺序（不包括最终产品节点）
+  private _applyNormalLayout(): boolean {
+    const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth; // Use static property
+    const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight; // Use static property
+    const HORIZONTAL_SPACING = 350;
+    const VERTICAL_SPACING = 250;
+    const PADDING = 50;
+
     const nodeTypeOrder: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal'];
-
-    // 根据节点类型分组
-    const nodesByType: Record<NodeType, Node<NodeData>[]> = {
-      product: [],
-      manufacturing: [],
-      distribution: [],
-      usage: [],
-      disposal: [],
-      finalProduct: [],
+    const nodesByType: Record<NodeType | 'finalProduct', Node<NodeData>[]> = {
+      product: [], manufacturing: [], distribution: [], usage: [], disposal: [], finalProduct: [],
     };
+    let maxNodesInStage = 0;
 
-    // 填充节点分组
-    this.nodes.forEach((node) => {
-      const nodeType = node.type as NodeType;
-      if (nodeType in nodesByType) {
+    this._nodes.forEach((node) => {
+      const nodeType = node.type as NodeType | 'finalProduct';
+
+      if (nodesByType[nodeType]) {
         nodesByType[nodeType].push(node);
+        if (nodeType !== 'finalProduct') {
+          maxNodesInStage = Math.max(maxNodesInStage, nodesByType[nodeType].length);
+        }
+      } else {
+        console.warn(`Node ${node.id} has unknown type: ${node.type}`);
+      }
+    });
+    maxNodesInStage = Math.max(1, maxNodesInStage);
+
+    const finalProductNode = nodesByType.finalProduct[0];
+    const positionedNodes: Node<NodeData>[] = [];
+
+    nodeTypeOrder.forEach((nodeType, typeIndex) => {
+      const typeNodes = nodesByType[nodeType] || [];
+      const stageHeight = typeNodes.length * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+      const totalMaxHeight = maxNodesInStage * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+      const startY = PADDING + (totalMaxHeight - stageHeight) / 2;
+
+      typeNodes.forEach((node, nodeIndex) => {
+        const x = PADDING + typeIndex * (NODE_WIDTH + HORIZONTAL_SPACING);
+        const y = startY + nodeIndex * (NODE_HEIGHT + VERTICAL_SPACING);
+        positionedNodes.push({ ...node, position: { x, y } });
+      });
+    });
+
+    if (finalProductNode) {
+      const x = PADDING + nodeTypeOrder.length * (NODE_WIDTH + HORIZONTAL_SPACING);
+      const totalMaxHeight = maxNodesInStage * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+      const y = PADDING + (totalMaxHeight - NODE_HEIGHT) / 2;
+      positionedNodes.push({ ...finalProductNode, position: { x, y } });
+    }
+
+    // Position any remaining nodes (e.g., with unknown types)
+    const positionedIds = new Set(positionedNodes.map((n) => n.id));
+    this._nodes.forEach((node) => {
+      if (!positionedIds.has(node.id)) {
+        // Position unclassified nodes simply at the start for now
+        positionedNodes.push({ ...node, position: { x: PADDING, y: PADDING } });
       }
     });
 
-    // 确保有最终产品节点
-    let finalProductNode = nodesByType.finalProduct[0];
-    if (!finalProductNode) {
-      finalProductNode = {
-        id: 'final-product-1',
-        type: 'finalProduct',
-        position: { x: 0, y: 0 },
-        data: {
-          label: '最终产品',
-          nodeName: 'final_product_1',
-          lifecycleStage: 'finalProduct',
-          emissionType: 'total',
-          carbonFactor: 0,
-          activitydataSource: 'calculated',
-          activityScore: 0,
-          carbonFootprint: 0,
-          certificationMaterials: '',
-          emissionFactor: '',
-          calculationMethod: '',
-          verificationStatus: 'pending',
-          applicableStandard: '',
-          completionStatus: 'incomplete',
-          carbonFactorName: '',
-          unitConversion: 1,
-          emissionFactorQuality: 0,
-          finalProductName: '最终产品',
-          totalCarbonFootprint: 0,
-          certificationStatus: 'pending',
-          environmentalImpact: '待评估',
-          sustainabilityScore: 0,
-          productCategory: '未分类',
-          marketSegment: '未指定',
-          targetRegion: '未指定',
-          complianceStatus: '待验证',
-          carbonLabel: '待认证',
-        },
-      };
-      nodesByType.finalProduct.push(finalProductNode);
+    // Check if positions actually changed before updating state
+    const originalPositions = JSON.stringify(this._nodes.map((n) => n.position));
+    const newPositions = JSON.stringify(positionedNodes.map((n) => n.position));
+
+    if (originalPositions !== newPositions) {
+      this._setNodes(positionedNodes);
+      this._updateEdges(); // Update edges only if nodes moved
+      console.log('Successfully applied Normal layout');
+      return true;
     }
 
-    // 计算新的节点位置
-    const newNodes = [...this.nodes];
-    if (!nodesByType.finalProduct.length) {
-      newNodes.push(finalProductNode);
-    }
-
-    // 计算所有非最终产品节点的位置
-    const positionedNodes = newNodes
-      .filter((node) => node.type !== 'finalProduct')
-      .map((node) => {
-        const nodeType = node.type as NodeType;
-        const typeIndex = nodeTypeOrder.indexOf(nodeType);
-        const typeNodes = nodesByType[nodeType] || [];
-        const nodeIndex = typeNodes.indexOf(node);
-
-        // 计算水平位置（根据节点类型）
-        const x = PADDING + typeIndex * HORIZONTAL_SPACING;
-
-        // 计算垂直位置（根据同类型节点的顺序）
-        const y = PADDING + nodeIndex * VERTICAL_SPACING;
-
-        return {
-          ...node,
-          position: { x, y },
-          style: {
-            width: NODE_WIDTH,
-            height: NODE_HEIGHT,
-          },
-        };
-      });
-
-    // 计算最终产品节点的位置（放在最右侧）
-    const finalProductNodes = newNodes
-      .filter((node) => node.type === 'finalProduct')
-      .map((node) => {
-        const x = PADDING + (nodeTypeOrder.length + 1) * HORIZONTAL_SPACING;
-        const y = PADDING + VERTICAL_SPACING / 2; // 垂直居中
-
-        return {
-          ...node,
-          position: { x, y },
-          style: {
-            width: NODE_WIDTH,
-            height: NODE_HEIGHT,
-          },
-        };
-      });
-
-    // 更新节点位置
-    this.nodes = [...positionedNodes, ...finalProductNodes];
-
-    // 更新边
-    this.updateEdges();
+    return false;
   }
 
-  /**
-   * 垂直布局
-   */
-  private applyVerticalLayout(): void {
-    const spacing = 150;
-    const updatedNodes = [...this.nodes];
+  private _applyVerticalLayout(): boolean {
+    const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth;
+    const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight;
+    const HORIZONTAL_SPACING = 250;
+    const VERTICAL_SPACING = 200;
+    const PADDING = 50;
 
-    // 按生命周期阶段分组
-    const stages = ['product', 'manufacturing', 'distribution', 'usage', 'disposal', 'finalProduct'];
+    const stages: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal', 'finalProduct'];
     const stageMap = new Map<string, Node<NodeData>[]>();
-
-    // 初始化阶段映射
     stages.forEach((stage) => stageMap.set(stage, []));
+    const miscNodes: Node<NodeData>[] = [];
+    let maxNodesInRow = 0;
 
-    // 按阶段分组节点
-    updatedNodes.forEach((node) => {
+    this._nodes.forEach((node) => {
       const stage = node.type as string;
+
       if (stageMap.has(stage)) {
         stageMap.get(stage)?.push(node);
+        maxNodesInRow = Math.max(maxNodesInRow, stageMap.get(stage)!.length);
       } else {
-        // 对于未知阶段，放入杂项组
-        if (!stageMap.has('misc')) {
-          stageMap.set('misc', []);
-        }
-        stageMap.get('misc')?.push(node);
+        miscNodes.push(node);
+      }
+    });
+    maxNodesInRow = Math.max(maxNodesInRow, miscNodes.length, 1);
+
+    const updatedNodes: Node<NodeData>[] = [];
+    let currentY = PADDING;
+    const totalMaxWidth = maxNodesInRow * (NODE_WIDTH + HORIZONTAL_SPACING) - HORIZONTAL_SPACING;
+
+    stages.forEach((stage) => {
+      const nodesInStage = stageMap.get(stage) || [];
+      if (nodesInStage.length > 0) {
+        const stageWidth = nodesInStage.length * (NODE_WIDTH + HORIZONTAL_SPACING) - HORIZONTAL_SPACING;
+        let currentX = PADDING + (totalMaxWidth - stageWidth) / 2;
+
+        nodesInStage.forEach((node) => {
+          updatedNodes.push({ ...node, position: { x: currentX, y: currentY } });
+          currentX += NODE_WIDTH + HORIZONTAL_SPACING;
+        });
+        currentY += NODE_HEIGHT + VERTICAL_SPACING;
       }
     });
 
-    // 应用垂直布局
-    let yOffset = 100;
-    stageMap.forEach((nodes, stage) => {
-      if (nodes.length === 0) return;
-
-      const xCenter = 400;
-      const xSpacing = 200;
-
-      nodes.forEach((node, index) => {
-        const xPos = xCenter + (index - (nodes.length - 1) / 2) * xSpacing;
-        node.position = { x: xPos, y: yOffset };
+    // Position misc nodes at the bottom
+    if (miscNodes.length > 0) {
+      const stageWidth = miscNodes.length * (NODE_WIDTH + HORIZONTAL_SPACING) - HORIZONTAL_SPACING;
+      let currentX = PADDING + (totalMaxWidth - stageWidth) / 2;
+      miscNodes.forEach((node) => {
+        updatedNodes.push({ ...node, position: { x: currentX, y: currentY } });
+        currentX += NODE_WIDTH + HORIZONTAL_SPACING;
       });
-
-      yOffset += spacing;
-    });
-
-    // 更新节点位置
-    this.setNodes([...updatedNodes]);
-    console.log('成功应用垂直布局');
-  }
-
-  /**
-   * 水平布局
-   */
-  private applyHorizontalLayout(): void {
-    const spacing = 200;
-    const updatedNodes = [...this.nodes];
-
-    // 按生命周期阶段分组
-    const stages = ['product', 'manufacturing', 'distribution', 'usage', 'disposal', 'finalProduct'];
-    const stageMap = new Map<string, Node<NodeData>[]>();
-
-    // 初始化阶段映射
-    stages.forEach((stage) => stageMap.set(stage, []));
-
-    // 按阶段分组节点
-    updatedNodes.forEach((node) => {
-      const stage = node.type as string;
-      if (stageMap.has(stage)) {
-        stageMap.get(stage)?.push(node);
-      } else {
-        // 对于未知阶段，放入杂项组
-        if (!stageMap.has('misc')) {
-          stageMap.set('misc', []);
-        }
-        stageMap.get('misc')?.push(node);
-      }
-    });
-
-    // 应用水平布局
-    let xOffset = 100;
-    stageMap.forEach((nodes, stage) => {
-      if (nodes.length === 0) return;
-
-      const yCenter = 300;
-      const ySpacing = 150;
-
-      nodes.forEach((node, index) => {
-        const yPos = yCenter + (index - (nodes.length - 1) / 2) * ySpacing;
-        node.position = { x: xOffset, y: yPos };
-      });
-
-      xOffset += spacing;
-    });
-
-    // 更新节点位置
-    this.setNodes([...updatedNodes]);
-    console.log('成功应用水平布局');
-  }
-
-  /**
-   * 放射状布局
-   */
-  private applyRadialLayout(): void {
-    // 如果节点很少，不需要应用放射状布局
-    if (this.nodes.length <= 1) return;
-
-    const centerX = 400;
-    const centerY = 300;
-    const radius = 250;
-    const updatedNodes = [...this.nodes];
-
-    // 找出中心节点（通常是最终产品节点）
-    const centerNode = updatedNodes.find((node) => node.type === 'finalProduct');
-    const otherNodes = centerNode ? updatedNodes.filter((node) => node !== centerNode) : updatedNodes;
-
-    // 设置中心节点位置
-    if (centerNode) {
-      centerNode.position = { x: centerX, y: centerY };
     }
 
-    // 环绕中心放置其他节点
+    const originalPositions = JSON.stringify(this._nodes.map((n) => n.position));
+    const newPositions = JSON.stringify(updatedNodes.map((n) => n.position));
+
+    if (originalPositions !== newPositions) {
+      this._setNodes(updatedNodes);
+      this._updateEdges();
+      console.log('Successfully applied Vertical layout');
+      return true;
+    }
+
+    return false;
+  }
+
+  private _applyHorizontalLayout(): boolean {
+    const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth;
+    const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight;
+    const HORIZONTAL_SPACING = 250;
+    const VERTICAL_SPACING = 200;
+    const PADDING = 50;
+
+    const stages: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal', 'finalProduct'];
+    const stageMap = new Map<string, Node<NodeData>[]>();
+    stages.forEach((stage) => stageMap.set(stage, []));
+    const miscNodes: Node<NodeData>[] = [];
+    let maxNodesInCol = 0;
+
+    this._nodes.forEach((node) => {
+      const stage = node.type as string;
+
+      if (stageMap.has(stage)) {
+        stageMap.get(stage)?.push(node);
+        maxNodesInCol = Math.max(maxNodesInCol, stageMap.get(stage)!.length);
+      } else {
+        miscNodes.push(node);
+      }
+    });
+    maxNodesInCol = Math.max(maxNodesInCol, miscNodes.length, 1);
+
+    const updatedNodes: Node<NodeData>[] = [];
+    let currentX = PADDING;
+    const totalMaxHeight = maxNodesInCol * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+
+    stages.forEach((stage) => {
+      const nodesInStage = stageMap.get(stage) || [];
+      if (nodesInStage.length > 0) {
+        const stageHeight = nodesInStage.length * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+        let currentY = PADDING + (totalMaxHeight - stageHeight) / 2;
+
+        nodesInStage.forEach((node) => {
+          updatedNodes.push({ ...node, position: { x: currentX, y: currentY } });
+          currentY += NODE_HEIGHT + VERTICAL_SPACING;
+        });
+        currentX += NODE_WIDTH + HORIZONTAL_SPACING;
+      }
+    });
+
+    // Position misc nodes at the end
+    if (miscNodes.length > 0) {
+      const stageHeight = miscNodes.length * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+      let currentY = PADDING + (totalMaxHeight - stageHeight) / 2;
+      miscNodes.forEach((node) => {
+        updatedNodes.push({ ...node, position: { x: currentX, y: currentY } });
+        currentY += NODE_HEIGHT + VERTICAL_SPACING;
+      });
+    }
+
+    const originalPositions = JSON.stringify(this._nodes.map((n) => n.position));
+    const newPositions = JSON.stringify(updatedNodes.map((n) => n.position));
+
+    if (originalPositions !== newPositions) {
+      this._setNodes(updatedNodes);
+      this._updateEdges();
+      console.log('Successfully applied Horizontal layout');
+      return true;
+    }
+
+    return false;
+  }
+
+  private _applyRadialLayout(): boolean {
+    if (this._nodes.length <= 1) {
+      console.log('Skipping radial layout for 1 or 0 nodes.');
+      return false;
+    }
+
+    // Attempt to find finalProduct, fallback to the first node
+    const centerNode = this._nodes.find((node) => node.type === 'finalProduct') || this._nodes[0];
+    const otherNodes = this._nodes.filter((node) => node.id !== centerNode.id);
+
+    // Simple estimation for canvas size, might need adjustment
+    const approxWidth = Math.max(800, Math.sqrt(this._nodes.length) * (CarbonFlowActionHandler._nodeWidth + 150));
+    const approxHeight = Math.max(600, Math.sqrt(this._nodes.length) * (CarbonFlowActionHandler._nodeHeight + 150));
+    const centerX = approxWidth / 2;
+    const centerY = approxHeight / 2;
+    const radius = Math.max(200, Math.min(centerX * 0.8, centerY * 0.8, otherNodes.length * 50)); // Adjust radius calculation
+
+    const updatedNodes: Node<NodeData>[] = [];
+    updatedNodes.push({ ...centerNode, position: { x: centerX, y: centerY } });
+
     otherNodes.forEach((node, index) => {
       const angle = (2 * Math.PI * index) / otherNodes.length;
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
-      node.position = { x, y };
+      const x = centerX + radius * Math.cos(angle) - CarbonFlowActionHandler._nodeWidth / 2; // Adjust for node width
+      const y = centerY + radius * Math.sin(angle) - CarbonFlowActionHandler._nodeHeight / 2; // Adjust for node height
+      updatedNodes.push({ ...node, position: { x, y } });
     });
 
-    // 更新节点位置
-    this.setNodes([...updatedNodes]);
-    console.log('成功应用放射状布局');
+    const originalPositions = JSON.stringify(this._nodes.map((n) => n.position));
+    const newPositions = JSON.stringify(updatedNodes.map((n) => n.position));
+
+    if (originalPositions !== newPositions) {
+      this._setNodes(updatedNodes);
+      this._updateEdges();
+      console.log('Successfully applied Radial layout');
+      return true;
+    }
+
+    return false;
   }
 
   /**
    * 计算碳足迹
    */
-  private handleCalculate(action: CarbonFlowAction): void {
+  private _handleCalculate(action: CarbonFlowAction): void {
     try {
-      // 计算每个节点的碳足迹
-      this.calculateNodeFootprints();
+      const footprintsChanged = this._calculateNodeFootprints();
+      let totalChanged = false;
+      // Find final product node ID, default to null if not found
+      const targetNodeId = action.target || this._nodes.find((n) => n.type === 'finalProduct')?.id || null;
 
-      // 如果指定了目标节点，更新其碳足迹为所有节点的总和
-      if (action.target) {
-        this.calculateTotalFootprint(action.target);
+      if (targetNodeId) {
+        totalChanged = this._calculateTotalFootprint(targetNodeId);
       }
 
-      console.log('成功计算碳足迹');
+      if (footprintsChanged || totalChanged) {
+        console.log('成功计算碳足迹');
+      } else {
+        console.log('碳足迹计算未导致数值变化。');
+      }
     } catch (error) {
       console.error('计算碳足迹失败:', error);
     }
   }
 
-  /**
-   * 计算各节点碳足迹
-   */
-  private calculateNodeFootprints(): void {
-    const updatedNodes = this.nodes.map((node) => {
-      // 简单计算: 碳足迹 = 碳因子 * 活动数据
-      // 在实际应用中，这里会有更复杂的计算逻辑
-      const carbonFactor = node.data.carbonFactor || 0;
-      const activityData = node.data.activityData || 1; // 假设有活动数据字段
-      const carbonFootprint = carbonFactor * activityData;
-
-      return {
-        ...node,
-        data: {
-          ...node.data,
-          carbonFootprint,
-        },
-      };
-    });
-
-    this.setNodes(updatedNodes);
+  private _getActivityData(node: Node<NodeData>): number {
+    const data = node.data;
+    switch (node.type as NodeType) {
+      case 'product':
+        // Use weight as activity data for product
+        return (data as ProductNodeData).weight || 1; // Default to 1 if weight is 0 or undefined
+      case 'manufacturing':
+        // Example: Use energy consumption
+        return (data as ManufacturingNodeData).energyConsumption || 1; // Default to 1
+      case 'distribution':
+        // Example: Use distance
+        return (data as DistributionNodeData).transportationDistance || 1; // Default to 1
+      case 'usage': {
+        // Example: Calculate based on lifespan, frequency, and energy per use
+        const usageData = data as UsageNodeData;
+        const activity = (usageData.lifespan || 0) * (usageData.usageFrequency || 0) * (usageData.energyConsumptionPerUse || 0);
+        return activity || 1; // Default to 1 if calculation is 0
+      }
+      case 'disposal':
+        // Example: Assume activity is 1 unit being disposed, factor handles rate
+        return 1;
+      case 'finalProduct':
+        return 1; // Final product itself doesn't have activity data
+      default:
+        console.warn(`Unhandled node type in _getActivityData: ${node.type as string}`);
+        return 1; // Default activity data
+    }
   }
 
-  /**
-   * 计算总碳足迹
-   */
-  private calculateTotalFootprint(targetNodeId: string): void {
-    // 寻找目标节点
-    const targetNode = this.nodes.find((node) => node.id === targetNodeId || node.data.nodeName === targetNodeId);
+  private _calculateNodeFootprints(): boolean {
+    let changed = false;
+    const updatedNodes = this._nodes.map((node) => {
+      if (node.type === 'finalProduct') {
+        return node; // Skip final product node for individual calculation
+      }
 
-    if (!targetNode) {
-      console.warn(`未找到目标节点: ${targetNodeId}`);
-      return;
-    }
+      const carbonFactor = node.data.carbonFactor || 0;
+      const activityData = this._getActivityData(node);
+      const carbonFootprint = Number(carbonFactor) * Number(activityData);
+      const currentFootprint = node.data.carbonFootprint || 0;
 
-    // 计算所有节点的碳足迹总和
-    const totalFootprint = this.nodes.reduce((sum, node) => {
-      // 排除目标节点自身以避免重复计算
-      if (node.id === targetNode.id) return sum;
-      return sum + (node.data.carbonFootprint || 0);
-    }, 0);
+      // TODO: Re-implement completion status check if needed based on actual fields
+      // let status: 'complete' | 'incomplete' = 'incomplete';
+      // const allRequiredFieldsPresent = this._checkRequiredFields(node);
+      // status = allRequiredFieldsPresent ? 'complete' : 'incomplete';
+      // const currentCompletion = safeGet(node.data as any, 'completionStatus', 'incomplete');
+      // const statusChanged = currentCompletion !== status;
 
-    // 更新目标节点的碳足迹
-    const updatedNodes = this.nodes.map((node) => {
-      if (node.id === targetNode.id) {
+      // Only update if footprint changes significantly
+      const footprintChanged = Math.abs(currentFootprint - carbonFootprint) > 1e-6;
+
+      if (footprintChanged) {
+        changed = true;
         return {
           ...node,
           data: {
             ...node.data,
-            carbonFootprint: totalFootprint,
-          },
+            carbonFootprint: carbonFootprint,
+            // ...(statusChanged && { completionStatus: status }) // Add status back if check is implemented
+          } as NodeData,
         };
       }
+
       return node;
     });
 
-    this.setNodes(updatedNodes);
+    if (changed) {
+      this._setNodes(updatedNodes);
+      console.log('Node footprints recalculated.');
+    }
+
+    return changed;
   }
 
-  private updateEdges(): void {
-    // 实现更新边的逻辑
+  private _calculateTotalFootprint(targetNodeId: string): boolean {
+    const targetNode = this._nodes.find((node) => node.id === targetNodeId);
+    if (!targetNode || targetNode.type !== 'finalProduct') {
+      console.warn(`计算总足迹的目标节点无效或不是 finalProduct: ${targetNodeId}`);
+      return false;
+    }
+
+    // --- Graph Traversal Calculation (Conceptual Example - DFS) --
+    // This requires a proper graph representation or direct traversal logic
+    // For MVP, simple sum might suffice, but a real calculation needs graph traversal.
+    let totalFootprint = 0;
+    const visited = new Set<string>();
+    const nodeMap = new Map(this._nodes.map(n => [n.id, n]));
+    const edgesMap = new Map<string, Edge[]>(); // Target -> [Edges pointing to it]
+    this._edges.forEach(edge => {
+        if (!edgesMap.has(edge.target)) edgesMap.set(edge.target, []);
+        edgesMap.get(edge.target)?.push(edge);
+    });
+
+    // Recursive function (or iterative using a stack) to calculate contribution
+    // Needs refinement based on LCA methodology (e.g., handling units, allocation)
+    const calculateContribution = (nodeId: string): number => {
+        if (visited.has(nodeId)) return 0; // Avoid cycles / redundant calculation
+        visited.add(nodeId);
+
+        const node = nodeMap.get(nodeId);
+        if (!node || node.type === 'finalProduct') return 0; // Base case
+
+        let upstreamFootprint = 0;
+        const incomingEdges = edgesMap.get(nodeId) || [];
+        incomingEdges.forEach(edge => {
+            // This is overly simplified - needs allocation logic, unit matching etc.
+            upstreamFootprint += calculateContribution(edge.source);
+        });
+
+        // Current node's direct footprint + contribution from upstream
+        // Again, highly simplified - assumes simple addition is correct
+        return (node.data.carbonFootprint || 0) + upstreamFootprint;
+    };
+
+    // Sum contributions from all nodes directly connected *to* the final product
+    const finalIncomingEdges = edgesMap.get(targetNodeId) || [];
+    finalIncomingEdges.forEach(edge => {
+        visited.clear(); // Reset visited for each main branch if needed? Depends on graph structure.
+        totalFootprint += calculateContribution(edge.source);
+    });
+    // If the final product node itself has direct emissions (unlikely but possible)
+    // totalFootprint += targetNode.data.carbonFootprint || 0;
+    console.log(`[Debug] Total footprint calculated via traversal (simple sum): ${totalFootprint}`);
+    // --- End Graph Traversal --- //
+
+    let changed = false;
+    // Use functional update for atomicity
+    this._setNodes((currentNodes) => {
+      let nodeChanged = false;
+      const updatedNodesResult = currentNodes.map((node) => {
+        if (node.id === targetNode.id) {
+          const finalProductData = node.data as FinalProductNodeData;
+          const currentTotal = finalProductData.totalCarbonFootprint || 0;
+          const currentCompliance = finalProductData.complianceStatus || 'pending';
+          const newCompliance = 'complete'; // Assuming calculation completion
+
+          // Use a tolerance for float comparison
+          if (Math.abs(currentTotal - totalFootprint) > 1e-6 || currentCompliance !== newCompliance) {
+            changed = true; // Mark overall change
+            nodeChanged = true;
+            return {
+              ...node,
+              data: {
+                ...finalProductData,
+                totalCarbonFootprint: totalFootprint,
+                complianceStatus: newCompliance,
+              } as FinalProductNodeData,
+            };
+          }
+        }
+        return node;
+      });
+      // Return new array only if the target node was actually changed
+      return nodeChanged ? updatedNodesResult : currentNodes;
+    });
+
+    if (changed) {
+      // this._setNodes(updatedNodes); // State updated functionally
+      console.log(`Total footprint updated for ${targetNodeId}: ${totalFootprint}`);
+    }
+
+    return changed;
+  }
+
+  /**
+   * 碳因子数据库匹配 (Simulation)
+   */
+  private async _handleCarbonFactorMatch(action: CarbonFlowAction): Promise<void> {
+    console.log('Handling Carbon Factor Match action:', action);
+    let updated = false;
+
+    // 使用函数式更新节点
+    // 定义一个包含完整信息的类型
+    type NodeUpdateInfo = {
+      node: Node<NodeData>;
+      factor: number;
+      activityName: string;
+      unit: string;
+    }
+    
+    const nodesToUpdate: NodeUpdateInfo[] = [];
+    
+    // 首先获取所有需要更新的节点和对应的碳因子信息
+    for (const node of this._nodes) {
+      const currentFactor = node.data.carbonFactor;
+      
+      // 匹配因子为空或为0的节点
+      if (currentFactor === undefined || currentFactor === 0) {
+        // 从API获取碳因子替代模拟查询
+        const factorResult = await this._fetchCarbonFactorFromAPI(node);
+        
+        if (factorResult !== null) {
+          console.log(`节点 ${node.id} (${node.data.label}): 匹配到碳因子 ${factorResult.factor}, 名称: ${factorResult.activityName}, 单位: ${factorResult.unit}`);
+          nodesToUpdate.push({node, ...factorResult}); // 直接使用返回的对象
+        } else {
+          console.log(`节点 ${node.id} (${node.data.label}): 未找到匹配的碳因子`);
+        }
+      }
+    }
+    
+    // 如果有节点需要更新，进行批量更新
+    if (nodesToUpdate.length > 0) {
+      this._setNodes(currentNodes => {
+        const updatedNodes = currentNodes.map(node => {
+          const updateInfo = nodesToUpdate.find(u => u.node.id === node.id);
+          if (updateInfo) {
+            updated = true;
+            // 更新 label, unit 和 carbonFactor
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                carbonFactor: updateInfo.factor,
+                carbonFactorName: updateInfo.activityName, // 使用activityName更新名称
+                unit: updateInfo.unit, // 更新单位
+                activitydataSource: '数据库匹配',
+                verificationStatus: 'verified',
+              },
+            };
+          }
+          return node;
+        });
+        return updatedNodes;
+      });
+      
+      if (updated) {
+        console.log(`碳因子匹配完成，已更新 ${nodesToUpdate.length} 个节点`);
+        this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Recalculate after factor match' });
+      }
+    } else {
+      console.log('碳因子匹配完成，没有需要更新的节点');
+    }
+  }
+
+  private async _fetchCarbonFactorFromAPI(node: Node<NodeData>): Promise<CarbonFactorResult | null> {
+    try {
+      // 获取节点标签作为查询参数
+      const label = node.data.label || '';
+      if (!label || label.trim() === '') {
+        console.warn(`节点 ${node.id} 没有有效的标签用于碳因子查询`);
+        return null;
+      }
+
+      console.log(`尝试为节点 ${node.id} (${label}) 从API获取碳因子`);
+        
+      // 构建请求体
+      const requestBody = {
+        labels: [label],
+        top_k: 3, // 获取最匹配的三个结果
+        min_score: 0.3, // 降低最小匹配分数阈值
+        embedding_model: 'dashscope_v3', // 使用默认的嵌入模型
+        search_method: 'script_score' // 使用默认的搜索方法
+      };
+
+
+      //log requestBody
+      console.log('requestBody', requestBody);
+      // 调用后端API
+      const response = await fetch('http://localhost:9000/match', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API返回错误状态: ${response.status}`);
+      }
+
+      const data = await response.json() as {
+        success: boolean;
+        results: Array<{
+          query_label: string;
+          matches: Array<{
+            kg_co2eq: number;
+            activity_name: string; // 添加 activity_name
+            reference_product_unit: string; // 添加 unit
+            [key: string]: any;
+          }>;
+          error: string | null;
+        }>;
+      };
+      console.log('碳因子API响应:', data);
+
+      // 正确解析API返回的嵌套结构
+      if (data.results && 
+          data.results.length > 0 && 
+          data.results[0].matches && 
+          data.results[0].matches.length > 0) {
+        // 正确访问匹配结果
+        const bestMatch = data.results[0].matches[0];
+        return {
+          factor: bestMatch.kg_co2eq,
+          activityName: bestMatch.activity_name || '', // 如果没有则为空字符串
+          unit: bestMatch.reference_product_unit || 'kg' // 如果没有则默认为kg
+        };
+      } else {
+        // API没有返回匹配结果，直接返回null
+        console.warn('API没有返回匹配结果');
+        return null;
+      }
+    } catch (error) {
+      console.error(`获取碳因子时出错:`, error);
+      // API调用失败，返回null
+      console.log(`API调用失败，不使用默认碳因子`);
+      return null;
+    }
+  }
+
+  /**
+   * 更新边 (Ensures edges are valid after node changes)
+   */
+  private _updateEdges(): void {
+    // Use functional update for edges too
+    this._setEdges(currentEdges => {
+        const nodeIds = new Set(this._nodes.map((n) => n.id));
+        const originalEdgeCount = currentEdges.length;
+        const validEdges = currentEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+
+        if (validEdges.length !== originalEdgeCount) {
+            console.log(`Removing ${originalEdgeCount - validEdges.length} invalid edges.`);
+             // Trigger recalculation only if edges were actually removed
+             this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Recalculate after edge update' });
+            return validEdges;
+        }
+        return currentEdges; // No change
+    });
+  }
+
+  /**
+   * Checks if all required fields for a node's type are present and valid.
+   * TODO: Implement based on actual required fields per node type defined in `~/types/nodes`.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private _checkRequiredFields(node: Node<NodeData>): boolean {
+    /*
+     * Example placeholder check: ensure label and carbon factor exist
+     * if (!node.data.label || node.data.carbonFactor === undefined) {\n
+     *   return false;\n
+     * }\n
+     * // Add more checks based on node.type using type guards if possible\n
+     * // switch(node.type) { case 'product': if (!(node.data as ProductNodeData).weight) return false; ... }\n
+     */
+    return true; // Placeholder return, actual implementation needed
   }
 }
