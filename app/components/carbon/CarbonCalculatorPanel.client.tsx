@@ -447,8 +447,9 @@ const customStyles = `
   scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a); /* thumb color track color */
 }
 
-/* --- Filter Control Height Adjustment --- */
-/* Target Input with Prefix wrapper, Select wrapper, and Button */
+/* --- Filter Control Height Adjustment & Hover Glow --- */
+
+/* Base styles + transition for smooth effect */
 .filter-controls .ant-input-affix-wrapper,
 .filter-controls .ant-select-selector,
 .filter-controls .ant-btn {
@@ -459,44 +460,56 @@ const customStyles = `
     border-color: var(--bolt-elements-borderColor) !important; /* Consistent border color */
     background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important; /* Consistent background */
     color: var(--bolt-elements-textPrimary) !important; /* Consistent text color for input/select */
+    transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out !important; /* Added transition */
 }
 
-/* Override button background/text colors if needed (usually handled by Antd themes) */
-.filter-controls .ant-btn-primary {
-    /* background-color: var(--bolt-primary) !important; */
-    /* border-color: var(--bolt-primary) !important; */
-    /* color: white !important; */
-}
-.filter-controls .ant-btn:not(.ant-btn-primary) {
-     /* background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important; */
-     /* border-color: var(--bolt-elements-borderColor) !important; */
-     /* color: var(--bolt-elements-textPrimary) !important; */
-}
-
-/* Consistent Hover State for Input/Select */
+/* Hover State for Input/Select */
 .filter-controls .ant-input-affix-wrapper:hover,
 .filter-controls .ant-select-selector:hover {
     border-color: var(--bolt-primary, #5165f9) !important;
+    /* Added Glow Effect */
+    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
 }
 
-/* Consistent Focus State for Input/Select */
+/* Hover State for Buttons in Filter Controls */
+.filter-controls .ant-btn:hover {
+    border-color: var(--bolt-primary, #5165f9) !important;
+     /* Added Glow Effect - Adjust color/opacity slightly for buttons if desired */
+    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
+    /* Optional: Slightly brighten background on hover for default buttons */
+    /* background-color: var(--bolt-hover-background) !important; */
+}
+/* Keep primary button background on hover, but apply glow */
+.filter-controls .ant-btn-primary:hover {
+    /* background-color: var(--bolt-primary-hover, #4155e7) !important; /* Antd might handle this */
+    border-color: var(--bolt-primary-hover, #4155e7) !important; /* Darker border for primary */
+    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.7) !important; /* Slightly stronger glow */
+}
+
+/* Focus State for Input/Select (Keep existing focus ring style) */
 .filter-controls .ant-input-affix-wrapper-focused,
 .filter-controls .ant-select-focused .ant-select-selector {
     border-color: var(--bolt-primary, #5165f9) !important;
     box-shadow: 0 0 0 2px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.2) !important; /* Consistent focus ring */
 }
 
-/* Ensure inner elements align vertically if needed */
-.filter-controls .ant-input-affix-wrapper input.ant-input {
-    align-self: center !important; /* Align inner input */
-    line-height: normal !important; /* Reset line height */
-    padding-top: 0 !important; /* Adjust padding if necessary */
-    padding-bottom: 0 !important;
-    height: auto !important; /* Let flex control height, prevent fixed inner height */
+/* --- Glow Effect for Top Buttons --- */
+
+/* Base transition for top buttons */
+.p-4 > .ant-row:first-child .ant-btn {
+    transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out, background-color 0.2s ease-out !important;
 }
 
-.filter-controls .ant-select-selector {
-    /* flex align-items should handle this */
+/* Hover state for top buttons */
+.p-4 > .ant-row:first-child .ant-btn:hover {
+    border-color: var(--bolt-primary, #5165f9) !important;
+    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
+}
+
+/* Adjust primary top button hover if needed */
+.p-4 > .ant-row:first-child .ant-btn-primary:hover {
+    border-color: var(--bolt-primary-hover, #4155e7) !important;
+    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.7) !important;
 }
 `;
 
