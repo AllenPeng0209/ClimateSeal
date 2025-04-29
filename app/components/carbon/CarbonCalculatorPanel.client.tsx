@@ -248,8 +248,9 @@ export function CarbonCalculatorPanel() {
                     <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button>
                 </Space>
                 {/* Table */}
-                <div className="flex-grow overflow-auto"> {/* Scrollable table area */}
+                <div className="flex-grow overflow-auto emission-source-table-scroll-container"> {/* Add class for scrollbar styling */}
                     <Table
+                        className="emission-source-table"
                         columns={emissionTableColumns}
                         dataSource={emissionSources}
                         rowKey="id"
@@ -339,6 +340,116 @@ export function CarbonCalculatorPanel() {
       </Drawer>
     </div>
   );
+}
+
+// 在文件末尾添加 CSS 样式
+const customStyles = `
+/* Set explicit dark background for the table */
+.emission-source-table .ant-table {
+  background: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Explicit dark background */
+}
+
+.emission-source-table .ant-table-thead > tr > th {
+  background: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Match table background */
+  color: var(--bolt-elements-textSecondary) !important;
+  border-bottom: 1px solid var(--bolt-elements-borderColor) !important;
+}
+
+.emission-source-table .ant-table-tbody > tr > td {
+  background: transparent !important; /* Keep cell background transparent to inherit from row */
+  border-bottom: 1px solid var(--bolt-elements-borderColor) !important;
+  color: var(--bolt-elements-textPrimary) !important;
+}
+
+/* Target potential inner cell wrappers */
+.emission-source-table .ant-table-cell {
+    background: inherit !important; /* Inherit from td/th */
+}
+
+/* Row background - set here so cells inherit */
+.emission-source-table .ant-table-tbody > tr {
+    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+}
+
+/* 悬停和选中行的背景色 - Apply to the row */
+.emission-source-table .ant-table-tbody > tr:hover > td {
+  background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important; /* Slightly lighter on hover */
+}
+.emission-source-table .ant-table-tbody > tr.ant-table-row-selected > td {
+    background: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.2) !important; /* Use theme primary (with fallback) - slightly more opaque */
+}
+
+/* Ensure pagination elements match the theme */
+.emission-source-table .ant-pagination {
+    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+    padding: 8px;
+    border-radius: 4px;
+    margin-top: 16px !important; /* Add some space */
+}
+.emission-source-table .ant-pagination-item a,
+.emission-source-table .ant-pagination-item-link,
+.emission-source-table .ant-pagination-item-ellipsis {
+    color: var(--bolt-elements-textSecondary) !important;
+}
+.emission-source-table .ant-pagination-item-active a {
+    color: var(--bolt-primary, #5165f9) !important;
+    /* background: var(--bolt-primary-background, rgba(81, 101, 249, 0.1)) !important; */
+    border-color: var(--bolt-primary, #5165f9) !important;
+}
+.emission-source-table .ant-pagination-item-active {
+    border-color: var(--bolt-primary, #5165f9) !important;
+}
+.emission-source-table .ant-pagination-disabled .ant-pagination-item-link {
+    color: var(--bolt-elements-textDisabled) !important;
+}
+.emission-source-table .ant-select-selector {
+    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
+    border-color: var(--bolt-elements-borderColor) !important;
+    color: var(--bolt-elements-textPrimary) !important;
+}
+.emission-source-table .ant-select-arrow {
+    color: var(--bolt-elements-textSecondary) !important;
+}
+
+/* 空状态的样式 */
+.emission-source-table .ant-empty-description {
+    color: var(--bolt-elements-textSecondary) !important;
+}
+
+/* --- Dark Scrollbar Styles --- */
+/* Class added to the scrollable container div */
+.emission-source-table-scroll-container::-webkit-scrollbar {
+  width: 8px;  /* Width of vertical scrollbar */
+  height: 8px; /* Height of horizontal scrollbar */
+}
+
+.emission-source-table-scroll-container::-webkit-scrollbar-track {
+  background: var(--bolt-elements-background-depth-1, #2a2a2a); /* Track color slightly lighter than deep background */
+  border-radius: 4px;
+}
+
+.emission-source-table-scroll-container::-webkit-scrollbar-thumb {
+  background-color: var(--bolt-elements-textDisabled, #555); /* Thumb color */
+  border-radius: 4px;
+  border: 2px solid var(--bolt-elements-background-depth-1, #2a2a2a); /* Creates padding around thumb */
+}
+
+.emission-source-table-scroll-container::-webkit-scrollbar-thumb:hover {
+  background-color: var(--bolt-elements-textSecondary, #777); /* Thumb color on hover */
+}
+
+/* Firefox Scrollbar Styles */
+.emission-source-table-scroll-container {
+  scrollbar-width: thin; /* "auto" or "thin" */
+  scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a); /* thumb color track color */
+}
+`;
+
+// 注入样式到 head
+if (typeof window !== 'undefined') {
+    const styleTag = document.createElement('style');
+    styleTag.innerHTML = customStyles;
+    document.head.appendChild(styleTag);
 }
 
 // 添加 ClientOnly 包装器，如果需要确保此组件仅在客户端渲染
