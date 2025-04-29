@@ -546,6 +546,89 @@ const customStyles = `
     border-color: var(--bolt-primary-hover, #4155e7) !important;
     box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.7) !important;
 }
+
+/* --- Drawer Dark Theme Styles --- */
+
+.ant-drawer-content-wrapper {
+  /* Match card background */
+  background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+}
+
+.ant-drawer-header {
+  background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+  border-bottom: 1px solid var(--bolt-elements-borderColor, #333) !important;
+}
+
+.ant-drawer-title {
+  color: var(--bolt-elements-textPrimary, #fff) !important;
+}
+
+.ant-drawer-close {
+  color: var(--bolt-elements-textSecondary, #ccc) !important;
+}
+.ant-drawer-close:hover {
+  color: var(--bolt-elements-textPrimary, #fff) !important;
+}
+
+.ant-drawer-body {
+  background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+  color: var(--bolt-elements-textPrimary, #fff) !important; /* Default text color in body */
+}
+
+/* Style form elements within the drawer */
+.ant-drawer-body .ant-form-item-label > label {
+    color: var(--bolt-elements-textSecondary, #ccc) !important; /* Lighter label color */
+}
+
+/* Force styling on ALL relevant input/select elements within the drawer's form items */
+.ant-drawer-body .ant-form-item .ant-input,
+.ant-drawer-body .ant-form-item .ant-input-affix-wrapper,
+.ant-drawer-body .ant-form-item .ant-input-number,
+.ant-drawer-body .ant-form-item .ant-select-selector {
+    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
+    border-color: var(--bolt-elements-borderColor, #333) !important;
+    color: var(--bolt-elements-textPrimary, #fff) !important;
+}
+/* Ensure the input element *inside* the affix wrapper also gets the styles */
+.ant-drawer-body .ant-form-item .ant-input-affix-wrapper input.ant-input {
+    background-color: transparent !important; /* Let wrapper handle background */
+    color: var(--bolt-elements-textPrimary, #fff) !important;
+    border: none !important; /* Remove border as wrapper has it */
+}
+
+/* Placeholders */
+.ant-drawer-body .ant-form-item .ant-input-affix-wrapper input::placeholder, /* Specificity for placeholder in wrapper */
+.ant-drawer-body .ant-input-number::placeholder,
+.ant-drawer-body .ant-select-selection-placeholder {
+    color: var(--bolt-elements-textDisabled, #555) !important; /* Dimmer placeholder */
+}
+
+/* Style buttons in the drawer footer area (even if footer is null, the Form.Item acts like one) */
+.ant-drawer-body .ant-form-item:last-child {
+     /* You might need a specific class if this isn't always the last item */
+    background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Match drawer body */
+    margin-top: 24px; /* Add some space above buttons */
+    padding-top: 10px; /* Padding like a footer */
+    border-top: 1px solid var(--bolt-elements-borderColor, #333) !important; /* Separator line */
+}
+
+.ant-drawer-body .ant-btn {
+     /* Standard button styling */
+}
+.ant-drawer-body .ant-btn-primary {
+     /* Primary button styling (might inherit theme) */
+}
+.ant-drawer-body .ant-btn-default {
+     background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
+     border-color: var(--bolt-elements-borderColor, #333) !important;
+     color: var(--bolt-elements-textPrimary, #fff) !important;
+}
+.ant-drawer-body .ant-btn-default:hover {
+    border-color: var(--bolt-primary, #5165f9) !important;
+    color: var(--bolt-primary, #5165f9) !important;
+}
+
+
 `;
 
 // 注入样式到 head
