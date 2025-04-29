@@ -528,6 +528,7 @@ export function CarbonCalculatorPanel() {
         open={isEmissionDrawerVisible}
         bodyStyle={{ paddingBottom: 80 }}
         footer={null} // Using Form footer
+        destroyOnClose // Ensure form state is reset each time
       >
         <Form layout="vertical" onFinish={handleSaveEmissionSource} initialValues={editingEmissionSource || {}}>
            <Form.Item name="name" label="排放源名称" rules={[{ required: true, message: '请输入排放源名称' }]}>
