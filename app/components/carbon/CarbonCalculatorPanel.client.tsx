@@ -178,8 +178,8 @@ export function CarbonCalculatorPanel() {
 
       {/* 2. Upper Row */}
       <Row gutter={16} className="flex-shrink-0">
-        {/* 2.1 Scene Info (Top Left) */}
-        <Col span={12}>
+        {/* 2.1 Scene Info (Top Left) - Adjusted span to 6 */}
+        <Col span={6}>
           <Card
             title="场景信息"
             size="small"
@@ -194,8 +194,8 @@ export function CarbonCalculatorPanel() {
           </Card>
         </Col>
 
-        {/* 2.2 Model Score (Top Right) */}
-        <Col span={12}>
+        {/* 2.2 Model Score (Top Right) - Adjusted span to 18 */}
+        <Col span={18}>
           <Card
             title="模型评分"
             size="small"
