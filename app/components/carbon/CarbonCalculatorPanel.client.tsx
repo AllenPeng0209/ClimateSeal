@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Button, Card, Col, Row, Space, Table, Input, Select, Modal, Drawer, Form, message, Popconfirm } from 'antd'; // Assuming Ant Design is used based on other files
-import { SettingOutlined, PlusOutlined, SearchOutlined, RedoOutlined } from '@ant-design/icons'; // Example icons
+import { Button, Card, Col, Row, Space, Table, Input, Select, Modal, Drawer, Form, message, Popconfirm, Upload } from 'antd'; // Added Upload
+import { SettingOutlined, PlusOutlined, SearchOutlined, RedoOutlined, UploadOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons'; // Added UploadOutlined, EyeOutlined, DeleteOutlined
 import { ClientOnly } from 'remix-utils/client-only'; // May need this if child components are client-only
 
 // Placeholder data types (replace with actual types later)
@@ -38,6 +38,15 @@ type EmissionSource = {
   updatedBy: string;
 };
 
+// New type for Uploaded Files
+type UploadedFile = {
+  id: string;
+  name: string;
+  type: string; // e.g., '报告', '原始数据', '认证证书'
+  uploadTime: string;
+  url?: string; // Optional URL for preview/download
+};
+
 const lifecycleStages = [
   '原材料获取阶段',
   '生产阶段',
@@ -57,6 +66,7 @@ export function CarbonCalculatorPanel() {
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const [isEmissionDrawerVisible, setIsEmissionDrawerVisible] = useState(false);
   const [editingEmissionSource, setEditingEmissionSource] = useState<EmissionSource | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]); // State for uploaded files
 
   // --- Placeholder functions ---
   const handleAIComplete = () => {
@@ -134,6 +144,43 @@ export function CarbonCalculatorPanel() {
      handleCloseEmissionDrawer();
    };
 
+   // --- File Upload Handlers (Placeholders) ---
+   const handleFileUpload = (info: any) => {
+    // This is a basic handler, you'll need to implement actual upload logic
+    // using fetch or a library like axios to send the file to your backend.
+    if (info.file.status === 'done') {
+      message.success(`${info.file.name} file uploaded successfully`);
+      // Assuming backend returns file info upon successful upload
+      const newFile: UploadedFile = {
+          id: info.file.uid, // Use UID from upload event
+          name: info.file.name,
+          type: '未分类', // Determine type based on upload or response
+          uploadTime: new Date().toISOString(),
+          url: info.file.response?.url // Example: get URL from server response
+      };
+      setUploadedFiles(prev => [...prev, newFile]);
+    } else if (info.file.status === 'error') {
+      message.error(`${info.file.name} file upload failed.`);
+    }
+    // You might want to handle 'uploading' status too
+   };
+
+   const handlePreviewFile = (file: UploadedFile) => {
+     console.log('Previewing file:', file);
+     if (file.url) {
+       window.open(file.url, '_blank');
+     } else {
+       message.info('此文件没有可用的预览链接');
+     }
+   };
+
+   const handleDeleteFile = (id: string) => {
+     console.log('Deleting file:', id);
+     // TODO: API call to delete file on server
+     setUploadedFiles(prev => prev.filter(item => item.id !== id));
+     message.success('文件已删除');
+   };
+
   // --- Render functions ---
 
   // Updated renderScore to return the score value (0-100, rounded) or 0 if invalid/missing/zero
@@ -174,6 +221,27 @@ export function CarbonCalculatorPanel() {
       },
   ];
 
+  // Columns for the File Upload table
+  const fileTableColumns = [
+      { title: '文件名称', dataIndex: 'name', key: 'name' },
+      { title: '文件类别', dataIndex: 'type', key: 'type', width: 100 },
+      { title: '上传时间', dataIndex: 'uploadTime', key: 'uploadTime', width: 150, render: (ts: string) => new Date(ts).toLocaleString() },
+      {
+          title: '操作',
+          key: 'action',
+          fixed: 'right' as 'right',
+          width: 100,
+          render: (_: any, record: UploadedFile) => (
+              <Space size="middle">
+                  <Button type="link" icon={<EyeOutlined />} onClick={() => handlePreviewFile(record)} />
+                  <Popconfirm title="确定删除吗?" onConfirm={() => handleDeleteFile(record.id)}>
+                      <Button type="link" danger icon={<DeleteOutlined />} />
+                  </Popconfirm>
+              </Space>
+          ),
+      },
+  ];
+
 
   return (
     <div className="flex flex-col h-full p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary">
@@ -205,7 +273,45 @@ export function CarbonCalculatorPanel() {
           </Card>
         </Col>
 
-        {/* 2.2 Model Score (Top Right) - Adjusted span to 9 and updated content */}
+        {/* 2.2 File Upload (Moved to middle) - Adjusted span to 9 */}
+        <Col span={9}>
+            <Card
+                title="原始文件"
+                size="small"
+                extra={
+                    /* Basic Upload Button - opens file selector */
+                    /* For more complex behavior (like progress), use Upload component directly */
+                     <Upload
+                        // action="/api/upload" // Replace with your actual upload endpoint
+                        showUploadList={false} // Don't show default upload list here
+                        onChange={handleFileUpload}
+                        // beforeUpload={...} // Optional: validation before upload
+                        // headers={...} // Optional: add auth tokens etc.
+                        // You might need a custom request if default action doesn't suit
+                     >
+                        <Button icon={<UploadOutlined />}>上传文件</Button>
+                     </Upload>
+                }
+                className="h-full bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col file-upload-card" // Added flex and class
+                bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }} // Allow body to grow and scroll
+            >
+                {/* File List Table */}
+                 <div className="flex-grow overflow-auto file-upload-table-container"> {/* Scrollable container */}
+                    <Table
+                        columns={fileTableColumns}
+                        dataSource={uploadedFiles}
+                        rowKey="id"
+                        size="small"
+                        pagination={{ pageSize: 5 }} // Example pagination
+                        /* Add scroll if needed, similar to emission table */
+                        // scroll={{ y: 'calc(100% - 40px)' }} // Adjust based on card header/padding
+                        className="file-upload-table" // Add class for potential specific styling
+                    />
+                </div>
+            </Card>
+        </Col>
+
+         {/* 2.3 Model Score (Moved to right) - Adjusted span to 9 and updated content */}
         <Col span={9}>
           <Card
             title="模型评分"
@@ -628,6 +734,50 @@ const customStyles = `
     color: var(--bolt-primary, #5165f9) !important;
 }
 
+/* --- File Upload Card Styles (Add if needed) --- */
+.file-upload-card .file-upload-table .ant-table {
+    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+}
+.file-upload-card .file-upload-table .ant-table-thead > tr > th {
+  background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+  color: var(--bolt-elements-textSecondary) !important;
+  border-bottom: 1px solid var(--bolt-elements-borderColor) !important;
+}
+.file-upload-card .file-upload-table .ant-table-tbody > tr > td {
+  background: transparent !important;
+  border-bottom: 1px solid var(--bolt-elements-borderColor) !important;
+  color: var(--bolt-elements-textPrimary) !important;
+}
+.file-upload-card .file-upload-table .ant-table-cell {
+    background: inherit !important;
+}
+.file-upload-card .file-upload-table .ant-table-tbody > tr {
+    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+}
+.file-upload-card .file-upload-table .ant-table-tbody > tr:hover > td {
+  background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important;
+}
+/* Add similar styles for pagination, empty state, scrollbar if needed */
+.file-upload-table-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.file-upload-table-container::-webkit-scrollbar-track {
+  background: var(--bolt-elements-background-depth-1, #2a2a2a);
+  border-radius: 4px;
+}
+.file-upload-table-container::-webkit-scrollbar-thumb {
+  background-color: var(--bolt-elements-textDisabled, #555);
+  border-radius: 4px;
+  border: 2px solid var(--bolt-elements-background-depth-1, #2a2a2a);
+}
+.file-upload-table-container::-webkit-scrollbar-thumb:hover {
+  background-color: var(--bolt-elements-textSecondary, #777);
+}
+.file-upload-table-container {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a);
+}
 
 `;
 
