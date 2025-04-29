@@ -594,6 +594,7 @@ export function CarbonCalculatorPanel() {
                 name="fileType"
                 label="原始文件类型:"
                 rules={[{ required: true, message: '请选择文件类型' }]}
+                className="upload-modal-filetype-item"
             >
                 <Select
                     placeholder="选择文件类型"
@@ -608,7 +609,7 @@ export function CarbonCalculatorPanel() {
                 </Select>
             </Form.Item>
 
-            <Form.Item label="上传文件:">
+            <Form.Item label="上传文件:" className="upload-modal-upload-item">
                  <Space align="baseline" style={{ width: '100%', justifyContent: 'space-between' }}>
                     {/* Label removed as Form.Item provides it */}
                      {/* Buttons moved near the Dragger */}
@@ -1054,6 +1055,16 @@ const customStyles = `
     color: var(--bolt-primary, #5165f9) !important; /* Use primary for loading too */
 }
 /* --- End Toast Styles --- */
+
+/* --- Upload Modal Spacing Fix --- */
+.upload-modal-upload-item {
+    margin-top: 16px !important; /* Add space above the upload section */
+}
+
+/* Adjust position of file type error message */
+.upload-modal-filetype-item .ant-form-item-explain {
+    margin-top: 14px !important; /* Adjusted value to 14px */
+}
 
 `;
 
