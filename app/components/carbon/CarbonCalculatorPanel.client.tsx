@@ -347,7 +347,7 @@ export function CarbonCalculatorPanel() {
 
 
   return (
-    <div className="flex flex-col h-full p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary">
+    <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
       {/* 1. Top Buttons */}
       <Row gutter={16} className="flex-shrink-0">
         <Col>
@@ -358,149 +358,126 @@ export function CarbonCalculatorPanel() {
         </Col>
       </Row>
 
-      {/* 2. Upper Row */}
-      <Row gutter={16} className="flex-shrink-0">
-        {/* 2.1 Scene Info (Top Left) - Adjusted span to 5 */}
-        <Col span={5}>
-          <Card
-            title="场景信息"
-            size="small"
-            extra={<Button type="link" icon={<SettingOutlined />} onClick={handleOpenSettings}>设置</Button>}
-            className="h-full bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor"
-          >
-            <Space direction="vertical" className="w-full">
-              <div>预期核验等级: {sceneInfo.verificationLevel || '未设置'}</div>
-              <div>满足标准: {sceneInfo.standard || '未设置'}</div>
-              <div>核算产品: {sceneInfo.productName || '未设置'}</div>
-            </Space>
-          </Card>
-        </Col>
+      {/* Wrapper for Card Rows to manage height distribution */}
+      <div className="flex-grow flex flex-col space-y-4 min-h-0">
 
-        {/* 2.2 File Upload (Moved to middle) - Adjusted span to 14 */}
-        <Col span={14}>
-            <Card
-                title="原始文件"
+          {/* 2. Upper Row - Fixed proportional height (e.g., 40%) */}
+          <Row gutter={16} className="h-[40%] flex-shrink-0"> {/* Set height and prevent shrinking */}
+            {/* 2.1 Scene Info (Top Left) - Adjusted span to 5 */}
+            <Col span={5} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
+              <Card
+                title="场景信息"
                 size="small"
-                extra={
-                    /* Changed to button that opens the modal */
-                    <Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>上传文件</Button>
-                }
-                className="h-full bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col file-upload-card" // Added flex and class
-                bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }} // Allow body to grow and scroll
-            >
-                {/* File List Table */}
-                 <div className="flex-grow overflow-auto file-upload-table-container"> {/* Scrollable container */}
-                    <Table
-                        columns={fileTableColumns}
-                        dataSource={ // Sort data before passing to table
-                           [...uploadedFiles].sort((a, b) => new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime())
-                        }
-                        rowKey="id"
-                        size="small"
-                        pagination={{ pageSize: 5 }} // Example pagination
-                        /* Add scroll if needed, similar to emission table */
-                        // scroll={{ y: 'calc(100% - 40px)' }} // Adjust based on card header/padding
-                        className="file-upload-table" // Add class for potential specific styling
-                    />
-                </div>
-            </Card>
-        </Col>
+                extra={<Button type="link" icon={<SettingOutlined />} onClick={handleOpenSettings}>设置</Button>}
+                className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor" // Added flex-grow, min-h-0
+                bodyStyle={{ overflow: 'auto' }}
+              >
+                <Space direction="vertical" className="w-full">
+                  <div>预期核验等级: {sceneInfo.verificationLevel || '未设置'}</div>
+                  <div>满足标准: {sceneInfo.standard || '未设置'}</div>
+                  <div>核算产品: {sceneInfo.productName || '未设置'}</div>
+                </Space>
+              </Card>
+            </Col>
 
-         {/* 2.3 Model Score (Moved to right) - Adjusted span to 5 */}
-        <Col span={5}>
-          <Card
-            title="模型评分"
-            size="small"
-            className="h-full bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col" // Added flex for layout
-            bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} // Make body grow and use flex
-            >
-             {/* Centered Credibility Score - Updated to display actual score */}
-             <div className="text-center mb-4 flex-grow flex flex-col justify-center">
-                <div className="text-sm text-bolt-elements-textSecondary mb-1">可信得分</div>
-                <div className="text-4xl font-bold text-bolt-elements-textPrimary">
-                    {/* Display overall score (0-1 converted to 0-100, rounded), or 0 if unavailable/invalid/zero */}
-                    {typeof modelScore.credibilityScore === 'number' && !isNaN(modelScore.credibilityScore)
-                        ? Math.round(modelScore.credibilityScore * 100)
-                        : 0}
-                </div>
-             </div>
+            {/* 2.2 File Upload (Moved to middle) - Adjusted span to 14 */}
+            <Col span={14} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
+                <Card
+                    title="原始文件"
+                    size="small"
+                    extra={
+                        <Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>上传文件</Button>
+                    }
+                    className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col file-upload-card" // Added flex-grow, min-h-0
+                    bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+                >
+                     <div className="flex-grow overflow-auto file-upload-table-container">
+                        <Table
+                            columns={fileTableColumns}
+                            dataSource={ [...uploadedFiles].sort((a, b) => new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime()) }
+                            rowKey="id"
+                            size="small"
+                            pagination={{ pageSize: 5 }}
+                            className="file-upload-table"
+                        />
+                    </div>
+                </Card>
+            </Col>
 
-             {/* Sub Scores - 2x2 Grid - Updated to use renderScore with actual data */}
-             <div className="flex-shrink-0">
-                 <Row gutter={[16, 8]}> {/* Add vertical gutter */}
-                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
-                        模型完整度: {renderScore(modelScore.completeness)}/100
-                    </Col>
-                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
-                        数据可追溯性: {renderScore(modelScore.traceability)}/100
-                    </Col>
-                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
-                        质量平衡: {renderScore(modelScore.massBalance)}/100
-                    </Col>
-                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
-                        {/* Changed from validation to accuracy as per image */}
-                        数据准确性: {renderScore(modelScore.validation)}/100 {/* Assuming validation score maps to accuracy */}
-                    </Col>
-                 </Row>
-             </div>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* 3. Lower Row */}
-      <Row gutter={16} className="flex-grow min-h-0"> {/* flex-grow + min-h-0 allows flex item to shrink/grow */}
-         {/* 3.1 Lifecycle Navigation (Bottom Left) - Adjusted span to 5 */}
-         <Col span={5} className="flex flex-col h-full">
-           <Card title="生命周期阶段" size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor">
-                <div className="flex-grow overflow-y-auto"> {/* Scrollable list */}
-                 <Space direction="vertical" className="w-full">
-                    {lifecycleStages.map(stage => (
-                      <Button
-                        key={stage}
-                        type={selectedStage === stage ? 'primary' : 'text'}
-                        onClick={() => handleStageSelect(stage)}
-                        block
-                        className="text-left"
-                      >
-                        {stage}
-                      </Button>
-                    ))}
-                 </Space>
+             {/* 2.3 Model Score (Moved to right) - Adjusted span to 5 */}
+            <Col span={5} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
+              <Card
+                title="模型评分"
+                size="small"
+                className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col" // Added flex-grow, min-h-0
+                bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'auto' }}
+                >
+                 <div className="text-center mb-4 flex-grow flex flex-col justify-center">
+                    <div className="text-sm text-bolt-elements-textSecondary mb-1">可信得分</div>
+                    <div className="text-4xl font-bold text-bolt-elements-textPrimary">
+                        {typeof modelScore.credibilityScore === 'number' && !isNaN(modelScore.credibilityScore)
+                            ? Math.round(modelScore.credibilityScore * 100)
+                            : 0}
+                    </div>
                  </div>
-           </Card>
-         </Col>
+                 <div className="flex-shrink-0">
+                     <Row gutter={[16, 8]}>
+                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">模型完整度: {renderScore(modelScore.completeness)}/100</Col>
+                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">数据可追溯性: {renderScore(modelScore.traceability)}/100</Col>
+                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">质量平衡: {renderScore(modelScore.massBalance)}/100</Col>
+                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">数据准确性: {renderScore(modelScore.validation)}/100</Col>
+                     </Row>
+                 </div>
+              </Card>
+            </Col>
+          </Row>
 
-         {/* 3.2 Emission Source List (Bottom Right) - Adjusted span to 19 */}
-         <Col span={19} className="flex flex-col h-full">
-           <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
-                {/* Filters: Use flex justify-between, wrap left items in Space */}
-                <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
-                    <Space> {/* Wrap left-aligned items */}
-                        <Input placeholder="排放源名称" prefix={<SearchOutlined />} style={{width: 150}} />
-                        <Select placeholder="排放源类别" allowClear style={{width: 150}}>
-                            {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
-                        </Select>
-                        <Button type="primary" icon={<SearchOutlined />}>查询</Button>
-                        <Button icon={<RedoOutlined />}>重置</Button>
-                    </Space>
-                    {/* Right-aligned button */}
-                    <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button>
-                </div>
-                {/* Table */}
-                <div className="flex-grow overflow-auto emission-source-table-scroll-container"> {/* Add class for scrollbar styling */}
-                    <Table
-                        className="emission-source-table"
-                        columns={emissionTableColumns}
-                        dataSource={emissionSources}
-                        rowKey="id"
-                        size="small"
-                        pagination={{ pageSize: 10 }} // Example pagination
-                        scroll={{ x: 1500, y: 'calc(100vh - 500px)' }} // Adjust scroll values as needed
-                    />
-                </div>
-           </Card>
-         </Col>
-      </Row>
+          {/* 3. Lower Row - Takes remaining height */}
+          <Row gutter={16} className="flex-grow min-h-0"> {/* Keep flex-grow min-h-0 */}
+             {/* 3.1 Lifecycle Navigation (Bottom Left) - Adjusted span to 5 */}
+             <Col span={5} className="flex flex-col h-full">
+               <Card title="生命周期阶段" size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor">
+                    <div className="flex-grow overflow-y-auto">
+                     <Space direction="vertical" className="w-full">
+                        {lifecycleStages.map(stage => (
+                          <Button key={stage} type={selectedStage === stage ? 'primary' : 'text'} onClick={() => handleStageSelect(stage)} block className="text-left">
+                            {stage}
+                          </Button>
+                        ))}
+                     </Space>
+                     </div>
+               </Card>
+             </Col>
+
+             {/* 3.2 Emission Source List (Bottom Right) - Adjusted span to 19 */}
+             <Col span={19} className="flex flex-col h-full">
+               <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
+                    <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
+                        <Space>
+                            <Input placeholder="排放源名称" prefix={<SearchOutlined />} style={{width: 150}} />
+                            <Select placeholder="排放源类别" allowClear style={{width: 150}}>
+                                {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
+                            </Select>
+                            <Button type="primary" icon={<SearchOutlined />}>查询</Button>
+                            <Button icon={<RedoOutlined />}>重置</Button>
+                        </Space>
+                        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button>
+                    </div>
+                    <div className="flex-grow overflow-auto emission-source-table-scroll-container">
+                        <Table
+                            className="emission-source-table"
+                            columns={emissionTableColumns}
+                            dataSource={emissionSources}
+                            rowKey="id"
+                            size="small"
+                            pagination={{ pageSize: 10 }}
+                            scroll={{ x: 1500, y: 'calc(100vh - 500px)' }}
+                        />
+                    </div>
+               </Card>
+             </Col>
+          </Row>
+       </div>
 
       {/* Modals and Drawers */}
       <Modal
@@ -944,7 +921,6 @@ const customStyles = `
     background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
 }
 .ant-modal-header {
-    /* background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important; */ /* Commented out original */
     background-color: transparent !important; /* Set to transparent */
     border-bottom: 1px solid var(--bolt-elements-borderColor, #333) !important;
 }
@@ -961,7 +937,6 @@ const customStyles = `
     /* Inherits from content */
 }
 .ant-modal-footer {
-     /* background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important; */ /* Commented out original */
      background-color: transparent !important; /* Set to transparent */
      border-top: 1px solid var(--bolt-elements-borderColor, #333) !important;
 }
