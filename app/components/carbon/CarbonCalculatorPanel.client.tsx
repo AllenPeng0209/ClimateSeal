@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Button, Card, Col, Row, Space, Table, Input, Select, Modal, Drawer, Form, message, Popconfirm, Upload } from 'antd'; // Added Upload
-import { SettingOutlined, PlusOutlined, SearchOutlined, RedoOutlined, UploadOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons'; // Added UploadOutlined, EyeOutlined, DeleteOutlined
-import { ClientOnly } from 'remix-utils/client-only'; // May need this if child components are client-only
+import { Button, Card, Col, Row, Space, Table, Input, Select, Modal, Drawer, Form, message, Popconfirm, Upload, Tooltip, Progress } from 'antd';
+import type { FormInstance } from 'antd';
+import { SettingOutlined, PlusOutlined, SearchOutlined, RedoOutlined, UploadOutlined, EyeOutlined, DeleteOutlined, ExperimentOutlined, EditOutlined, InboxOutlined, ClearOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { ClientOnly } from 'remix-utils/client-only';
+import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 
 // Placeholder data types (replace with actual types later)
 type SceneInfoType = {
@@ -45,7 +47,20 @@ type UploadedFile = {
   type: string; // e.g., '报告', '原始数据', '认证证书'
   uploadTime: string;
   url?: string; // Optional URL for preview/download
+  status: 'pending' | 'parsing' | 'completed' | 'failed'; // Added status field based on PRD
 };
+
+// File types enum based on PRD
+const RawFileTypes = [
+    'BOM',
+    '能耗数据',
+    '运输数据',
+    '废弃物',
+    '原材料运输',
+    '成品运输',
+    '产品使用数据',
+    '成品废弃数据'
+];
 
 const lifecycleStages = [
   '原材料获取阶段',
@@ -66,7 +81,12 @@ export function CarbonCalculatorPanel() {
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const [isEmissionDrawerVisible, setIsEmissionDrawerVisible] = useState(false);
   const [editingEmissionSource, setEditingEmissionSource] = useState<EmissionSource | null>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]); // State for uploaded files
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]); // State for main file list
+  const [isUploadModalVisible, setIsUploadModalVisible] = useState(false); // State for the upload modal visibility
+  const [modalFileList, setModalFileList] = useState<UploadFile[]>([]); // State for files in the modal upload list
+  const [selectedFileType, setSelectedFileType] = useState<string | undefined>(undefined); // State for selected file type in modal
+
+  const uploadModalFormRef = React.useRef<FormInstance>(null);
 
   // --- Placeholder functions ---
   const handleAIComplete = () => {
@@ -156,7 +176,8 @@ export function CarbonCalculatorPanel() {
           name: info.file.name,
           type: '未分类', // Determine type based on upload or response
           uploadTime: new Date().toISOString(),
-          url: info.file.response?.url // Example: get URL from server response
+          url: info.file.response?.url, // Example: get URL from server response
+          status: 'pending'
       };
       setUploadedFiles(prev => [...prev, newFile]);
     } else if (info.file.status === 'error') {
@@ -179,6 +200,77 @@ export function CarbonCalculatorPanel() {
      // TODO: API call to delete file on server
      setUploadedFiles(prev => prev.filter(item => item.id !== id));
      message.success('文件已删除');
+   };
+
+   // Placeholder handlers for new file actions
+   const handleParseFile = (file: UploadedFile) => {
+       console.log('Parsing file:', file);
+       // TODO: Implement parsing logic trigger
+       message.info('解析功能待实现');
+   };
+
+   const handleEditFile = (file: UploadedFile) => {
+       console.log('Editing file metadata:', file);
+       // TODO: Implement logic to open an edit modal/form for file metadata (like type)
+       message.info('编辑功能待实现');
+   };
+
+   // Handler to open the new upload modal
+   const handleOpenUploadModal = () => {
+       setIsUploadModalVisible(true);
+   };
+
+   // Handler to close the new upload modal
+   const handleCloseUploadModal = () => {
+       setIsUploadModalVisible(false);
+       setModalFileList([]); // Clear file list on cancel
+       setSelectedFileType(undefined); // Clear selected type
+       uploadModalFormRef.current?.resetFields(); // Reset form fields
+   };
+
+   // Handler for clicking OK in the upload modal
+   const handleUploadModalOk = () => {
+     uploadModalFormRef.current?.validateFields().then(values => {
+         console.log('Upload Modal OK', values);
+         if (!selectedFileType) {
+             message.error('请选择文件类型');
+             return;
+         }
+         if (modalFileList.length === 0) {
+             message.error('请上传文件');
+             return;
+         }
+
+         // Filter for successfully uploaded files (or files ready to be processed)
+         // In a real scenario, you'd check status === 'done' after actual upload
+         // Here, we'll just add all files present in the modal list for now
+         const filesToAdd = modalFileList.map((file) => ({
+             id: file.uid,
+             name: file.name,
+             type: selectedFileType, // Use the selected type
+             uploadTime: new Date().toISOString(),
+             status: 'pending' as const, // Initial status after confirmation
+             url: file.response?.url || file.thumbUrl // Use response URL or thumbUrl if available
+         }));
+
+         setUploadedFiles(prev => [...filesToAdd, ...prev]); // Add new files to the beginning
+         message.success(`${filesToAdd.length} 个文件已添加到列表`);
+         handleCloseUploadModal(); // Close modal and clear state
+
+     }).catch(info => {
+         console.log('Validate Failed:', info);
+         message.error('请完成必填项');
+     });
+   };
+
+   // Handler for Upload component changes in the modal
+   const handleModalUploadChange: UploadProps['onChange'] = ({ fileList: newFileList }) => {
+      setModalFileList(newFileList);
+   };
+
+   // Handler for clearing the file list in the modal
+   const handleClearModalList = () => {
+       setModalFileList([]);
    };
 
   // --- Render functions ---
@@ -221,22 +313,33 @@ export function CarbonCalculatorPanel() {
       },
   ];
 
-  // Columns for the File Upload table
+  // Columns for the File Upload table - Updated based on PRD
   const fileTableColumns = [
       { title: '文件名称', dataIndex: 'name', key: 'name' },
-      { title: '文件类别', dataIndex: 'type', key: 'type', width: 100 },
-      { title: '上传时间', dataIndex: 'uploadTime', key: 'uploadTime', width: 150, render: (ts: string) => new Date(ts).toLocaleString() },
+      { title: '文件类型', dataIndex: 'type', key: 'type', width: 120 }, // Renamed header as per PRD
+      { title: '上传时间', dataIndex: 'uploadTime', key: 'uploadTime', width: 170, render: (ts: string) => new Date(ts).toLocaleString() },
+      { title: '状态', dataIndex: 'status', key: 'status', width: 100 }, // Added Status column
       {
           title: '操作',
           key: 'action',
           fixed: 'right' as 'right',
-          width: 100,
+          width: 120, // Increased width for more icons
           render: (_: any, record: UploadedFile) => (
-              <Space size="middle">
-                  <Button type="link" icon={<EyeOutlined />} onClick={() => handlePreviewFile(record)} />
-                  <Popconfirm title="确定删除吗?" onConfirm={() => handleDeleteFile(record.id)}>
-                      <Button type="link" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
+              <Space size="small"> {/* Reduced space slightly */}
+                  <Tooltip title="解析">
+                      <Button type="link" icon={<ExperimentOutlined />} onClick={() => handleParseFile(record)} />
+                  </Tooltip>
+                  <Tooltip title="编辑">
+                       <Button type="link" icon={<EditOutlined />} onClick={() => handleEditFile(record)} />
+                  </Tooltip>
+                  <Tooltip title="预览">
+                      <Button type="link" icon={<EyeOutlined />} onClick={() => handlePreviewFile(record)} />
+                  </Tooltip>
+                  <Tooltip title="删除">
+                       <Popconfirm title="确定删除吗?" onConfirm={() => handleDeleteFile(record.id)}>
+                          <Button type="link" danger icon={<DeleteOutlined />} />
+                       </Popconfirm>
+                  </Tooltip>
               </Space>
           ),
       },
@@ -279,18 +382,8 @@ export function CarbonCalculatorPanel() {
                 title="原始文件"
                 size="small"
                 extra={
-                    /* Basic Upload Button - opens file selector */
-                    /* For more complex behavior (like progress), use Upload component directly */
-                     <Upload
-                        // action="/api/upload" // Replace with your actual upload endpoint
-                        showUploadList={false} // Don't show default upload list here
-                        onChange={handleFileUpload}
-                        // beforeUpload={...} // Optional: validation before upload
-                        // headers={...} // Optional: add auth tokens etc.
-                        // You might need a custom request if default action doesn't suit
-                     >
-                        <Button icon={<UploadOutlined />}>上传文件</Button>
-                     </Upload>
+                    /* Changed to button that opens the modal */
+                    <Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>上传文件</Button>
                 }
                 className="h-full bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col file-upload-card" // Added flex and class
                 bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }} // Allow body to grow and scroll
@@ -299,13 +392,15 @@ export function CarbonCalculatorPanel() {
                  <div className="flex-grow overflow-auto file-upload-table-container"> {/* Scrollable container */}
                     <Table
                         columns={fileTableColumns}
-                        dataSource={uploadedFiles}
+                        dataSource={ // Sort data before passing to table
+                           [...uploadedFiles].sort((a, b) => new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime())
+                        }
                         rowKey="id"
+                        className="file-upload-table" // Add class for potential specific styling & hover effects
                         size="small"
                         pagination={{ pageSize: 5 }} // Example pagination
                         /* Add scroll if needed, similar to emission table */
                         // scroll={{ y: 'calc(100% - 40px)' }} // Adjust based on card header/padding
-                        className="file-upload-table" // Add class for potential specific styling
                     />
                 </div>
             </Card>
@@ -482,6 +577,98 @@ export function CarbonCalculatorPanel() {
             </Form.Item>
         </Form>
       </Drawer>
+
+      {/* Upload File Modal (New - Implementing Content) */}
+      <Modal
+        title="上传原始文件"
+        open={isUploadModalVisible}
+        onOk={handleUploadModalOk} // Connect OK handler
+        onCancel={handleCloseUploadModal} // Connect Cancel handler
+        width={600} // Increased width
+        okText="确认" // Customize button text
+        cancelText="取消" // Customize button text
+        destroyOnClose // Reset state when modal is closed
+      >
+         <Form layout="vertical" ref={uploadModalFormRef}>
+            <Form.Item
+                name="fileType"
+                label="原始文件类型:"
+                rules={[{ required: true, message: '请选择文件类型' }]}
+            >
+                <Select
+                    placeholder="选择文件类型"
+                    onChange={(value) => setSelectedFileType(value)}
+                    value={selectedFileType}
+                    allowClear // Allow clearing selection
+                    className="upload-modal-select" // Class for styling
+                >
+                    {RawFileTypes.map(type => (
+                        <Select.Option key={type} value={type}>{type}</Select.Option>
+                    ))}
+                </Select>
+            </Form.Item>
+
+            <Form.Item label="上传文件:">
+                 <Space align="baseline" style={{ width: '100%', justifyContent: 'space-between' }}>
+                    {/* Label removed as Form.Item provides it */}
+                     {/* Buttons moved near the Dragger */}
+                     <Space>
+                         {/* We might not need a separate "上传" button if Dragger works */}
+                        {/* <Button>上传</Button> */}
+                        <Button icon={<ClearOutlined />} onClick={handleClearModalList} disabled={modalFileList.length === 0}>
+                            清空
+                        </Button>
+                     </Space>
+                 </Space>
+                 <Upload.Dragger
+                    name="files" // name attribute for the upload request field
+                    multiple={true}
+                    // action="/api/upload" // No action for now, handle manually or on OK
+                    onChange={handleModalUploadChange}
+                    fileList={modalFileList} // Control the file list
+                    // beforeUpload={() => false} // Prevent automatic upload if handling manually
+                    className="upload-modal-dragger" // Class for styling
+                    itemRender={(originNode, file) => {
+                        // Based on screenshot, show name and progress/status
+                        return (
+                            <div
+                                key={file.uid}
+                                style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    padding: '4px 0',
+                                    borderBottom: `1px solid var(--bolt-elements-borderColor, #333)`,
+                                    color: `var(--bolt-elements-textPrimary, #fff)`,
+                                    fontSize: '12px' // Smaller font size for the list
+                                }}
+                            >
+                                <span style={{ flexGrow: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '16px' }}>
+                                    {file.name}
+                                </span>
+                                <span style={{ flexShrink: 0, width: '60px', textAlign: 'right' }}>
+                                    {file.status === 'uploading' && file.percent !== undefined && (
+                                        <Progress percent={Math.round(file.percent)} size="small" showInfo={false} strokeColor="var(--bolt-primary)" trailColor="var(--bolt-elements-borderColor)"/>
+                                    )}
+                                    {file.status === 'done' && (
+                                        <CheckCircleOutlined style={{ color: 'var(--bolt-success)' }} />
+                                    )}
+                                </span>
+                            </div>
+                        );
+                    }}
+                 >
+                    <p className="ant-upload-drag-icon">
+                        <InboxOutlined />
+                    </p>
+                    <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
+                    <p className="ant-upload-hint">
+                        支持单次或批量上传。
+                    </p>
+                 </Upload.Dragger>
+            </Form.Item>
+         </Form>
+      </Modal>
     </div>
   );
 }
@@ -777,6 +964,101 @@ const customStyles = `
 .file-upload-table-container {
   scrollbar-width: thin;
   scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a);
+}
+
+/* --- Upload Modal Dark Styles --- */
+.ant-modal-content {
+    background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+}
+.ant-modal-header {
+    background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+    border-bottom: 1px solid var(--bolt-elements-borderColor, #333) !important;
+}
+.ant-modal-title {
+    color: var(--bolt-elements-textPrimary, #fff) !important;
+}
+.ant-modal-close {
+    color: var(--bolt-elements-textSecondary, #ccc) !important;
+}
+.ant-modal-close:hover {
+    color: var(--bolt-elements-textPrimary, #fff) !important;
+}
+.ant-modal-body {
+    /* Inherits from content */
+}
+.ant-modal-footer {
+     background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+     border-top: 1px solid var(--bolt-elements-borderColor, #333) !important;
+}
+
+/* Style form elements within the modal */
+.ant-modal-body .ant-form-item-label > label {
+    color: var(--bolt-elements-textSecondary, #ccc) !important;
+}
+.ant-modal-body .upload-modal-select .ant-select-selector, /* Target specific select */
+.ant-modal-body .ant-select-dropdown {
+    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
+    border-color: var(--bolt-elements-borderColor, #333) !important;
+    color: var(--bolt-elements-textPrimary, #fff) !important;
+}
+.ant-modal-body .upload-modal-select .ant-select-selection-placeholder {
+    color: var(--bolt-elements-textDisabled, #555) !important;
+}
+.ant-modal-body .upload-modal-select .ant-select-arrow {
+     color: var(--bolt-elements-textSecondary, #ccc) !important;
+}
+
+/* Style Upload Dragger */
+.ant-modal-body .upload-modal-dragger,
+.ant-modal-body .upload-modal-dragger .ant-upload.ant-upload-drag {
+    background: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
+    border: 1px dashed var(--bolt-elements-borderColor, #555) !important;
+}
+.ant-modal-body .upload-modal-dragger:hover .ant-upload.ant-upload-drag {
+    border-color: var(--bolt-primary, #5165f9) !important;
+}
+.ant-modal-body .upload-modal-dragger .ant-upload-drag-icon .anticon {
+    color: var(--bolt-primary, #5165f9) !important;
+}
+.ant-modal-body .upload-modal-dragger .ant-upload-text {
+    color: var(--bolt-elements-textPrimary, #fff) !important;
+}
+.ant-modal-body .upload-modal-dragger .ant-upload-hint {
+    color: var(--bolt-elements-textSecondary, #ccc) !important;
+}
+
+/* Style Upload List Items (basic) */
+.ant-modal-body .ant-upload-list-item {
+    color: var(--bolt-elements-textPrimary, #fff) !important;
+}
+.ant-modal-body .ant-upload-list-item-error .ant-upload-list-item-name,
+.ant-modal-body .ant-upload-list-item-error .ant-upload-list-item-card-actions .anticon {
+    color: var(--bolt-danger, #f5222d) !important;
+}
+
+
+/* Style Modal Footer Buttons */
+.ant-modal-footer .ant-btn-primary {
+    /* Primary button styles (usually themed) */
+}
+.ant-modal-footer .ant-btn-default {
+     background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
+     border-color: var(--bolt-elements-borderColor, #333) !important;
+     color: var(--bolt-elements-textPrimary, #fff) !important;
+}
+.ant-modal-footer .ant-btn-default:hover {
+    border-color: var(--bolt-primary, #5165f9) !important;
+    color: var(--bolt-primary, #5165f9) !important;
+}
+
+/* --- Main Table Action Icon Hover --- */
+.file-upload-table .ant-table-tbody .ant-btn-link {
+    transition: box-shadow 0.2s ease-out !important;
+    border-radius: 4px; /* Add radius for the shadow */
+}
+.file-upload-table .ant-table-tbody .ant-btn-link:hover {
+    /* "亮边特效" using box-shadow */
+    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
 }
 
 `;
