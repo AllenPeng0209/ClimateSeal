@@ -655,12 +655,20 @@ const customStyles = `
     background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
 }
 
+/* Fix for fixed column background overlap */
+.emission-source-table .ant-table-thead > tr > th.ant-table-cell-fix-right,
+.emission-source-table .ant-table-tbody > tr > td.ant-table-cell-fix-right {
+    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+}
+
+/* Ensure fixed column hover matches */
+.emission-source-table .ant-table-tbody > tr:hover > td.ant-table-cell-fix-right {
+    background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important;
+}
+
 /* 悬停和选中行的背景色 - Apply to the row */
 .emission-source-table .ant-table-tbody > tr:hover > td {
-  background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important; /* Slightly lighter on hover */
-}
-.emission-source-table .ant-table-tbody > tr.ant-table-row-selected > td {
-    background: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.2) !important; /* Use theme primary (with fallback) - slightly more opaque */
+  background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important;
 }
 
 /* Ensure pagination elements match the theme */
