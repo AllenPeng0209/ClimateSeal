@@ -351,7 +351,10 @@ export function CarbonCalculatorPanel() {
       {/* 1. Top Buttons */}
       <Row gutter={16} className="flex-shrink-0">
         <Col>
-          <Button type="primary" onClick={handleAIComplete}>一键AI补全</Button>
+          <Button onClick={handleAIComplete}>AI数据补全</Button>
+        </Col>
+        <Col>
+          <Button onClick={() => alert('功能待实现')}>AI因子匹配</Button>
         </Col>
         <Col>
           <Button onClick={handleCheckpointManage}>检查点管理</Button>
