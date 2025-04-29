@@ -236,10 +236,10 @@ export function CarbonCalculatorPanel() {
 
          {/* 3.2 Emission Source List (Bottom Right) */}
          <Col span={18} className="flex flex-col h-full">
-           <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor">
+           <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
                 {/* Filters */}
-                <Space className="mb-4 flex-shrink-0">
-                    <Input placeholder="排放源名称" prefix={<SearchOutlined />} />
+                <Space className="mb-4 flex-shrink-0 filter-controls">
+                    <Input placeholder="排放源名称" prefix={<SearchOutlined />} style={{width: 150}} />
                     <Select placeholder="排放源类别" allowClear style={{width: 150}}>
                         {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
                     </Select>
@@ -442,6 +442,58 @@ const customStyles = `
 .emission-source-table-scroll-container {
   scrollbar-width: thin; /* "auto" or "thin" */
   scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a); /* thumb color track color */
+}
+
+/* --- Filter Control Height Adjustment --- */
+/* Target Input with Prefix wrapper, Select wrapper, and Button */
+.filter-controls .ant-input-affix-wrapper,
+.filter-controls .ant-select-selector,
+.filter-controls .ant-btn {
+    height: 32px !important; /* Standard Antd default height */
+    display: flex !important; /* Helps vertical alignment */
+    align-items: center !important;
+    box-sizing: border-box !important;
+    border-color: var(--bolt-elements-borderColor) !important; /* Consistent border color */
+    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important; /* Consistent background */
+    color: var(--bolt-elements-textPrimary) !important; /* Consistent text color for input/select */
+}
+
+/* Override button background/text colors if needed (usually handled by Antd themes) */
+.filter-controls .ant-btn-primary {
+    /* background-color: var(--bolt-primary) !important; */
+    /* border-color: var(--bolt-primary) !important; */
+    /* color: white !important; */
+}
+.filter-controls .ant-btn:not(.ant-btn-primary) {
+     /* background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important; */
+     /* border-color: var(--bolt-elements-borderColor) !important; */
+     /* color: var(--bolt-elements-textPrimary) !important; */
+}
+
+/* Consistent Hover State for Input/Select */
+.filter-controls .ant-input-affix-wrapper:hover,
+.filter-controls .ant-select-selector:hover {
+    border-color: var(--bolt-primary, #5165f9) !important;
+}
+
+/* Consistent Focus State for Input/Select */
+.filter-controls .ant-input-affix-wrapper-focused,
+.filter-controls .ant-select-focused .ant-select-selector {
+    border-color: var(--bolt-primary, #5165f9) !important;
+    box-shadow: 0 0 0 2px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.2) !important; /* Consistent focus ring */
+}
+
+/* Ensure inner elements align vertically if needed */
+.filter-controls .ant-input-affix-wrapper input.ant-input {
+    align-self: center !important; /* Align inner input */
+    line-height: normal !important; /* Reset line height */
+    padding-top: 0 !important; /* Adjust padding if necessary */
+    padding-bottom: 0 !important;
+    height: auto !important; /* Let flex control height, prevent fixed inner height */
+}
+
+.filter-controls .ant-select-selector {
+    /* flex align-items should handle this */
 }
 `;
 
