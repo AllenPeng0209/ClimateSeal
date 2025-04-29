@@ -1066,6 +1066,11 @@ const customStyles = `
     margin-top: 14px !important; /* Adjusted value to 14px */
 }
 
+/* Ensure all form validation errors are red */
+.ant-form-item-explain-error {
+    color: var(--bolt-danger, #ff4d4f) !important; /* Use danger variable or Antd default red */
+}
+
 `;
 
 // 注入样式到 head
