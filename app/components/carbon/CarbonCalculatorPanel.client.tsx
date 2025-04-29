@@ -302,12 +302,19 @@ export function CarbonCalculatorPanel() {
           fixed: 'right' as 'right',
           width: 150,
           render: (_: any, record: EmissionSource) => (
-              <Space size="middle">
-                  <Button type="link" onClick={() => handleEditEmissionSource(record)}>编辑</Button>
-                  {/* <Button type="link">查看</Button> */}
-                  <Popconfirm title="确定删除吗?" onConfirm={() => handleDeleteEmissionSource(record.id)}>
-                      <Button type="link" danger>删除</Button>
-                  </Popconfirm>
+              <Space size="small"> {/* Reduced space, similar to file table */}
+                  <Tooltip title="查看">
+                      {/* Added View action - Placeholder */}
+                      <Button type="link" icon={<EyeOutlined />} onClick={() => { console.log('Viewing:', record); message.info('查看功能待实现'); }} />
+                  </Tooltip>
+                  <Tooltip title="编辑">
+                      <Button type="link" icon={<EditOutlined />} onClick={() => handleEditEmissionSource(record)} />
+                  </Tooltip>
+                  <Tooltip title="删除">
+                      <Popconfirm title="确定删除吗?" onConfirm={() => handleDeleteEmissionSource(record.id)}>
+                          <Button type="link" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                  </Tooltip>
               </Space>
           ),
       },
