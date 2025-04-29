@@ -237,16 +237,19 @@ export function CarbonCalculatorPanel() {
          {/* 3.2 Emission Source List (Bottom Right) */}
          <Col span={18} className="flex flex-col h-full">
            <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
-                {/* Filters */}
-                <Space className="mb-4 flex-shrink-0 filter-controls">
-                    <Input placeholder="排放源名称" prefix={<SearchOutlined />} style={{width: 150}} />
-                    <Select placeholder="排放源类别" allowClear style={{width: 150}}>
-                        {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
-                    </Select>
-                    <Button type="primary" icon={<SearchOutlined />}>查询</Button>
-                    <Button icon={<RedoOutlined />}>重置</Button>
+                {/* Filters: Use flex justify-between, wrap left items in Space */}
+                <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
+                    <Space> {/* Wrap left-aligned items */}
+                        <Input placeholder="排放源名称" prefix={<SearchOutlined />} style={{width: 150}} />
+                        <Select placeholder="排放源类别" allowClear style={{width: 150}}>
+                            {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
+                        </Select>
+                        <Button type="primary" icon={<SearchOutlined />}>查询</Button>
+                        <Button icon={<RedoOutlined />}>重置</Button>
+                    </Space>
+                    {/* Right-aligned button */}
                     <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button>
-                </Space>
+                </div>
                 {/* Table */}
                 <div className="flex-grow overflow-auto emission-source-table-scroll-container"> {/* Add class for scrollbar styling */}
                     <Table
