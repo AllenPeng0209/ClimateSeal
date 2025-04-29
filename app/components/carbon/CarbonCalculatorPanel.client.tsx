@@ -665,17 +665,17 @@ const customStyles = `
 /* Fix for fixed column background overlap */
 .emission-source-table .ant-table-thead > tr > th.ant-table-cell-fix-right,
 .emission-source-table .ant-table-tbody > tr > td.ant-table-cell-fix-right {
-    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
+    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Keep base background same as row */
 }
 
-/* Ensure fixed column hover matches */
+/* Ensure fixed column hover is OPAQUE */
 .emission-source-table .ant-table-tbody > tr:hover > td.ant-table-cell-fix-right {
-    background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important;
+    background: var(--bolt-elements-background-depth-1, #2a2a2a) !important; /* Use a slightly lighter opaque color */
 }
 
-/* 悬停和选中行的背景色 - Apply to the row */
+/* 悬停和选中行的背景色 - Apply to the row (Non-fixed columns can be semi-transparent) */
 .emission-source-table .ant-table-tbody > tr:hover > td {
-  background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important;
+    background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important;
 }
 
 /* Ensure pagination elements match the theme */
