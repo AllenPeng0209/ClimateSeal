@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, Button, Form, Input, Divider, Typography } from "antd";
+import { Alert, Button, Form, Input, Divider, Typography, message } from "antd";
 import { useNavigate, useLocation } from "@remix-run/react";
 import { GoogleOutlined } from "@ant-design/icons";
 import { useAuth } from "./AuthProvider";
@@ -19,20 +19,17 @@ export const LoginForm: React.FC = () => {
   const { login, authState } = useAuth();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const onFinish = async (values: { email: string; password: string }) => {
     try {
-      setError(null);
+      setLoading(true);
       await login(values);
-      // 登录成功，获取重定向路径
-      const from = location.state?.from || "/dashboard";
-      navigate(from, { replace: true });
-    } catch (err: any) {
-      console.error("Login error:", err);
-      const errorMessage = err.message && ERROR_MESSAGES[err.message]
-        ? ERROR_MESSAGES[err.message]
-        : err.message || "登录失败，请重试";
-      setError(errorMessage);
+      message.success('登录成功');
+    } catch (error: any) {
+      message.error(error.message || '登录失败');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -42,14 +39,28 @@ export const LoginForm: React.FC = () => {
       setGoogleLoading(true);
       setError(null);
       
-      const { error } = await supabase.auth.signInWithOAuth({
+      // 保存当前路径到sessionStorage，用于登录后重定向
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem("redirectTo", location.state?.from || "/dashboard");
+      }
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
         }
       });
 
       if (error) throw error;
+      
+      // 如果返回了URL，说明需要重定向到Google登录页面
+      if (data?.url) {
+        window.location.href = data.url;
+      }
       
     } catch (err: any) {
       console.error("Google登录错误:", err);
@@ -62,7 +73,9 @@ export const LoginForm: React.FC = () => {
   return (
     <Form
       name="login"
+      initialValues={{ remember: true }}
       onFinish={onFinish}
+      autoComplete="off"
       layout="vertical"
       className="login-form"
     >
@@ -103,7 +116,7 @@ export const LoginForm: React.FC = () => {
         <Button
           type="primary"
           htmlType="submit"
-          loading={authState?.loading}
+          loading={loading}
           block
           size="large"
         >

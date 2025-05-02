@@ -1,0 +1,6 @@
+part_number,description,material,weight_g,quantity,supplier,region
+PN-001,Plastic Housing,ABS,120,1,Supplier-A,China
+PN-002,PCB Assembly,FR4,75,1,Supplier-B,China
+PN-003,Lithium Battery,Lithium Cobalt Oxide,40,1,Supplier-C,South Korea
+PN-004,Display Module,Glass,25,1,Supplier-D,Taiwan
+PN-005,Screws,Stainless Steel,3,6,Supplier-E,USA

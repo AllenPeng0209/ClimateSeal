@@ -50,6 +50,23 @@ export class PromptLibrary {
       description: '一个实验性的提示词版本，用于降低 token 使用量',
       get: (options) => optimized(options),
     },
+
+    file_upload: {
+      label: '文件上传场景提示词',
+      description: '当用户上传文件后使用的系统提示词，帮助模型理解文件内容并指导下一步操作',
+      get: (options) => {
+        const basePrompt = getSystemPromptCarbonChinese(options.cwd, options.supabase);
+        return `
+${basePrompt}
+
+### 上下文说明
+用户刚刚上传了一个数据文件，系统已解析其内容。请利用以下原则与用户互动：
+1. 首先向用户确认文件类型与关键内容是否正确。
+2. 根据文件所含信息（如BOM、能耗或分销数据），提出继续完善碳足迹模型的具体建议。
+3. 若需要更多信息以完成模型，请以简洁的问题引导用户补充。
+4. 回答尽量具体、专业，并体现出对碳足迹评估流程的理解。`;
+      },
+    },
   };
   static getList() {
     return Object.entries(this.library).map(([key, value]) => {

@@ -21,7 +21,7 @@ import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
 import type { ProviderInfo } from '~/types/model';
-import { useSearchParams } from '@remix-run/react';
+import { useSearchParams, useParams } from '@remix-run/react';
 import { createSampler } from '~/utils/sampler';
 import { getTemplates, selectStarterTemplate } from '~/utils/selectStarterTemplate';
 import { logStore } from '~/lib/stores/logs';
@@ -45,6 +45,7 @@ export function Chat() {
 
   const { ready, storeMessageHistory, importChat, exportChat } = useChatHistory();
   const title = useStore(description);
+  const { id: promptId } = useParams();
 
   return (
     <>
@@ -600,6 +601,7 @@ export const ChatImpl = memo(
         supabaseAlert={supabaseAlert}
         clearSupabaseAlert={() => workbenchStore.clearSupabaseAlert()}
         data={chatData}
+        promptId={promptId}
       />
     );
   },
