@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '~/types/nodes';
 import type { CarbonFlowData, AISummary } from '~/types/carbonFlow';
+import type { CarbonFlowAction } from '~/types/actions';
 
 // 定义CarbonFlow数据存储
 interface CarbonFlowStore {
@@ -48,4 +49,27 @@ export const subscribeToCarbonFlowData = (callback: (data: CarbonFlowData) => vo
   return () => {
     window.removeEventListener('carbonFlowDataUpdate', handleUpdate as EventListener);
   };
-}; 
+};
+
+// 批量应用 CarbonFlowAction 到 CarbonFlowStore
+export function applyCarbonFlowActions(actions: CarbonFlowAction[]) {
+  const { nodes, setNodes } = useCarbonFlowStore.getState();
+  let newNodes = [...nodes];
+
+  actions.forEach(action => {
+    if (action.type === 'carbonflow') {
+      if (action.operation === 'create') {
+        const nodeData = JSON.parse(action.data);
+        newNodes.push({
+          id: action.nodeId || `node_${Date.now()}_${Math.random()}`,
+          type: nodeData.lifecycleStage || 'default',
+          position: { x: 100, y: 100 }, // 可根据需要自定义布局
+          data: nodeData,
+        });
+      }
+      // TODO: 支持 update/delete/connect 等操作
+    }
+  });
+
+  setNodes(newNodes);
+} 

@@ -15,45 +15,13 @@ export interface FileMetadata {
 
 export async function saveFile(file: File, workflowId: string): Promise<FileMetadata> {
   try {
+
     logger.debug('Starting file save process', { 
       fileName: file.name, 
       workflowId,
       fileSize: file.size,
       fileType: file.type
     });
-
-    // 1. 检查并确保 bucket 存在
-    logger.debug('Checking if bucket exists', { bucket: 'files' });
-    const { data: buckets, error: bucketError } = await supabase.storage
-      .listBuckets();
-
-    if (bucketError) {
-      logger.error('Failed to list buckets', { 
-        error: bucketError,
-        errorMessage: bucketError.message
-      });
-      throw bucketError;
-    }
-
-    const bucketExists = buckets.some(bucket => bucket.name === 'files');
-    if (!bucketExists) {
-      logger.debug('Bucket does not exist, creating it', { bucket: 'files' });
-      const { error: createError } = await supabase.storage
-        .createBucket('files', {
-          public: false,
-          fileSizeLimit: 52428800, // 50MB
-          allowedMimeTypes: ['text/csv', 'application/pdf', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
-        });
-
-      if (createError) {
-        logger.error('Failed to create bucket', { 
-          error: createError,
-          errorMessage: createError.message
-        });
-        throw createError;
-      }
-      logger.debug('Bucket created successfully', { bucket: 'files' });
-    }
 
     // 2. 检查文件是否已存在
     logger.debug('Checking if file exists in database', {
@@ -177,7 +145,10 @@ export async function saveFile(file: File, workflowId: string): Promise<FileMeta
         .from('files')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: true
+          upsert: true,
+          metadata: {
+            owner_id: (await supabase.auth.getUser()).data.user?.id
+          }
         });
 
       if (uploadError) {
@@ -207,6 +178,7 @@ export async function saveFile(file: File, workflowId: string): Promise<FileMeta
           path: uploadData.path,
           type: file.type,
           size: file.size,
+          mime_type: file.type || 'application/octet-stream'  // 确保 mime_type 不为 null
         })
         .select()
         .single();
@@ -226,11 +198,10 @@ export async function saveFile(file: File, workflowId: string): Promise<FileMeta
     }
 
     // 3. 创建文件与workflow的关联
-    logger.debug('Attempting to create workflow file relation', {
-      workflowId,
-      fileId: fileData.id
-    });
-    
+    logger.debug('Attempting to create workflow file relation');
+    logger.debug('workflowId', workflowId);
+    logger.debug('fileData.id', fileData.id);
+
     const { error: relationError } = await supabase
       .from('workflow_files')
       .insert({

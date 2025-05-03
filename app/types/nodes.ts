@@ -12,6 +12,11 @@ export interface BaseNodeData {
   carbonFootprint: number;
   dataSources?: string;
   verificationStatus?: string;
+  quantity?: number;
+  carbonFactorName?: string;
+  unitConversion?: number;
+  carbonFactordataSource?: string;
+  activityScorelevel?: number;
 }
 
 // 产品节点数据

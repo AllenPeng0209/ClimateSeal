@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import type { DragEvent } from 'react';
+import { useLoaderData } from '@remix-run/react';
 import ReactFlow, { type Node, type Edge, type Connection, type OnConnect, type OnNodesChange, type OnEdgesChange, type ReactFlowInstance, type Viewport, useNodesState, useEdgesState, addEdge, useReactFlow, ReactFlowProvider, Background, Controls, MiniMap, Panel, ConnectionLineType, ConnectionMode, applyNodeChanges, applyEdgeChanges, MarkerType } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './CarbonFlow.css';
@@ -141,6 +142,7 @@ interface CheckpointMetadata {
 }
 
 const CarbonFlowInner = () => {
+  const { workflow } = useLoaderData();
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
@@ -296,6 +298,7 @@ const CarbonFlowInner = () => {
           carbonFootprint: 0,
           unitConversion: 1,
           emissionFactorQuality: 0,
+          workflowId: workflow?.id,
           ...(type === 'product' && { material: '', weight_per_unit: '0' }),
           ...(type === 'manufacturing' && { 
             energyConsumption: 0,
@@ -1921,10 +1924,27 @@ const CarbonFlowInner = () => {
                   <NodeProperties
                     node={selectedNode}
                     onClose={() => setSelectedNode(null)}
+                    onUpdate={(data) => {
+                      setNodes((nds) =>
+                        nds.map((node) => {
+                          if (node.id === selectedNode.id) {
+                            return {
+                              ...node,
+                              data: {
+                                ...node.data,
+                                ...data,
+                              },
+                            };
+                          }
+                          return node;
+                        })
+                      );
+                    }}
                     setNodes={setNodes}
                     selectedNode={selectedNode}
-                    onUpdate={handleNodeUpdate}
+                    setSelectedNode={setSelectedNode}
                     updateAiSummary={calculateAiSummary}
+                    workflow={workflow}
                   />
                 </Panel>
               )}

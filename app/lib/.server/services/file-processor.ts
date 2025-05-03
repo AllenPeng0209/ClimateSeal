@@ -237,22 +237,21 @@ export async function processFile(file: File, workflowId: string): Promise<FileP
 
     // 1. 保存文件到 Supabase
     logger.debug('Attempting to save file to storage');
+    logger.debug('workflowId', workflowId);
     const fileMetadata = await saveFile(file, workflowId);
     logger.debug('File saved successfully', { fileMetadata });
     
     // 2. 根据文件类型处理文件
-    logger.debug('Determining file type');
     const fileType = determineFileType(file);
-    logger.debug('File type determined', { fileType });
+    logger.debug('File type determined',  fileType);
 
-    logger.debug('Reading file content');
     const content = await readFileContent(file);
-    logger.debug('File content read successfully', { contentLength: content.length });
+    logger.debug('File content read successfully');
     
     // === 使用 LLM 进行语义分类 ===
-    logger.debug('Classifying file category');
+    logger.debug('Classifying file category...');
     const category = await classifyFileCategory(file.name, content);
-    logger.debug('File category determined', { category });
+    logger.debug('File category determined', category);
 
     let actions: CarbonFlowAction[] = [];
     let userPrompt = '';
@@ -311,40 +310,6 @@ export async function processFile(file: File, workflowId: string): Promise<FileP
   }
 }
 
-export function extractBoltActions(response: string): string {
-  // 使用正则表达式提取 BoltAction
-  const boltActionRegex = /<boltArtifact[^>]*>[\s\S]*?<\/boltArtifact>/g;
-  const matches = response.match(boltActionRegex);
-  return matches ? matches.join('\n') : '';
-}
-
-export function validateBoltAction(boltAction: string): boolean {
-  // 验证 BoltAction 格式
-  try {
-    // 检查是否包含必要的标签
-    if (!boltAction.includes('<boltArtifact') || !boltAction.includes('</boltArtifact>')) {
-      return false;
-    }
-    
-    // 检查是否包含必要的属性
-    const artifactId = boltAction.match(/id="([^"]*)"/);
-    const artifactTitle = boltAction.match(/title="([^"]*)"/);
-    if (!artifactId || !artifactTitle) {
-      return false;
-    }
-    
-    // 检查是否包含 CarbonFlow 操作
-    if (!boltAction.includes('type="carbonflow"')) {
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    logger.error('Failed to validate BoltAction', { error, boltAction });
-    return false;
-  }
-}
-
 export async function getWorkflowFiles(workflowId: string): Promise<FileMetadata[]> {
   return getFilesByWorkflow(workflowId);
 }
@@ -361,7 +326,6 @@ export async function getFileContent(filePath: string): Promise<string> {
  */
 export async function classifyFileCategory(fileName: string, content: string): Promise<string> {
   try {
-    logger.debug('classifyFileCategory:start', { fileName });
     const provider = DEFAULT_PROVIDER;
     const llmMgr = LLMManager.getInstance();
     let modelDetails = llmMgr.getStaticModelListFromProvider(provider).find((m) => m.name === DEFAULT_MODEL);

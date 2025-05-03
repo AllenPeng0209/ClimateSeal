@@ -2,7 +2,7 @@ import React from 'react';
 import { Form, Input, Select, InputNumber, Upload, Button, Row, Col, message } from 'antd';
 import { UploadOutlined, CloseOutlined } from '@ant-design/icons';
 import type { Node } from 'reactflow';
-import type { NodeData } from '~/app/types/nodes';
+import type { NodeData } from '~/types/nodes';
 
 const { Option } = Select;
 
@@ -10,14 +10,26 @@ interface NodePropertiesProps {
   node: Node<NodeData>;
   onClose: () => void;
   onUpdate: (data: Partial<NodeData>) => void;
-  setNodes: (callback: (nodes: any[]) => any[]) => void;
-  selectedNode: any;
-  setSelectedNode: (node: any) => void;
+  setNodes: (callback: (nodes: Node<NodeData>[]) => Node<NodeData>[]) => void;
+  selectedNode: Node<NodeData> | null;
+  setSelectedNode: (node: Node<NodeData> | null) => void;
   updateAiSummary: () => void;
+  workflow?: {
+    id: string;
+    name: string;
+    description: string;
+    total_carbon_footprint: number;
+    created_at: string;
+    industry_type?: string;
+    nodes: any[];
+    edges: any[];
+    data: any;
+    is_public: boolean;
+  };
 }
 
-export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, onUpdate, setNodes, selectedNode, setSelectedNode, updateAiSummary}) => {
-  const updateNodeData = (key: keyof NodeData, value: any) => {
+export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, onUpdate, setNodes, selectedNode, setSelectedNode, updateAiSummary, workflow }) => {
+  const updateNodeData = (key: string, value: any) => {
     console.log('更新前数据:', node.data);
     console.log('正在更新属性:', key, '值为:', value);
     
@@ -44,13 +56,13 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
     console.log('更新后数据:', updatedData);
     
     // 先更新选中节点状态，确保属性面板实时更新
-    setSelectedNode((prev) => ({
+    setSelectedNode((prev: Node<NodeData> | null) => ({
       ...prev,
       data: updatedData
     }));
     
     // 然后更新节点列表中的对应节点
-    setNodes((nds) => {
+    setNodes((nds: Node<NodeData>[]) => {
       const newNodes = nds.map((n) => {
         if (n.id === node.id) {
           console.log('找到要更新的节点:', n.id);
@@ -581,13 +593,21 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
               </Form.Item>
                                  
               <Form.Item label="认证材料" className="form-item"> 
-                      <Upload
-                        action="/api/upload"
-                        listType="picture-card"
-                      >
-                        <Button icon={<UploadOutlined />}>上传</Button>
-                      </Upload>
-                    </Form.Item>
+                <Upload
+                  action="/api/process-file"
+                  listType="picture-card"
+                  data={(file) => ({
+                    file,
+                    workflowId: workflow?.id,
+                    promptId: node.id
+                  })}
+                  headers={{
+                    'Content-Type': 'multipart/form-data'
+                  }}
+                >
+                  <Button icon={<UploadOutlined />}>上传</Button>
+                </Upload>
+              </Form.Item>
             </Col>
             <Col span={12}>
             <h4 className="workflow-section-title">碳足跡属性</h4>

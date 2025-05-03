@@ -17,22 +17,20 @@ import { processFile } from '~/lib/.server/services/file-processor';
 import { json } from '@remix-run/node';
 
 export async function action(args: ActionFunctionArgs) {
-
   // 检查是否是文件处理请求
   const contentType = args.request.headers.get('content-type');
   if (contentType?.includes('multipart/form-data')) {
     const formData = await args.request.formData();
     const file = formData.get('file') as File;
-    const promptId = formData.get('promptId') as string;
-    const filePath = formData.get('filePath') as string;
+    const workflowId = formData.get('workflowId') as string;
 
-    if (!file || !promptId) {
+    if (!file || !workflowId) {
       return json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
     try {
       // 处理文件
-      const result = await processFile(file, promptId);
+      const result = await processFile(file, workflowId);
       return json(result);
     } catch (error) {
       console.error('Error processing file:', error);

@@ -30,6 +30,8 @@ import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
 import { subscribeToCarbonFlowData } from '~/components/workbench/CarbonFlow/CarbonFlowBridge';
 import type { CarbonFlowData } from '~/types/carbonFlow';
+import { useLoaderData } from '@remix-run/react';
+import type { LoaderData } from '~/types/loader';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -131,6 +133,7 @@ export const ChatImpl = memo(
     );
     const supabaseAlert = useStore(workbenchStore.supabaseAlert);
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
+    const { workflow } = useLoaderData<LoaderData>();
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
@@ -602,6 +605,7 @@ export const ChatImpl = memo(
         clearSupabaseAlert={() => workbenchStore.clearSupabaseAlert()}
         data={chatData}
         promptId={promptId}
+        workflowId={workflow?.id}
       />
     );
   },

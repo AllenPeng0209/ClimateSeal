@@ -89,6 +89,7 @@ interface BaseChatProps {
   promptId?: string;
   carbonFlowData?: any;
   setInput?: (input: string) => void;
+  workflowId?: string;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -130,6 +131,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       promptId,
       carbonFlowData,
       setInput,
+      workflowId,
     },
     ref,
   ) => {
@@ -197,7 +199,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     
     // 修改发送消息处理函数
     const handleSendMessage = useCallback(async (event: React.UIEvent<Element>, messageInput?: string) => {
-      const messageContent = messageInput || input;
+      let messageContent = messageInput || input;
 
       if (!messageContent?.trim()) {
         return;
@@ -218,16 +220,31 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         return;
       }
 
+      // ===== 新增：如果有csvData，拼接全部内容 =====
+      if (csvData && csvData.parseStatus === 'success') {
+        // Markdown 表格预览（前5行）
+        const previewRows = csvData.data.slice(0, 5);
+        const tableHeader = `| ${csvData.headers.join(' | ')} |`;
+        const tableDivider = `| ${csvData.headers.map(() => '---').join(' | ')} |`;
+        const tableRows = previewRows.map(row =>
+          `| ${csvData.headers.map(h => row[h]).join(' | ')} |`
+        ).join('\n');
+        const table = [tableHeader, tableDivider, tableRows].join('\n');
+        // 全部数据（JSON）
+        const fullData = JSON.stringify(csvData.data, null, 2);
+
+        messageContent += `\n\n【文件内容】\n文件名: ${csvData.fileName}\n共 ${csvData.rowCount} 行\n\n部分内容预览（前5行）：\n${table}\n\n全部数据（JSON）：\n${fullData}`;
+      }
+
       try {
         // 使用 sendMessage prop 发送消息
         if (sendMessage) {
           await sendMessage(event, messageContent);
-          
           // 清除输入和上传的文件
           if (setInput) setInput('');
           if (setUploadedFiles) setUploadedFiles([]);
           if (setImageDataList) setImageDataList([]);
-          if (setCsvData) setCsvData(null);
+          if (setCsvData) setCsvData(null); // 发送后清空csvData
 
           // 延时滚动
           setTimeout(forceScrollToBottom, 100);
@@ -239,7 +256,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         console.error('Error sending message:', error);
         toast.error('发送消息失败');
       }
-    }, [sendMessage, isStreaming, handleStop, isModelLoading, input, forceScrollToBottom, promptId, setInput, setUploadedFiles, setImageDataList, setCsvData]);
+    }, [sendMessage, isStreaming, handleStop, isModelLoading, input, forceScrollToBottom, promptId, setInput, setUploadedFiles, setImageDataList, setCsvData, csvData]);
     
     // AI 初始问候消息
     useEffect(() => {
@@ -518,7 +535,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               }
             };
             reader.readAsDataURL(file);
-          } else if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+          } else {
             const reader = new FileReader();
             
             // 设置解析状态为进行中
@@ -564,9 +581,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   // 调用 processFile 处理文件
                   const formData = new FormData();
                   formData.append('file', file);
-                  formData.append('promptId', promptId || '');
+                  formData.append('workflowId', workflowId || '');
 
-                  const response = await fetch('/api/process-file', {
+                  const response = await fetch('/api/chat', {
                     method: 'POST',
                     body: formData
                   });
