@@ -16,7 +16,7 @@ import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
 import { CarbonFlowActionHandler } from './CarbonFlow/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
 import { Tag, Collapse, Progress, message, Modal, Input, Row, Col, Upload, Alert, Divider, List, Empty, Typography, Button as AntButton, ConfigProvider } from 'antd';
-import { UpOutlined, DownOutlined, ReloadOutlined, SaveOutlined, HistoryOutlined, ExportOutlined, ImportOutlined, DeleteOutlined, SyncOutlined, CloudDownloadOutlined, CloudSyncOutlined, UploadOutlined } from '@ant-design/icons';
+import { UpOutlined, DownOutlined, ReloadOutlined, SaveOutlined, HistoryOutlined, ExportOutlined, ImportOutlined, DeleteOutlined, SyncOutlined, CloudDownloadOutlined, CloudSyncOutlined, UploadOutlined, CheckOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons';
 import { CheckpointManager } from '~/lib/checkpoints/CheckpointManager';
 import { CheckpointSyncService } from '~/lib/services/checkpointSyncService';
 import { useStore } from '@nanostores/react';
@@ -27,6 +27,7 @@ import { chatMessagesStore } from '~/lib/stores/chatMessagesStore';
 import { theme } from 'antd';
 import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData, BaseNodeData, UsageNodeData, DisposalNodeData, FinalProductNodeData } from '~/types/nodes';
 import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowBridge';
+import { supabase } from '~/lib/supabase';
 
 const { darkAlgorithm } = theme;
 
@@ -1815,11 +1816,81 @@ const CarbonFlowInner = () => {
     calculateAiSummary();
   }, [nodes, setNodes, calculateAiSummary]);
 
+  // 标题编辑相关state
+  const [workflowTitle, setWorkflowTitle] = useState(workflow?.name || '');
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [originalTitle, setOriginalTitle] = useState(workflow?.name || '');
+
+  // 编辑操作
+  const onStartEdit = () => {
+    setOriginalTitle(workflowTitle);
+    setEditing(true);
+  };
+  const onCancelEdit = () => {
+    setWorkflowTitle(originalTitle);
+    setEditing(false);
+  };
+  const onConfirmEdit = async () => {
+    setSaving(true);
+    if (!workflow?.id) {
+      message.error('未找到工作流ID，无法保存');
+      setSaving(false);
+      return;
+    }
+    const { error } = await supabase
+      .from('workflows')
+      .update({ name: workflowTitle })
+      .eq('id', workflow.id);
+    if (error) {
+      message.error('保存失败: ' + error.message);
+      setSaving(false);
+      return;
+    }
+    message.success('标题已保存');
+    setEditing(false);
+    setSaving(false);
+  };
+  const onSaveWorkflow = onConfirmEdit;
+
   return (
     <div className="editor-layout">
       <div className="editor-header">
-        <div className="header-left">
-          <h2 className="workflow-title">碳足迹流程图</h2>
+        <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* 标题编辑区 */}
+          {editing ? (
+            <>
+              <Input
+                value={workflowTitle}
+                onChange={e => setWorkflowTitle(e.target.value)}
+                style={{ fontSize: 22, fontWeight: 'bold', width: 320, background: '#18181b', color: '#fff', border: '1px solid #333' }}
+                disabled={saving}
+                maxLength={40}
+              />
+              <AntButton
+                type="primary"
+                icon={<CheckOutlined />}
+                onClick={onConfirmEdit}
+                loading={saving}
+                style={{ marginLeft: 4 }}
+              />
+              <AntButton
+                icon={<CloseOutlined />}
+                onClick={onCancelEdit}
+                disabled={saving}
+                style={{ marginLeft: 4 }}
+              />
+            </>
+          ) : (
+            <>
+              <span className="workflow-title" style={{ fontSize: 22, fontWeight: 'bold', color: '#64ffda', marginRight: 8 }}>{workflowTitle}</span>
+              <AntButton
+                icon={<EditOutlined />}
+                onClick={onStartEdit}
+                style={{ marginLeft: 4 }}
+              />
+            </>
+          )}
         </div>
         <div className="header-right">
           <Button onClick={addNewNode}>新增节点</Button>
