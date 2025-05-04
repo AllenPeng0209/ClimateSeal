@@ -21,7 +21,7 @@ import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
 import type { ProviderInfo } from '~/types/model';
-import { useSearchParams } from '@remix-run/react';
+import { useSearchParams, useParams } from '@remix-run/react';
 import { createSampler } from '~/utils/sampler';
 import { getTemplates, selectStarterTemplate } from '~/utils/selectStarterTemplate';
 import { logStore } from '~/lib/stores/logs';
@@ -30,6 +30,8 @@ import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
 import { subscribeToCarbonFlowData } from '~/components/workbench/CarbonFlow/CarbonFlowBridge';
 import type { CarbonFlowData } from '~/types/carbonFlow';
+import { useLoaderData } from '@remix-run/react';
+import type { LoaderData } from '~/types/loader';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -45,6 +47,7 @@ export function Chat() {
 
   const { ready, storeMessageHistory, importChat, exportChat } = useChatHistory();
   const title = useStore(description);
+  const { id: promptId } = useParams();
 
   return (
     <>
@@ -130,6 +133,7 @@ export const ChatImpl = memo(
     );
     const supabaseAlert = useStore(workbenchStore.supabaseAlert);
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
+    const { workflow } = useLoaderData<LoaderData>();
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
@@ -600,6 +604,8 @@ export const ChatImpl = memo(
         supabaseAlert={supabaseAlert}
         clearSupabaseAlert={() => workbenchStore.clearSupabaseAlert()}
         data={chatData}
+        promptId={promptId}
+        workflowId={workflow?.id}
       />
     );
   },

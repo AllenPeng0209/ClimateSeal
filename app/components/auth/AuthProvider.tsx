@@ -4,6 +4,7 @@ import { message } from 'antd';
 
 interface AuthState {
   user: any;
+  session: any;
   loading: boolean;
 }
 
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
+    session: null,
     loading: true
   });
 
@@ -27,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthState({
         user: session?.user ?? null,
+        session: session,
         loading: false
       });
     });
@@ -35,6 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthState({
         user: session?.user ?? null,
+        session: session,
         loading: false
       });
     });
@@ -45,8 +49,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (credentials: { email: string; password: string }) => {
     try {
       setAuthState(prev => ({ ...prev, loading: true }));
-      const { error } = await supabase.auth.signInWithPassword(credentials);
+      const { data, error } = await supabase.auth.signInWithPassword(credentials);
       if (error) throw error;
+      if (data.session) {
+        setAuthState({
+          user: data.session.user,
+          session: data.session,
+          loading: false
+        });
+      }
     } catch (error: any) {
       message.error(error.message);
       throw error;
@@ -60,6 +71,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAuthState(prev => ({ ...prev, loading: true }));
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      setAuthState({
+        user: null,
+        session: null,
+        loading: false
+      });
     } catch (error: any) {
       message.error(error.message);
       throw error;
@@ -71,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (data: { email: string; password: string; name: string }) => {
     try {
       setAuthState(prev => ({ ...prev, loading: true }));
-      const { error } = await supabase.auth.signUp({
+      const { data: authData, error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
@@ -81,6 +97,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
       if (error) throw error;
+      if (authData.session) {
+        setAuthState({
+          user: authData.session.user,
+          session: authData.session,
+          loading: false
+        });
+      }
     } catch (error: any) {
       message.error(error.message);
       throw error;

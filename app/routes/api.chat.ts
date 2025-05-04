@@ -11,11 +11,44 @@ import type { ContextAnnotation, ProgressAnnotation } from '~/types/context';
 import { WORK_DIR } from '~/utils/constants';
 import { createSummary } from '~/lib/.server/llm/create-summary';
 import { extractPropertiesFromMessage } from '~/lib/.server/llm/utils';
-import type { CarbonFlowData } from '~/types/carbonFlow';
+import type { CarbonFlowData } from '~/lib/.server/llm/stream-text';
+import { type LoaderFunctionArgs } from '@remix-run/node';
+import { processFile } from '~/lib/.server/services/file-processor';
+import { json } from '@remix-run/node';
 
 export async function action(args: ActionFunctionArgs) {
+  // 检查是否是文件处理请求
+  const contentType = args.request.headers.get('content-type');
+  if (contentType?.includes('multipart/form-data')) {
+    const formData = await args.request.formData();
+    const file = formData.get('file') as File;
+    const workflowId = formData.get('workflowId') as string;
+
+    if (!file || !workflowId) {
+      return json({ error: 'Missing required parameters' }, { status: 400 });
+    }
+
+    try {
+      // 处理文件
+      const result = await processFile(file, workflowId);
+      return json(result);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      return json({ error: 'Failed to process file' }, { status: 500 });
+    }
+  }
+
   return chatAction(args);
 }
+
+// Re-export loader so that GET requests are handled the same way as POST.
+export const loader = async (args: LoaderFunctionArgs) => {
+  console.log('API Chat GET request received', {
+    url: args.request.url,
+    headers: Object.fromEntries(args.request.headers.entries())
+  });
+  return new Response('Method Not Allowed', { status: 405 });
+};
 
 const logger = createScopedLogger('api.chat');
 
@@ -37,10 +70,10 @@ function parseCookies(cookieHeader: string): Record<string, string> {
   return cookies;
 }
 
-async function chatAction({ context, request }: ActionFunctionArgs) {
+async function chatAction({ context, request }: ActionFunctionArgs) {  
   const { messages, files, promptId, contextOptimization, carbonFlowData, supabase } = await request.json<{
     messages: Messages;
-    files: any;
+    files: FileMap;
     promptId?: string;
     contextOptimization: boolean;
     carbonFlowData?: CarbonFlowData;
@@ -53,6 +86,44 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       };
     };
   }>();
+
+  // 处理文件
+  const processedFiles = await Promise.all(
+    Object.entries(files).map(async ([key, file]) => {
+      if (!file || file.type !== 'file') {
+        return null;
+      }
+
+      try {
+        const processingResult = await processFile(new File([file.content], key), promptId || '');
+        return {
+          key,
+          content: processingResult.userPrompt,
+          isBinary: file.isBinary
+        };
+      } catch (error) {
+        logger.error(`Error processing file ${key}:`, error);
+        return null;
+      }
+    })
+  );
+
+  // 过滤掉处理失败的文件
+  const validFiles = processedFiles.filter((file): file is { key: string; content: string; isBinary: boolean } => 
+    file !== null
+  ).reduce((acc, file) => {
+    acc[file.key] = {
+      type: 'file' as const,
+      content: file.content,
+      isBinary: file.isBinary
+    };
+    return acc;
+  }, {} as FileMap);
+
+  // 添加日志来检查文件
+  logger.info('Processed files count:', validFiles ? Object.keys(validFiles).length : 0);
+  logger.info('Processed files keys:', validFiles ? Object.keys(validFiles) : []);
+  logger.info('Processed files types:', validFiles ? Object.values(validFiles).map(f => f?.type) : []);
 
   const cookieHeader = request.headers.get('Cookie');
   const apiKeys = JSON.parse(parseCookies(cookieHeader || '').apiKeys || '{}');
@@ -72,13 +143,12 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
   try {
     const totalMessageContent = messages.reduce((acc, message) => acc + message.content, '');
-    logger.debug(`Total message length: ${totalMessageContent.split(' ').length}, words`);
 
     let lastChunk: string | undefined = undefined;
 
     const dataStream = createDataStream({
       async execute(dataStream) {
-        const filePaths = getFilePaths(files || {});
+        const filePaths = getFilePaths(validFiles || {});
         let filteredFiles: FileMap | undefined = undefined;
         let summary: string | undefined = undefined;
         let messageSliceId = 0;
@@ -88,7 +158,6 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         }
 
         if (filePaths.length > 0 && contextOptimization) {
-          logger.debug('Generating Chat Summary');
           dataStream.writeData({
             type: 'progress',
             label: 'summary',
@@ -146,7 +215,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             messages: [...messages],
             env: context.cloudflare?.env,
             apiKeys,
-            files,
+            files: validFiles,
             providerSettings,
             promptId,
             contextOptimization,
@@ -194,7 +263,6 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           toolChoice: 'none',
           carbonFlowData,
           onFinish: async ({ text: content, finishReason, usage }) => {
-            logger.debug('usage', JSON.stringify(usage));
 
             if (usage) {
               cumulativeUsage.completionTokens += usage.completionTokens || 0;
@@ -246,7 +314,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               env: context.cloudflare?.env,
               options,
               apiKeys,
-              files,
+              files: validFiles,
               providerSettings,
               promptId,
               contextOptimization,
@@ -273,20 +341,13 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           },
         };
 
-        dataStream.writeData({
-          type: 'progress',
-          label: 'response',
-          status: 'in-progress',
-          order: progressCounter++,
-          message: 'Generating Response',
-        } satisfies ProgressAnnotation);
 
         const result = await streamText({
           messages,
           env: context.cloudflare?.env,
           options,
           apiKeys,
-          files,
+          files: validFiles,
           providerSettings,
           promptId,
           contextOptimization,
@@ -296,19 +357,12 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           carbonFlowData,
         });
 
-        (async () => {
-          for await (const part of result.fullStream) {
-            if (part.type === 'error') {
-              const error: any = part.error;
-              logger.error(`${error}`);
-
-              return;
-            }
-          }
-        })();
         result.mergeIntoDataStream(dataStream);
       },
-      onError: (error: any) => `Custom error: ${error.message}`,
+      onError: (error: any) => {
+        logger.error('Data stream error', error);
+        return `Custom error: ${error.message}`;
+      },
     }).pipeThrough(
       new TransformStream({
         transform: (chunk, controller) => {
@@ -357,8 +411,6 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       },
     });
   } catch (error: any) {
-    logger.error(error);
-
     if (error.message?.includes('API key')) {
       throw new Response('Invalid or missing API key', {
         status: 401,

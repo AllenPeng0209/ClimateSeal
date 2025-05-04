@@ -1,14 +1,29 @@
-import { json, type LoaderFunction } from "@remix-run/cloudflare";
-import { useLoaderData, useNavigate } from "@remix-run/react";
-import { useEffect } from "react";
+import { json, type LoaderFunction, type ActionFunction, redirect } from "@remix-run/cloudflare";
+import { useLoaderData, useNavigate, useSubmit } from "@remix-run/react";
+import { useEffect, useRef } from "react";
 import { message } from "antd";
 import { Chat } from "~/components/chat/Chat.client";
 import { useStore } from "@nanostores/react";
 import { themeStore } from "~/lib/stores/theme";
-
 import { ClientOnly } from 'remix-utils/client-only';
 import { BaseChat } from '~/components/chat/BaseChat';
+import { supabase } from "~/lib/supabase";
 
+interface WorkflowResponse {
+  workflow?: {
+    id: string;
+    name: string;
+    description: string;
+    total_carbon_footprint: number;
+    created_at: string;
+    industry_type?: string;
+    nodes: any[];
+    edges: any[];
+    data: any;
+    is_public: boolean;
+  };
+  error?: string;
+}
 
 interface LoaderData {
   error?: string;
@@ -21,6 +36,8 @@ interface LoaderData {
     industry_type?: string;
     nodes: any[];
     edges: any[];
+    data: any;
+    is_public: boolean;
   };
 }
 
@@ -31,11 +48,73 @@ const isValidWorkflowId = (id: string): boolean => {
   return uuidRegex.test(id);
 };
 
-export const loader: LoaderFunction = async ({ params }) => {
+export const action: ActionFunction = async ({ request }) => {
+  console.log('Action: Starting workflow creation process');
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  console.log('Action: Received intent:', intent);
+
+  if (intent === "create") {
+    try {
+      const authHeader = request.headers.get("authorization") || "";
+      const jwt = authHeader.replace(/Bearer\s+/i, "").trim();
+
+      if (!jwt) {
+        console.warn('Action: no Authorization header');
+        return json({ error: "未登录" }, { status: 401 });
+      }
+
+      const { data: { user }, error: userErr } = await supabase.auth.getUser(jwt);
+
+      if (userErr || !user) {
+        console.error('Action: getUser failed', userErr);
+        return json({ error: "未登录" }, { status: 401 });
+      }
+      console.log('Action: Authenticated user', user.id);
+
+      // Use the imported supabase client for the insert
+      const { data: workflow, error } = await supabase
+        .from('workflows')
+        .insert({
+          name: '新工作流',
+          description: '这是一个新的碳足迹工作流',
+          user_id: user.id,
+          data: {},
+          is_public: false,
+          total_carbon_footprint: 0.0,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Action: Failed to create workflow:', error);
+        return json({ error: "创建工作流失败" }, { status: 500 });
+      }
+
+      // 直接返回工作流数据，而不是重定向
+      return json({ 
+        workflow: {
+          ...workflow,
+          nodes: [],
+          edges: []
+        }
+      });
+    } catch (error) {
+      console.error('Action: Error in workflow creation:', error);
+      return json({ error: "创建工作流失败" }, { status: 500 });
+    }
+  }
+
+  return null;
+};
+
+export const loader: LoaderFunction = async ({ request, params }) => {
+  console.log('Loader: Starting with params:', params);
   const { id } = params;
 
   // 处理新建工作流的情况
   if (id === "new") {
+    console.log('Loader: New workflow requested');
     return json({ workflow: null });
   }
 
@@ -45,20 +124,45 @@ export const loader: LoaderFunction = async ({ params }) => {
   }
 
   try {
-    // 这里可以添加从后端获取工作流数据的逻辑
-    // 暂时返回模拟数据
-    return json({
+    // 使用已配置的 supabase 实例
+    const { data: workflow, error: workflowError } = await supabase
+      .from('workflows')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    console.log('workflow', workflow);
+    if (workflowError) {
+      console.error('Failed to fetch workflow:', workflowError);
+      return json({ error: "获取工作流数据失败" }, { status: 500 });
+    }
+
+    if (!workflow) {
+      return json({ error: "工作流不存在" }, { status: 404 });
+    }
+
+    // 获取工作流节点 - 即使失败也继续
+    const { data: nodes } = await supabase
+      .from('workflow_nodes')
+      .select('*')
+      .eq('workflow_id', id);
+
+    // 获取工作流边 - 即使失败也继续
+    const { data: edges } = await supabase
+      .from('workflow_edges')
+      .select('*')
+      .eq('workflow_id', id);
+
+    // 合并工作流数据，确保 nodes 和 edges 至少是空数组
+    return json({ 
       workflow: {
-        id,
-        name: "示例工作流",
-        description: "这是一个示例工作流",
-        total_carbon_footprint: 0,
-        created_at: new Date().toISOString(),
-        nodes: [],
-        edges: []
+        ...workflow,
+        nodes: nodes || [],
+        edges: edges || []
       }
     });
   } catch (error) {
+    console.error('Error fetching workflow:', error);
     return json({ error: "获取工作流数据失败" }, { status: 500 });
   }
 };
@@ -66,19 +170,83 @@ export const loader: LoaderFunction = async ({ params }) => {
 export default function WorkflowPage() {
   const { error, workflow } = useLoaderData<LoaderData>();
   const navigate = useNavigate();
+  const submit = useSubmit();
   const theme = useStore(themeStore);
+  const creationAttemptedRef = useRef(false);
+  const isCreatingRef = useRef(false);
+
+  console.log('WorkflowPage render:', { error, workflow, creationAttempted: creationAttemptedRef.current, isCreating: isCreatingRef.current });
 
   useEffect(() => {
     if (error) {
+      console.error('Component: Error detected:', error);
       message.error(error);
-      // 延迟重定向，让用户能看到错误消息
       setTimeout(() => {
-        navigate("/");
+        console.log('Component: Navigating to home page due to error');
+        navigate("/dashboard");
       }, 1500);
     }
   }, [error, navigate]);
 
+  // 如果是新工作流，自动提交创建请求
+  useEffect(() => {
+    if (!workflow && !creationAttemptedRef.current && !isCreatingRef.current) {
+      isCreatingRef.current = true;
+      creationAttemptedRef.current = true;
+      console.log('Component: No workflow found, initiating creation');
+
+      (async () => {
+        try {
+          console.log('Component: Getting user_id...');
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+          if (userError || !user) {
+            console.error('Component: User validation failed:', userError);
+            message.error("未登录");
+            return;
+          }
+          
+          console.log('user.id', user.id);
+          
+          const { data: newWorkflow, error } = await supabase 
+            .from('workflows')
+            .insert({
+              name: '新工作流',
+              description: '这是一个新的碳足迹工作流',
+              data: {}, 
+              is_public: false,
+              total_carbon_footprint: 0.0,
+              user_id: user.id
+            })
+            .select()
+            .single();
+
+          if (error) {
+            console.error('Component: Failed to create workflow:', error);
+            message.error(`创建工作流失败: ${error.message}`);
+            return;
+          }
+
+          if (newWorkflow) {
+            console.log('Component: Workflow created successfully:', newWorkflow);
+            // Simply navigate to the new workflow URL
+            // The session cookie will be automatically included in the request
+            navigate(`/workflow/${newWorkflow.id}`, { replace: true });
+          } else {
+            console.error('Component: No workflow data returned');
+            message.error("创建工作流失败：未返回数据");
+          }
+        } catch (error) {
+          console.error('Component: Error creating workflow:', error);
+          message.error("创建工作流失败");
+        } finally {
+          isCreatingRef.current = false;
+        }
+      })();
+    }
+  }, [workflow, navigate, submit]);
+
   if (error) {
+    console.log('Rendering error state');
     return (
       <div style={{ padding: "20px", textAlign: "center" }}>
         <h2>错误</h2>
@@ -88,6 +256,16 @@ export default function WorkflowPage() {
     );
   }
 
+  if (!workflow) {
+    console.log('Rendering loading state');
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <span>正在创建工作流...</span>
+      </div>
+    );
+  }
+
+  console.log('Rendering workflow page with workflow:', workflow);
   return (
     <div className="flex flex-col h-full w-full bg-bolt-elements-background-depth-1">
       <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>

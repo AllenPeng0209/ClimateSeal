@@ -15,6 +15,7 @@ import { SendButton } from './SendButton.client';
 import { APIKeyManager, getApiKeysFromCookies } from './APIKeyManager';
 import Cookies from 'js-cookie';
 import * as Tooltip from '@radix-ui/react-tooltip';
+import { supabase } from '~/lib/supabase';
 
 import styles from './BaseChat.module.scss';
 import { ExportChatButton } from '~/components/chat/chatExportAndImport/ExportChatButton';
@@ -38,6 +39,7 @@ import type { ActionRunner } from '~/lib/runtime/action-runner';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
 import { SupabaseChatAlert } from '~/components/chat/SupabaseAlert';
 import { SupabaseConnection } from './SupabaseConnection';
+import type { FileMap } from '~/types/file';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -84,6 +86,10 @@ interface BaseChatProps {
   clearSupabaseAlert?: () => void;
   data?: JSONValue[] | undefined;
   actionRunner?: ActionRunner;
+  promptId?: string;
+  carbonFlowData?: any;
+  setInput?: (input: string) => void;
+  workflowId?: string;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -122,6 +128,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       clearSupabaseAlert,
       data,
       actionRunner,
+      promptId,
+      carbonFlowData,
+      setInput,
+      workflowId,
     },
     ref,
   ) => {
@@ -188,8 +198,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     }, [isStreaming, forceScrollToBottom]);
     
     // 修改发送消息处理函数
-    const handleSendMessage = useCallback((event: React.UIEvent<Element>, messageInput?: string) => {
-      const messageContent = messageInput || input;
+    const handleSendMessage = useCallback(async (event: React.UIEvent<Element>, messageInput?: string) => {
+      let messageContent = messageInput || input;
 
       if (!messageContent?.trim()) {
         return;
@@ -204,81 +214,49 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         return;
       }
 
-      if (!chatStarted) {
-        setIsModelLoading('all');
-        fetch('/api/models')
-          .then((response) => response.json())
-          .then((data) => {
-            const typedData = data as { modelList: ModelInfo[] };
-            setModelList(typedData.modelList);
-          })
-          .catch((error) => {
-            console.error('Error fetching model list:', error);
-          })
-          .finally(() => {
-            setIsModelLoading(undefined);
-          });
+      // 确保 promptId 是字符串
+      if (typeof promptId !== 'string') {
+        toast.error('缺少必要的 promptId');
+        return;
       }
 
-      // 如果有CSV数据，创建一个消息
-      if (csvData) {
-        // 创建一个更结构化的CSV数据表示
-        const csvContent = [
-          // 表头行
-          csvData.headers.join(','),
-          // 数据行
-          ...csvData.data.map(row => 
-            csvData.headers.map(header => {
-              // 处理包含逗号、引号或换行符的字段
-              const value = row[header] || '';
-              if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-                // 用双引号包裹，并将内部的双引号替换为两个双引号
-                return `"${value.replace(/"/g, '""')}"`;
-              }
-              return value;
-            }).join(',')
-          )
-        ].join('\n');
+      // ===== 新增：如果有csvData，拼接全部内容 =====
+      if (csvData && csvData.parseStatus === 'success') {
+        // Markdown 表格预览（前5行）
+        const previewRows = csvData.data.slice(0, 5);
+        const tableHeader = `| ${csvData.headers.join(' | ')} |`;
+        const tableDivider = `| ${csvData.headers.map(() => '---').join(' | ')} |`;
+        const tableRows = previewRows.map(row =>
+          `| ${csvData.headers.map(h => row[h]).join(' | ')} |`
+        ).join('\n');
+        const table = [tableHeader, tableDivider, tableRows].join('\n');
+        // 全部数据（JSON）
+        const fullData = JSON.stringify(csvData.data, null, 2);
 
-        // 创建一个用户消息，包含CSV数据
-        const csvMessage: Message = {
-          id: Date.now().toString(),
-          role: 'user',
-          content: `${messageContent}\n\n我上传了一个CSV文件 "${csvData.fileName}"，内容如下：\n\n\`\`\`csv\n${csvContent}\n\`\`\``,
-          createdAt: new Date(),
-          // 不添加隐藏标记，确保消息可见
-        };
-        
-        // 将消息添加到消息列表中
-        if (messages && Array.isArray(messages)) {
-          messages.push(csvMessage);
-        }
-        
-        // 发送用户消息
+        messageContent += `\n\n【文件内容】\n文件名: ${csvData.fileName}\n共 ${csvData.rowCount} 行\n\n部分内容预览（前5行）：\n${table}\n\n全部数据（JSON）：\n${fullData}`;
+      }
+
+      try {
+        // 使用 sendMessage prop 发送消息
         if (sendMessage) {
-          // 直接发送包含完整CSV数据的消息
-          sendMessage(event, `${messageContent}\n\n我上传了一个CSV文件 "${csvData.fileName}"，内容如下：\n\n\`\`\`csv\n${csvContent}\n\`\`\``);
-        }
-        
-        // 清除CSV数据
-        setCsvData(null);
-        
-        // 延时滚动
-        setTimeout(forceScrollToBottom, 100);
-        setTimeout(forceScrollToBottom, 500);
-        
-        return; // 提前返回，避免重复发送消息
-      }
+          await sendMessage(event, messageContent);
+          // 清除输入和上传的文件
+          if (setInput) setInput('');
+          if (setUploadedFiles) setUploadedFiles([]);
+          if (setImageDataList) setImageDataList([]);
+          if (setCsvData) setCsvData(null); // 发送后清空csvData
 
-      // 发送用户消息
-      if (sendMessage) {
-        sendMessage(event, messageContent);
+          // 延时滚动
+          setTimeout(forceScrollToBottom, 100);
+          setTimeout(forceScrollToBottom, 500);
+        } else {
+          throw new Error('sendMessage function is not provided');
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+        toast.error('发送消息失败');
       }
-      
-      // 延时滚动
-      setTimeout(forceScrollToBottom, 100);
-      setTimeout(forceScrollToBottom, 500);
-    }, [sendMessage, isStreaming, handleStop, isModelLoading, messages, csvData, input, forceScrollToBottom]);
+    }, [sendMessage, isStreaming, handleStop, isModelLoading, input, forceScrollToBottom, promptId, setInput, setUploadedFiles, setImageDataList, setCsvData, csvData]);
     
     // AI 初始问候消息
     useEffect(() => {
@@ -540,15 +518,24 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         const file = (e.target as HTMLInputElement).files?.[0];
 
         if (file) {
+          // 检查用户是否已登录
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            toast.error('请先登录后再上传文件');
+            return;
+          }
+
           if (file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = (e) => {
               const base64Image = e.target?.result as string;
-              setUploadedFiles?.([...uploadedFiles, file]);
-              setImageDataList?.([...imageDataList, base64Image]);
+              if (setUploadedFiles && setImageDataList) {
+                setUploadedFiles([...uploadedFiles, file]);
+                setImageDataList([...imageDataList, base64Image]);
+              }
             };
             reader.readAsDataURL(file);
-          } else if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+          } else {
             const reader = new FileReader();
             
             // 设置解析状态为进行中
@@ -585,7 +572,32 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 });
                 
                 // Add file to uploaded files
-                setUploadedFiles?.([...uploadedFiles, file]);
+                if (setUploadedFiles) {
+                  setUploadedFiles([...uploadedFiles, file]);
+                }
+
+                // 上传文件到 Supabase storage
+                try {
+                  // 调用 processFile 处理文件
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  formData.append('workflowId', workflowId || '');
+
+                  const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    body: formData
+                  });
+
+                  if (!response.ok) {
+                    throw new Error('Failed to process file');
+                  }
+
+                  const result = await response.json();
+                  console.log('File processing result:', result);
+                } catch (error) {
+                  console.error('Error processing file:', error);
+                  toast.error('文件处理失败');
+                }
                 
                 // 显示成功提示
                 toast.success(`CSV文件 "${file.name}" 解析成功，共 ${data.length} 行数据，${headers.length} 列`);

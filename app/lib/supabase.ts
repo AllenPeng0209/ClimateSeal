@@ -17,14 +17,35 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// 调试输出
-console.log('Supabase初始化配置 - URL:', supabaseUrl);
-
 // 创建Supabase客户端
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'supabase.auth.token',
   },
-}); 
+});
+
+// Storage 策略配置
+export const storageConfig = {
+  bucket: 'files',
+  policies: {
+    // 允许认证用户上传文件
+    upload: {
+      name: 'Allow authenticated users to upload files',
+      policy: `(auth.role() = 'authenticated')`,
+    },
+    // 允许文件所有者访问自己的文件
+    access: {
+      name: 'Allow file owners to access their files',
+      policy: `(auth.uid() = owner_id)`,
+    },
+    // 允许文件所有者删除自己的文件
+    delete: {
+      name: 'Allow file owners to delete their files',
+      policy: `(auth.uid() = owner_id)`,
+    },
+  },
+}; 

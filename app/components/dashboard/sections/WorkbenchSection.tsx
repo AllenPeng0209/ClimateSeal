@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Card,
   Typography,
@@ -18,6 +18,7 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons';
 import type { Workflow } from '~/types/dashboard';
+import { supabase } from '~/lib/supabase';
 
 const { Title } = Typography;
 
@@ -31,6 +32,8 @@ interface WorkbenchSectionProps {
   showDeleteModal: (workflow: Workflow) => void;
 }
 
+const PAGE_SIZE = 10;
+
 const WorkbenchSection: React.FC<WorkbenchSectionProps> = ({
   filteredWorkflows,
   searchQuery,
@@ -40,6 +43,41 @@ const WorkbenchSection: React.FC<WorkbenchSectionProps> = ({
   navigateToWorkflow,
   showDeleteModal
 }) => {
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchUser() {
+      const { data, error } = await supabase.auth.getUser();
+      if (data?.user?.id) setUserId(data.user.id);
+    }
+    fetchUser();
+  }, []);
+
+  useEffect(() => {
+    async function fetchWorkflows() {
+      if (!userId) return;
+      setLoading(true);
+      const { data, error, count } = await supabase
+        .from('workflows')
+        .select('*', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+      setLoading(false);
+      if (!error) {
+        setWorkflows(data || []);
+        setTotal(count || 0);
+      }
+    }
+    fetchWorkflows();
+  }, [userId, page]);
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
   return (
     <>
       <Title level={2} style={{ color: 'var(--carbon-green-dark)', borderBottom: '2px solid var(--carbon-border)', paddingBottom: '12px' }}>
@@ -96,7 +134,7 @@ const WorkbenchSection: React.FC<WorkbenchSectionProps> = ({
         </div>
 
         <List
-          dataSource={filteredWorkflows}
+          dataSource={workflows}
           locale={{ emptyText: "暂无工作流，请点击\"创建新工作流\"开始使用" }}
           renderItem={(item) => (
             <List.Item
@@ -152,10 +190,15 @@ const WorkbenchSection: React.FC<WorkbenchSectionProps> = ({
                   <>
                     <div>{item.description || "暂无描述"}</div>
                     <div style={{ marginTop: "8px", color: "var(--carbon-text-light)" }}>
-                      创建时间: {new Date(item.createdAt).toLocaleDateString()}
+                      创建时间: {new Date(item.created_at).toLocaleDateString()}
                       <span style={{ marginLeft: "16px" }}>
                         碳足迹: {item.total_carbon_footprint?.toFixed(2) || "0.00"} kgCO₂e
                       </span>
+                      {
+                        <span style={{ marginLeft: "16px" }}>
+                          更新时间: {new Date(item.updated_at).toLocaleDateString()}
+                        </span>
+                      }
                     </div>
                   </>
                 }
@@ -163,6 +206,12 @@ const WorkbenchSection: React.FC<WorkbenchSectionProps> = ({
             </List.Item>
           )}
         />
+
+        <div style={{ marginTop: 8 }}>
+          <button disabled={page === 1} onClick={() => setPage(page - 1)}>上一页</button>
+          <span style={{ margin: '0 8px' }}>{page} / {totalPages}</span>
+          <button disabled={page === totalPages} onClick={() => setPage(page + 1)}>下一页</button>
+        </div>
       </Card>
     </>
   );
