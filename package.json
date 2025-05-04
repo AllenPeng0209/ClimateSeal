@@ -112,6 +112,7 @@
     "@xterm/xterm": "^5.5.0",
     "ai": "^4.1.2",
     "antd": "^5.24.6",
+    "buffer": "^6.0.3",
     "chalk": "^5.4.1",
     "chart.js": "^4.4.7",
     "class-variance-authority": "^0.7.0",
@@ -162,7 +163,7 @@
     "shiki": "^1.24.0",
     "tailwind-merge": "^2.2.1",
     "unist-util-visit": "^5.0.0",
-    "vite-plugin-node-polyfills": "^0.22.0",
+    "vite-plugin-node-polyfills": "^0.23.0",
     "zod": "^3.24.1",
     "zustand": "^5.0.3"
   },

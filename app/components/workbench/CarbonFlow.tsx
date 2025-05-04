@@ -1,6 +1,35 @@
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
-import type { DragEvent } from 'react';
-import ReactFlow, { type Node, type Edge, type Connection, type OnConnect, type OnNodesChange, type OnEdgesChange, type ReactFlowInstance, type Viewport, useNodesState, useEdgesState, addEdge, useReactFlow, ReactFlowProvider, Background, Controls, MiniMap, Panel, ConnectionLineType, ConnectionMode, applyNodeChanges, applyEdgeChanges, MarkerType } from 'reactflow';
+import type { DragEvent, Dispatch, SetStateAction } from 'react';
+import ReactFlow, { 
+  type Node, 
+  type Edge, 
+  type Connection, 
+  type OnConnect, 
+  type OnNodesChange, 
+  type OnEdgesChange, 
+  type ReactFlowInstance, 
+  type Viewport, 
+  type NodeProps,
+  type OnSelectionChangeParams,
+  type NodeDragHandler,
+  type NodeTypes,
+  type EdgeTypes,
+  useNodesState, 
+  useEdgesState, 
+  addEdge, 
+  useReactFlow, 
+  ReactFlowProvider, 
+  Background, 
+  Controls, 
+  MiniMap, 
+  Panel, 
+  ConnectionLineType, 
+  ConnectionMode, 
+  applyNodeChanges, 
+  applyEdgeChanges, 
+  MarkerType,
+  updateEdge
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 import './CarbonFlow.css';
 import './CarbonFlow/styles.css';
@@ -14,8 +43,8 @@ import { NodeProperties } from './CarbonFlow/NodeProperties';
 import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
 import { CarbonFlowActionHandler } from './CarbonFlow/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
-import { Tag, Collapse, Progress, message, Modal, Input, Row, Col, Upload, Alert, Divider, List, Empty, Typography, Button as AntButton, ConfigProvider } from 'antd';
-import { UpOutlined, DownOutlined, ReloadOutlined, SaveOutlined, HistoryOutlined, ExportOutlined, ImportOutlined, DeleteOutlined, SyncOutlined, CloudDownloadOutlined, CloudSyncOutlined, UploadOutlined } from '@ant-design/icons';
+import { Tag, Collapse, Progress, message, Modal, Input, Row, Col, Upload, Alert, Divider, List, Empty, Typography, Button as AntButton, ConfigProvider, Dropdown, Menu, Tooltip } from 'antd';
+import { UpOutlined, DownOutlined, ReloadOutlined, SaveOutlined, HistoryOutlined, ExportOutlined, ImportOutlined, DeleteOutlined, SyncOutlined, CloudDownloadOutlined, CloudSyncOutlined, UploadOutlined, ToolOutlined, BranchesOutlined, CalculatorOutlined, ForkOutlined, CloseOutlined } from '@ant-design/icons';
 import { CheckpointManager } from '~/lib/checkpoints/CheckpointManager';
 import { CheckpointSyncService } from '~/lib/services/checkpointSyncService';
 import { useStore } from '@nanostores/react';
@@ -26,6 +55,7 @@ import { chatMessagesStore } from '~/lib/stores/chatMessagesStore';
 import { theme } from 'antd';
 import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData, BaseNodeData, UsageNodeData, DisposalNodeData, FinalProductNodeData } from '~/types/nodes';
 import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowBridge';
+import { carbonFactorService } from '../../services/carbon-factor-service';
 
 const { darkAlgorithm } = theme;
 
@@ -140,6 +170,126 @@ interface CheckpointMetadata {
   metadata?: { description?: string; tags?: string[]; version?: string };
 }
 
+// 组件接口定义
+interface CarbonFlowProps {
+  initialNodes?: Node<NodeData>[];
+  initialEdges?: Edge[];
+  onNodeSelect?: (node: Node<NodeData> | null) => void;
+  onDataChange?: (nodes: Node<NodeData>[], edges: Edge[]) => void;
+}
+
+// 碳因子匹配器接口定义
+interface CarbonFactorMatcherProps {
+  actionHandler: CarbonFlowActionHandler | null;
+  handleCarbonFlowAction: (action: any) => void;
+  nodes: Node<NodeData>[];
+  setNodes: React.Dispatch<React.SetStateAction<Node<NodeData>[]>>;
+}
+
+// 碳因子匹配组件
+const CarbonFactorMatcher = ({ 
+  actionHandler, 
+  handleCarbonFlowAction,
+  nodes,
+  setNodes
+}: CarbonFactorMatcherProps) => {
+  // 状态管理
+  const [isMatching, setIsMatching] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
+
+  // 触发碳因子匹配操作
+  const handleCarbonFactorMatch = useCallback(async () => {
+    if (!actionHandler) {
+      message.error('操作处理器未初始化');
+      return;
+    }
+    
+    // 重置状态
+    setIsMatching(true);
+    setMatchError(null);
+    
+    message.info('正在进行碳因子匹配...');
+    
+    const matchAction = {
+      type: 'carbonflow',
+      operation: 'carbon_factor_match',
+      content: '碳因子匹配',
+      description: '进行碳因子匹配操作',
+    };
+    
+    try {
+      // 使用新服务进行匹配
+      const matchResults = await carbonFactorService.batchMatchCarbonFactors(nodes);
+      
+      // 更新节点数据
+      setNodes(currentNodes => 
+        currentNodes.map(node => {
+          const result = matchResults[node.id];
+          if (result) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                carbonFactor: result.factor,
+                carbonFactorName: result.activityName,
+                carbonFactordataSource: 'AI生成 - DeepSeek查询',
+                unit: result.unit
+              }
+            };
+          }
+          return node;
+        })
+      );
+      
+      // 发送匹配请求
+      handleCarbonFlowAction(matchAction);
+      
+      setIsMatching(false);
+      message.success('碳因子匹配已完成，请查看更新后的节点数据');
+    } catch(error: unknown) {
+      setIsMatching(false);
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      setMatchError('碳因子匹配失败: ' + errorMessage);
+      message.error('碳因子匹配失败: ' + errorMessage);
+    }
+  }, [actionHandler, handleCarbonFlowAction, nodes, setNodes]);
+
+  // 渲染匹配状态
+  const renderMatchStatus = () => {
+    if (isMatching) {
+      return (
+        <div className="match-status-indicator">
+          <div className="spinner"></div>
+          <span>正在进行碳因子匹配，请稍候...</span>
+        </div>
+      );
+    }
+    if (matchError) {
+      return (
+        <div className="match-status-error">
+          <span>{matchError}</span>
+          <button onClick={() => setMatchError(null)}>清除</button>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // 返回组件UI
+  return (
+    <div className="carbon-factor-matcher">
+      <button 
+        className="match-button" 
+        onClick={handleCarbonFactorMatch}
+        disabled={isMatching}
+      >
+        {isMatching ? '匹配中...' : '匹配碳因子'}
+      </button>
+      {renderMatchStatus()}
+    </div>
+  );
+};
+
 const CarbonFlowInner = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -206,10 +356,22 @@ const CarbonFlowInner = () => {
   
   const actionHandler = useMemo(() => {
     if (typeof window !== 'undefined') {
-      return new CarbonFlowActionHandler({ nodes, edges, setNodes: setNodes as React.Dispatch<React.SetStateAction<Node<NodeType>[]>>, setEdges });
+      return new CarbonFlowActionHandler({ nodes, edges, setNodes: setNodes as React.Dispatch<React.SetStateAction<Node<NodeData>[]>>, setEdges });
     }
     return null;
   }, [nodes, edges, setNodes, setEdges]);
+
+  // 统一供外部使用的碳流程操作回调
+  const handleCarbonFlowAction = useCallback(
+    (action: CarbonFlowAction & { traceId?: string }) => {
+      if (!actionHandler) {
+        console.warn('CarbonFlow 操作处理器尚未初始化');
+        return;
+      }
+      actionHandler.handleAction(action);
+    },
+    [actionHandler],
+  );
 
   const handleActionEvent = useCallback((event: Event) => {
     if (event instanceof CustomEvent) {
@@ -1918,6 +2080,35 @@ const CarbonFlowInner = () => {
               <MiniMap />
               {selectedNode && (
                 <Panel position="top-center">
+                  <div className="carbon-flow-toolbar">
+                    <div className="toolbar-section">
+                      <Button
+                        onClick={() => calculateTotalCarbonFootprint()}
+                        className="toolbar-button calculate-button"
+                        size="sm"
+                      >
+                        <CalculatorOutlined /> 计算碳足迹
+                      </Button>
+                      
+                      {/* 添加碳因子匹配按钮 */}
+                      <CarbonFactorMatcher 
+                        actionHandler={actionHandler}
+                        handleCarbonFlowAction={handleCarbonFlowAction}
+                        nodes={nodes}
+                        setNodes={setNodes as any}
+                      />
+                    </div>
+                    
+                    <div className="toolbar-section">
+                      <Button
+                        onClick={() => saveCheckpoint()}
+                        className="toolbar-button"
+                        size="sm"
+                      >
+                        <SaveOutlined /> 保存检查点
+                      </Button>
+                    </div>
+                  </div>
                   <NodeProperties
                     node={selectedNode}
                     onClose={() => setSelectedNode(null)}
@@ -1925,6 +2116,7 @@ const CarbonFlowInner = () => {
                     selectedNode={selectedNode}
                     onUpdate={handleNodeUpdate}
                     updateAiSummary={calculateAiSummary}
+                    setSelectedNode={setSelectedNode}
                   />
                 </Panel>
               )}

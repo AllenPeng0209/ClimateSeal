@@ -110,7 +110,7 @@ export default defineConfig((config) => {
     },
     resolve: {
       alias: {
-        buffer: 'vite-plugin-node-polyfills/polyfills/buffer',
+        buffer: 'buffer',
         crypto: 'crypto-browserify',
         stream: 'stream-browserify',
         util: 'rollup-plugin-node-polyfills/polyfills/util',
@@ -125,7 +125,12 @@ export default defineConfig((config) => {
         globals: {
           Buffer: true,
           global: true,
+          process: true,
         },
+        protocolImports: true,
+        overrides: {
+          buffer: 'buffer'
+        }
       }),
       {
         name: 'buffer-polyfill',
