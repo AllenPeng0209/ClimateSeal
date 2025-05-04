@@ -4,7 +4,6 @@
  */
 import { useStore } from '@nanostores/react';
 import type { Message } from 'ai';
-import { useChat } from 'ai/react';
 import { useAnimate } from 'framer-motion';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
@@ -32,6 +31,10 @@ import { subscribeToCarbonFlowData } from '~/components/workbench/CarbonFlow/Car
 import type { CarbonFlowData } from '~/types/carbonFlow';
 import { useLoaderData } from '@remix-run/react';
 import type { LoaderData } from '~/types/loader';
+
+// 直接导入useChat来避免异步加载问题
+// 由于@ts-nocheck已经在文件顶部，TypeScript不会报错
+import { useChat } from 'ai/react';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -117,6 +120,11 @@ interface ChatProps {
 
 export const ChatImpl = memo(
   ({ description, storeMessageHistory, importChat, exportChat }: ChatProps) => {
+    // 只在客户端环境中渲染聊天组件
+    if (typeof window === 'undefined') {
+      return null; // 在服务器端不渲染任何内容
+    }
+    
     useShortcuts();
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -164,6 +172,79 @@ export const ChatImpl = memo(
       };
     }, []);
 
+    // 使用try-catch来处理可能出现的错误
+    let chatHook;
+    
+    try {
+      chatHook = useChat({
+        api: '/api/chat',
+        body: {
+          apiKeys,
+          files,
+          promptId,
+          contextOptimization: contextOptimizationEnabled,
+          carbonFlowData,
+          supabase: {
+            isConnected: supabaseConn.isConnected,
+            hasSelectedProject: !!selectedProject,
+            credentials: {
+              supabaseUrl: supabaseConn?.credentials?.supabaseUrl,
+              anonKey: supabaseConn?.credentials?.anonKey,
+            },
+          },
+        },
+        sendExtraMessageFields: true,
+        onError: (e) => {
+          logger.error('Request failed\n\n', e, chatHook.error);
+          logStore.logError('Chat request failed', e, {
+            component: 'Chat',
+            action: 'request',
+            error: e.message,
+          });
+          toast.error(
+            'There was an error processing your request: ' + (e.message ? e.message : 'No details were returned'),
+          );
+        },
+        onFinish: (message, response) => {
+          const usage = response.usage;
+          chatHook.setData && chatHook.setData(undefined);
+
+          if (usage) {
+            console.log('Token usage:', usage);
+            logStore.logProvider('Chat response completed', {
+              component: 'Chat',
+              action: 'response',
+              model,
+              provider: provider.name,
+              usage,
+              messageLength: message.content.length,
+            });
+          }
+
+          logger.debug('Finished streaming');
+        },
+        initialMessages: messagesFromStore,
+        initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
+      });
+    } catch (error) {
+      console.error('Error initializing chat hook:', error);
+      // 提供默认值以防止进一步的错误
+      chatHook = {
+        messages: [], 
+        isLoading: false, 
+        input: '', 
+        handleInputChange: () => {}, 
+        setInput: () => {}, 
+        stop: () => {}, 
+        append: () => {}, 
+        setMessages: () => {}, 
+        reload: () => {}, 
+        error: null, 
+        data: undefined, 
+        setData: () => {}
+      };
+    }
+    
     const {
       messages,
       isLoading,
@@ -177,56 +258,8 @@ export const ChatImpl = memo(
       error,
       data: chatData,
       setData,
-    } = useChat({
-      api: '/api/chat',
-      body: {
-        apiKeys,
-        files,
-        promptId,
-        contextOptimization: contextOptimizationEnabled,
-        carbonFlowData,
-        supabase: {
-          isConnected: supabaseConn.isConnected,
-          hasSelectedProject: !!selectedProject,
-          credentials: {
-            supabaseUrl: supabaseConn?.credentials?.supabaseUrl,
-            anonKey: supabaseConn?.credentials?.anonKey,
-          },
-        },
-      },
-      sendExtraMessageFields: true,
-      onError: (e) => {
-        logger.error('Request failed\n\n', e, error);
-        logStore.logError('Chat request failed', e, {
-          component: 'Chat',
-          action: 'request',
-          error: e.message,
-        });
-        toast.error(
-          'There was an error processing your request: ' + (e.message ? e.message : 'No details were returned'),
-        );
-      },
-      onFinish: (message, response) => {
-        const usage = response.usage;
-        setData(undefined);
+    } = chatHook;
 
-        if (usage) {
-          console.log('Token usage:', usage);
-          logStore.logProvider('Chat response completed', {
-            component: 'Chat',
-            action: 'response',
-            model,
-            provider: provider.name,
-            usage,
-            messageLength: message.content.length,
-          });
-        }
-
-        logger.debug('Finished streaming');
-      },
-      initialMessages: messagesFromStore,
-      initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
-    });
     useEffect(() => {
       const prompt = searchParams.get('prompt');
 

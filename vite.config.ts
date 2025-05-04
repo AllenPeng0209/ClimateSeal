@@ -106,7 +106,30 @@ export default defineConfig((config) => {
           global: 'globalThis',
         },
       },
-      include: ['util'],
+      include: [
+        'util',
+        '@remix-run/react', 
+        'reactflow',
+        'antd',
+        '@supabase/supabase-js',
+        'react-markdown',
+        'clsx'
+      ],
+    },
+    server: {
+      warmup: {
+        clientFiles: [
+          './app/routes/workflow.$id.tsx',
+          './app/components/workbench/CarbonFlow.tsx',
+          './app/components/workbench/CarbonFlow/NodeProperties.tsx',
+          './app/components/chat/Chat.client.tsx',
+          './app/components/chat/BaseChat.tsx',
+          './app/lib/supabase.ts'
+        ]
+      },
+      hmr: {
+        overlay: false // 禁用HMR覆盖层，提高性能
+      }
     },
     resolve: {
       alias: {

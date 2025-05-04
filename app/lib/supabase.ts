@@ -26,7 +26,52 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     storageKey: 'supabase.auth.token',
   },
+  global: {
+    // 减少超时，加速失败检测
+    fetch: (url, options) => {
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => timeoutController.abort(), 8000); // 8秒超时
+
+      return fetch(url, {
+        ...options,
+        signal: timeoutController.signal,
+      }).finally(() => {
+        clearTimeout(timeoutId);
+      });
+    },
+    headers: {
+      'X-Client-Info': 'ClimateSeal'
+    }
+  }
 });
+
+// 添加缓存层，避免重复请求
+const cacheMap = new Map();
+
+// 创建带缓存的查询辅助函数
+export const supabaseCache = {
+  // 获取用户信息并缓存
+  async getUser() {
+    if (cacheMap.has('currentUser')) {
+      return cacheMap.get('currentUser');
+    }
+    
+    const result = await supabase.auth.getUser();
+    
+    if (result.data.user) {
+      cacheMap.set('currentUser', result);
+      // 缓存5分钟
+      setTimeout(() => cacheMap.delete('currentUser'), 5 * 60 * 1000);
+    }
+    
+    return result;
+  },
+  
+  // 清除缓存
+  clearCache() {
+    cacheMap.clear();
+  }
+}
 
 // Storage 策略配置
 export const storageConfig = {
