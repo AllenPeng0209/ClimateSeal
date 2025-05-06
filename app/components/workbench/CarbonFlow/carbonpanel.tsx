@@ -183,7 +183,7 @@ export function CarbonCalculatorPanel() {
           return {
             id: node.id,
             name: data.label || '未命名节点',
-            category: typeof data.category === 'string' ? data.category : '未分类',
+            category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
             activityData: typeof data.activityData === 'number' ? data.activityData : 0,
             activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '',
             conversionFactor: typeof data.conversionFactor === 'number' ? data.conversionFactor : 0,
