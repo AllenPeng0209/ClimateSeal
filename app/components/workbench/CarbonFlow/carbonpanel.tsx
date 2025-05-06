@@ -1060,15 +1060,14 @@ export function CarbonCalculatorPanel() {
                     { title: '文件名称', dataIndex: 'name', key: 'name', ellipsis: true },
                     {
                       title: '文件类型',
-                      dataIndex: 'uid', // Using uid as key for operations
+                      dataIndex: 'uid', 
                       key: 'type',
-                      width: 180, // Adjusted width
+                      width: 180,
                       render: (uid: string, record: ModalUploadFile) => (
                         <Select
                           value={record.selectedType}
                           onChange={(value) => handleModalFileTypeChange(uid, value)}
                           placeholder="选择类型"
-                          style={{ width: '100%' }}
                           allowClear
                         >
                           {RawFileTypes.map(type => (
@@ -1564,6 +1563,9 @@ const customStyles = `
 .upload-modal-file-table .ant-select-selector {
   height: 30px !important; /* Ensure select fits well */
   font-size: 12px;
+  width: 90px !important; /* Explicit fixed width */
+  min-width: 90px !important; /* Ensure it doesn't shrink further */
+  box-sizing: border-box !important; /* Ensure padding/border are included in width */
 }
 .upload-modal-file-table .ant-select-selection-item,
 .upload-modal-file-table .ant-select-selection-placeholder {
