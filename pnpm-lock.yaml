@@ -175,11 +175,7 @@ importers:
         version: 2.49.4
       '@tanstack/react-virtual':
         specifier: ^3.13.0
-<<<<<<< HEAD
         version: 3.13.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-=======
-        version: 3.13.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
->>>>>>> feature_carbonpanel_0505
       '@types/papaparse':
         specifier: ^5.3.15
         version: 5.3.15
@@ -290,17 +286,10 @@ importers:
         version: 3.3.2
       ollama-ai-provider:
         specifier: ^0.15.2
-<<<<<<< HEAD
         version: 0.15.2(zod@3.24.3)
       openai:
         specifier: ^4.96.0
         version: 4.97.0(encoding@0.1.13)(ws@8.18.1)(zod@3.24.3)
-=======
-        version: 0.15.2(zod@3.24.2)
-      openai:
-        specifier: ^4.96.0
-        version: 4.96.0(encoding@0.1.13)(ws@8.18.1)(zod@3.24.2)
->>>>>>> feature_carbonpanel_0505
       papaparse:
         specifier: ^5.5.2
         version: 5.5.2
@@ -466,11 +455,7 @@ importers:
         version: 3.0.1
       jsdom:
         specifier: ^26.0.0
-<<<<<<< HEAD
         version: 26.1.0
-=======
-        version: 26.0.0
->>>>>>> feature_carbonpanel_0505
       pnpm:
         specifier: ^9.14.4
         version: 9.15.9
@@ -3778,27 +3763,15 @@ packages:
 
   '@types/node-fetch@2.6.12':
     resolution: {integrity: sha512-8nneRWKCg3rMtF69nLQJnOYUcbafYeFSjqkw3jCRLsqkWFlHaoQrr5mXmofFGOx3DKn7UfmBMyov8ySvLRVldA==}
-<<<<<<< HEAD
-=======
 
-  '@types/node@18.19.87':
-    resolution: {integrity: sha512-OIAAu6ypnVZHmsHCeJ+7CCSub38QNBS9uceMQeg7K5Ur0Jr+wG9wEOEvvMbhp09pxD5czIUy/jND7s7Tb6Nw7A==}
-
-  '@types/node@20.17.28':
-    resolution: {integrity: sha512-DHlH/fNL6Mho38jTy7/JT7sn2wnXI+wULR6PV4gy4VHLVvnrV/d3pHAMQHhc4gjdLmK2ZiPoMxzp6B3yRajLSQ==}
->>>>>>> feature_carbonpanel_0505
-
-  '@types/node@18.19.87':
-    resolution: {integrity: sha512-OIAAu6ypnVZHmsHCeJ+7CCSub38QNBS9uceMQeg7K5Ur0Jr+wG9wEOEvvMbhp09pxD5czIUy/jND7s7Tb6Nw7A==}
+  '@types/node@18.19.95':
+    resolution: {integrity: sha512-VJysWMtwHh2aQ0BlfhwxZsdJrUQgrid+a53aIKeDLxYQrYqqIk3qFrGK/y/2Uk8FNvzGqwxeiosKNOmHI5HpYQ==}
 
   '@types/node@20.17.30':
     resolution: {integrity: sha512-7zf4YyHA+jvBNfVrk2Gtvs6x7E8V+YDW05bNfG2XkWDJfYRXrTiP/DsB2zSYTaHX0bGIujTBQdMVAhb+j7mwpg==}
 
   '@types/node@22.14.1':
     resolution: {integrity: sha512-u0HuPQwe/dHrItgHHpmw3N2fYCR6x4ivMNbPHRkBVP4CvN+kiRrKHWk3i8tXiO/joPwXLMYvF9TTF0eqgHIuOw==}
-
-  '@types/papaparse@5.3.15':
-    resolution: {integrity: sha512-JHe6vF6x/8Z85nCX4yFdDslN11d+1pr12E526X8WAfhadOeaOTx5AuIkvDKIBopfvlzpzkdMx4YyvSKCM9oqtw==}
 
   '@types/papaparse@5.3.15':
     resolution: {integrity: sha512-JHe6vF6x/8Z85nCX4yFdDslN11d+1pr12E526X8WAfhadOeaOTx5AuIkvDKIBopfvlzpzkdMx4YyvSKCM9oqtw==}
@@ -7328,13 +7301,8 @@ packages:
   oniguruma-to-es@2.3.0:
     resolution: {integrity: sha512-bwALDxriqfKGfUufKGGepCzu9x7nJQuoRoAFp4AnwehhC2crqrDIAP/uN2qdlsAvSMpeRC3+Yzhqc7hLmle5+g==}
 
-<<<<<<< HEAD
   openai@4.97.0:
     resolution: {integrity: sha512-LRoiy0zvEf819ZUEJhgfV8PfsE8G5WpQi4AwA1uCV8SKvvtXQkoWUFkepD6plqyJQRghy2+AEPQ07FrJFKHZ9Q==}
-=======
-  openai@4.96.0:
-    resolution: {integrity: sha512-dKoW56i02Prv2XQolJ9Rl9Svqubqkzg3QpwEOBuSVZLk05Shelu7s+ErRTwFc1Bs3JZ2qBqBfVpXQiJhwOGG8A==}
->>>>>>> feature_carbonpanel_0505
     hasBin: true
     peerDependencies:
       ws: ^8.18.0
@@ -13422,7 +13390,7 @@ snapshots:
     dependencies:
       '@types/http-cache-semantics': 4.0.4
       '@types/keyv': 3.1.4
-      '@types/node': 20.17.30
+      '@types/node': 22.14.1
       '@types/responselike': 1.0.3
 
   '@types/cookie@0.6.0': {}
@@ -13621,22 +13589,14 @@ snapshots:
 
   '@types/node-fetch@2.6.12':
     dependencies:
-<<<<<<< HEAD
       '@types/node': 22.14.1
-=======
-      '@types/node': 22.13.14
->>>>>>> feature_carbonpanel_0505
       form-data: 4.0.2
 
-  '@types/node@18.19.87':
+  '@types/node@18.19.95':
     dependencies:
       undici-types: 5.26.5
 
-<<<<<<< HEAD
   '@types/node@20.17.30':
-=======
-  '@types/node@20.17.28':
->>>>>>> feature_carbonpanel_0505
     dependencies:
       undici-types: 6.19.8
 
@@ -13647,10 +13607,6 @@ snapshots:
   '@types/papaparse@5.3.15':
     dependencies:
       '@types/node': 22.14.1
-
-  '@types/papaparse@5.3.15':
-    dependencies:
-      '@types/node': 22.13.14
 
   '@types/path-browserify@1.0.3': {}
 
@@ -13693,7 +13649,7 @@ snapshots:
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 20.17.30
+      '@types/node': 22.14.1
 
   '@types/stylis@4.2.5': {}
 
@@ -18352,13 +18308,9 @@ snapshots:
       regex: 5.1.1
       regex-recursion: 5.1.1
 
-<<<<<<< HEAD
   openai@4.97.0(encoding@0.1.13)(ws@8.18.1)(zod@3.24.3):
-=======
-  openai@4.96.0(encoding@0.1.13)(ws@8.18.1)(zod@3.24.2):
->>>>>>> feature_carbonpanel_0505
     dependencies:
-      '@types/node': 18.19.87
+      '@types/node': 18.19.95
       '@types/node-fetch': 2.6.12
       abort-controller: 3.0.0
       agentkeepalive: 4.6.0
@@ -18367,11 +18319,7 @@ snapshots:
       node-fetch: 2.7.0(encoding@0.1.13)
     optionalDependencies:
       ws: 8.18.1
-<<<<<<< HEAD
       zod: 3.24.3
-=======
-      zod: 3.24.2
->>>>>>> feature_carbonpanel_0505
     transitivePeerDependencies:
       - encoding
 
