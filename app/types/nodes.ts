@@ -14,8 +14,10 @@ export interface BaseNodeData {
   // carbon footprint
   carbonFootprint: string;
   quantity: string;
+  activityUnit?: string;
   carbonFactor: string;
   carbonFactorName?: string;
+  carbonFactorUnit?: string;
   unitConversion?: string;
   carbonFactordataSource?: string;
 }

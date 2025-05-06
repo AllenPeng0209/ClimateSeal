@@ -180,16 +180,21 @@ export function CarbonCalculatorPanel() {
         .map(node => {
           // 从节点数据中提取排放源信息，使用any类型断言来避免类型检查错误
           const data = node.data as any;
+          // Helper to safely parse number from potentially non-numeric string
+          const safeParseFloat = (val: any): number => {
+              const num = parseFloat(val);
+              return isNaN(num) ? 0 : num;
+          };
           return {
             id: node.id,
             name: data.label || '未命名节点',
             category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
-            activityData: typeof data.activityData === 'number' ? data.activityData : 0,
-            activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '',
-            conversionFactor: typeof data.conversionFactor === 'number' ? data.conversionFactor : 0,
-            factorName: typeof data.emissionFactorName === 'string' ? data.emissionFactorName : '',
-            factorUnit: typeof data.emissionFactorUnit === 'string' ? data.emissionFactorUnit : '',
-            factorSource: typeof data.emissionFactorSource === 'string' ? data.emissionFactorSource : '',
+            activityData: safeParseFloat(data.quantity), // 读取 quantity 并转为 number
+            activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '', // 读取 activityUnit
+            conversionFactor: typeof data.carbonFactor === 'number' ? data.carbonFactor : 0, // 读取 carbonFactor
+            factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '', // 读取 carbonFactorName
+            factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '', // 读取 carbonFactorUnit
+            factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '', // 读取 activitydataSource
             updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
             updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System'
           };
@@ -303,10 +308,23 @@ export function CarbonCalculatorPanel() {
        // 更新本地狀態
        setEmissionSources(prev => prev.map(item => 
          item.id === editingEmissionSource.id 
-           ? { ...item, ...values, id: item.id, updatedAt: new Date().toISOString(), updatedBy: 'User' } 
+           ? { 
+                // 更新本地 emissionSources 状态时也使用正确的映射
+                id: item.id,
+                name: values.name,
+                category: values.category, 
+                activityData: values.activityData, // Form data is likely number
+                activityUnit: values.activityUnit, 
+                conversionFactor: values.conversionFactor, 
+                factorName: values.factorName,
+                factorUnit: values.factorUnit,
+                factorSource: values.factorSource,
+                updatedAt: new Date().toISOString(), 
+                updatedBy: 'User' 
+             } 
            : item
        ));
-       
+
        // 同步更新 store 中的節點
        if (nodes && setStoreNodes) {
          const updatedNodes = nodes.map(node => {
@@ -315,18 +333,22 @@ export function CarbonCalculatorPanel() {
              const currentNodeData = { ...node.data };
              const originalNodeType = node.type; // 保留原始类型以便检查是否需要重建data
 
-             // 更新通用字段
-             currentNodeData.label = values.name;
-             currentNodeData.nodeName = values.name;
-             // 注意：emissionType/category 可能与生命周期有关，但这里保持用户输入
-             currentNodeData.emissionType = values.category;
-             currentNodeData.quantity = String(values.activityData);
-             currentNodeData.carbonFactor = values.conversionFactor;
-             currentNodeData.carbonFactorName = values.factorName;
-             currentNodeData.activitydataSource = values.factorSource;
-             currentNodeData.lifecycleStage = selectedStageName; // 更新 data 中的生命周期阶段名称
+             // --- 更新通用字段保存逻辑 (使用 as any 绕过类型检查) --- 
+             const dataToUpdate: any = currentNodeData; // 将 currentNodeData 断言为 any
 
-             let finalNodeData = currentNodeData;
+             dataToUpdate.label = values.name;
+             dataToUpdate.nodeName = values.name;
+             dataToUpdate.emissionType = values.category; // 保存类别
+             dataToUpdate.quantity = String(values.activityData); // 保存活动数据为 string
+             dataToUpdate.activityUnit = values.activityUnit; // 保存活动数据单位
+             dataToUpdate.carbonFactor = values.conversionFactor; // 保存转换系数 (因子)
+             dataToUpdate.carbonFactorName = values.factorName; // 保存因子名称
+             dataToUpdate.carbonFactorUnit = values.factorUnit; // 保存因子单位
+             dataToUpdate.activitydataSource = values.factorSource; // 保存因子来源
+             dataToUpdate.lifecycleStage = selectedStageName;
+             // --- 结束更新通用字段保存逻辑 ---
+
+             let finalNodeData = dataToUpdate; // 使用更新后的 dataToUpdate
 
              // 如果生命周期阶段（即节点类型）改变了，我们需要创建匹配新类型的数据结构
              if (originalNodeType !== selectedNodeType) {
@@ -335,20 +357,21 @@ export function CarbonCalculatorPanel() {
                 const commonData = {
                     label: values.name,
                     nodeName: values.name,
-                    lifecycleStage: selectedStageName, // 使用新的阶段名称
-                    emissionType: values.category, // 保留类别输入
-                    activitydataSource: values.factorSource, // 保留来源输入
-                    activityScore: currentNodeData.activityScore || 0,
-                    verificationStatus: currentNodeData.verificationStatus || '未驗證',
-                    carbonFootprint: String(currentNodeData.carbonFootprint || 0), // 确保是字符串
-                    quantity: String(values.activityData), // 确保是字符串
-                    carbonFactor: values.conversionFactor,
-                    carbonFactorName: values.factorName,
-                    unitConversion: String(currentNodeData.unitConversion ?? 1), // 确保是字符串
+                    lifecycleStage: selectedStageName, 
+                    emissionType: values.category, 
+                    activitydataSource: values.factorSource, // 因子来源
+                    activityScore: finalNodeData.activityScore || 0,
+                    verificationStatus: finalNodeData.verificationStatus || '未驗證',
+                    carbonFootprint: String(finalNodeData.carbonFootprint || 0),
+                    quantity: String(values.activityData), // 活动数据
+                    activityUnit: values.activityUnit, // 活动数据单位
+                    carbonFactor: values.conversionFactor, // 转换系数 (因子)
+                    carbonFactorName: values.factorName, // 因子名称
+                    carbonFactorUnit: values.factorUnit, // 因子单位
+                    unitConversion: String(finalNodeData.unitConversion ?? 1), 
                 };
 
                 // 根据新的 selectedNodeType 创建特定数据结构
-                // (这部分逻辑与下面"添加新排放源"中的 switch 类似)
                 switch (selectedNodeType) {
                     case 'product':
                         finalNodeData = { ...commonData, material: values.category, weight_per_unit: '', isRecycled: false, recycledContent: '', recycledContentPercentage: 0, sourcingRegion: '', SourceLocation: '', weight: 0, supplier: '' }; break;
@@ -421,16 +444,18 @@ export function CarbonCalculatorPanel() {
          const commonData = { // 提取通用数据创建逻辑
              label: values.name,
              nodeName: values.name,
-             lifecycleStage: selectedStageName, // 使用表单选择的阶段名称
-             emissionType: values.category,
-             activitydataSource: values.factorSource,
+             lifecycleStage: selectedStageName, 
+             emissionType: values.category, 
+             activitydataSource: values.factorSource, // 因子来源
              activityScore: 0,
              verificationStatus: '未驗證',
-             carbonFootprint: String(0), // 确保是字符串
-             quantity: String(values.activityData), // 确保是字符串
-             carbonFactor: values.conversionFactor,
-             carbonFactorName: values.factorName,
-             unitConversion: String(1), // 确保是字符串
+             carbonFootprint: String(0),
+             quantity: String(values.activityData), // 活动数据
+             activityUnit: values.activityUnit, // 活动数据单位
+             carbonFactor: values.conversionFactor, // 转换系数 (因子)
+             carbonFactorName: values.factorName, // 因子名称
+             carbonFactorUnit: values.factorUnit, // 因子单位
+             unitConversion: String(1), 
          };
 
          switch (nodeType) {
