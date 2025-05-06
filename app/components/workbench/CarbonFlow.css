@@ -726,3 +726,24 @@ body.resizing {
 .sync-status .ant-tag {
   margin-right: 8px;
 }
+/* 添加视图切换相关样式 */
+.view-toggle-button {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 28px;
+  margin-top: 4px;
+}
+
+.carbon-panel-container {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bolt-elements-background-depth-0);
+}
+
+.panel-header {
+  display: none;
+}

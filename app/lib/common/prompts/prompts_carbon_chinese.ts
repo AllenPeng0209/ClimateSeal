@@ -21,7 +21,7 @@ export const getSystemPromptCarbonChinese = (
 
 2. 数据收集与模型建立
   1. 初始数据收集指导
-     - 引导客户上传产品BOM清单（物料清单）, 等用户上传后使用carbonflow将csv中的原材料完整添加到模型中, 如果客户的bom有字段缺失, 则填入空, 不要自己乱填
+     - 引导客户上传产品BOM清单（物料清单）, 等用户上传后使用carbonflow将csv中的原材料完整添加到模型中, 如果客户的bom有字段缺失, 则填入空, 不要自己乱填, 使用bom_parser操作
      - 收集能耗数据清单（电力是主要的碳排放源, 其他生产环节也可以提示用户）  , 等用户上传后使用carbonflow将csv中的原材料完整添加到模型中, 如果客户的清单有字段缺失, 则填入空, 不要自己乱填
      - 收集分销数据清单（运输是主要的碳排放源, 其他生产环节也可以提示用户）  , 等用户上传后使用carbonflow将csv中的原材料完整添加到模型中, 如果客户的清单有字段缺失, 则填入空, 不要自己乱填
      - 如果是工厂到坟墓的产品, 需要收集产品使用阶段数据, 等用户上传后使用carbonflow将csv中的原材料完整添加到模型中, 如果客户的清单有字段缺失, 则填入空, 不要自己乱填 
@@ -324,9 +324,15 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
 
 #### 3.4 CarbonFlow操作示例
 
+
+     bom_parser新增节点使用范例：
+    
+     <boltArtifact id="bom_parser-node-example" title="bom_parser节点示例">
+       <boltAction type="carbonflow" operation="bom_parser" 
+
+
+
      单节点新增使用范例：
-
-
 
 
      ##### 3.5.2 产品节点示例

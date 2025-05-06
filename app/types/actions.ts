@@ -34,44 +34,28 @@ export interface SupabaseAction extends BaseAction {
   projectId?: string;
 }
 
-export interface LlmAction extends BaseAction {
-  type: 'llm';
-  operation: 'analyze' | 'summarize' | 'recommend';
-}
-
-export interface CarbonFlowAction {
-  type: string;
-  nodeId: string;
-  data?: Partial<NodeData>;
-  traceId?: string;
-}
-
-export interface CarbonFlowActionResult {
-  success: boolean;
-  traceId?: string;
+export interface CarbonFlowAction extends BaseAction {
+  type: 'carbonflow';
+  operation:
+    | 'create'
+    | 'update'
+    | 'delete'
+    | 'query'
+    | 'connect'
+    | 'layout'
+    | 'calculate'
+    | 'file_parser'
+    | 'carbon_factor_match';
   nodeId?: string;
-  error?: string;
+  nodeType?: string;
+  source?: string;
+  target?: string;
+  position?: string;
+  data?: string;
+  description?: string;
 }
 
-export interface CarbonFlowActionHandlerConfig {
-  nodes: Node<NodeData>[];
-  edges: Edge[];
-  setNodes: React.Dispatch<React.SetStateAction<Node<NodeData>[]>>;
-  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
-}
-
-export interface DatasheetAction extends BaseAction {
-  type: 'datasheet';
-  operation: string;
-  filePath?: string;
-}
-
-export interface SettingsAction extends BaseAction {
-  type: 'settings';
-  operation: string;
-}
-
-export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction | LlmAction | DatasheetAction | SettingsAction;
+export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction;
 
 export type BoltActionData = BoltAction | BaseAction;
 

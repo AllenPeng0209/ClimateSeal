@@ -2,21 +2,22 @@ import type { Node } from 'reactflow';
 
 // 基础节点数据接口
 export interface BaseNodeData {
+  // activity
   label: string;
   nodeName: string;
   lifecycleStage: string;
   emissionType: string;
-  carbonFactor: number;
   activitydataSource: string;
   activityScore: number;
-  carbonFootprint: number;
-  dataSources?: string;
+  activityScorelevel?: string;
   verificationStatus?: string;
-  quantity?: number;
+  // carbon footprint
+  carbonFootprint: string;
+  quantity: string;
+  carbonFactor: string;
   carbonFactorName?: string;
-  unitConversion?: number;
+  unitConversion?: string;
   carbonFactordataSource?: string;
-  activityScorelevel?: number;
 }
 
 // 产品节点数据
