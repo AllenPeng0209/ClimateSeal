@@ -103,6 +103,19 @@ const lifecycleStages = [
 
 const emissionCategories = ['原材料', '包装材料', '能耗', '运输', '废弃物'];
 
+// --- 映射关系 ---
+const lifecycleStageToNodeTypeMap: Record<string, string> = {
+  '原材料获取阶段': 'product',
+  '生产阶段': 'manufacturing',
+  '分销运输阶段': 'distribution',
+  '使用阶段': 'usage',
+  '寿命终止阶段': 'disposal',
+};
+
+const nodeTypeToLifecycleStageMap: Record<string, string> = Object.fromEntries(
+  Object.entries(lifecycleStageToNodeTypeMap).map(([key, value]) => [value, key])
+);
+// --- 结束映射关系 ---
 
 export function CarbonCalculatorPanel() {
   const [sceneInfo, setSceneInfo] = useState<SceneInfoType>({}); // Placeholder state
@@ -112,6 +125,7 @@ export function CarbonCalculatorPanel() {
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const [isEmissionDrawerVisible, setIsEmissionDrawerVisible] = useState(false);
   const [editingEmissionSource, setEditingEmissionSource] = useState<EmissionSource | null>(null);
+  const [drawerInitialValues, setDrawerInitialValues] = useState<Partial<EmissionSource & { lifecycleStage: string }>>({}); // 用于传递初始值
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]); // State for main file list
   const [isUploadModalVisible, setIsUploadModalVisible] = useState(false); // State for the upload modal visibility
   const [modalFileList, setModalFileList] = useState<UploadFile[]>([]); // State for files in the modal upload list
@@ -221,11 +235,17 @@ export function CarbonCalculatorPanel() {
 
   const handleAddEmissionSource = () => {
     setEditingEmissionSource(null);
+    // 新增时，设置默认生命周期为当前选中的阶段
+    setDrawerInitialValues({ lifecycleStage: selectedStage });
     setIsEmissionDrawerVisible(true);
   };
 
   const handleEditEmissionSource = (record: EmissionSource) => {
     setEditingEmissionSource(record);
+    // 编辑时，根据节点ID查找节点类型，并映射回中文阶段名称
+    const node = nodes?.find(n => n.id === record.id);
+    const stage = node ? nodeTypeToLifecycleStageMap[node.type || ''] || selectedStage : selectedStage;
+    setDrawerInitialValues({ ...record, lifecycleStage: stage });
     setIsEmissionDrawerVisible(true);
   };
 
@@ -269,14 +289,17 @@ export function CarbonCalculatorPanel() {
    const handleCloseEmissionDrawer = () => {
     setIsEmissionDrawerVisible(false);
     setEditingEmissionSource(null);
+    setDrawerInitialValues({}); // 关闭时清空初始值
    };
 
    const handleSaveEmissionSource = (values: any) => {
      console.log('Saving emission source:', values);
-     
+     // 从表单值获取选择的生命周期阶段，并映射到 nodeType
+     const selectedStageName = values.lifecycleStage;
+     const selectedNodeType = lifecycleStageToNodeTypeMap[selectedStageName] || 'product'; // 默认为 product
+
      if (editingEmissionSource) {
-       // 更新已有排放源
-       
+       // --- 更新已有排放源 ---
        // 更新本地狀態
        setEmissionSources(prev => prev.map(item => 
          item.id === editingEmissionSource.id 
@@ -290,31 +313,62 @@ export function CarbonCalculatorPanel() {
            if (node.id === editingEmissionSource.id) {
              // 獲取現有節點數據
              const currentNodeData = { ...node.data };
-             
+             const originalNodeType = node.type; // 保留原始类型以便检查是否需要重建data
+
              // 更新通用字段
              currentNodeData.label = values.name;
              currentNodeData.nodeName = values.name;
+             // 注意：emissionType/category 可能与生命周期有关，但这里保持用户输入
              currentNodeData.emissionType = values.category;
              currentNodeData.quantity = String(values.activityData);
              currentNodeData.carbonFactor = values.conversionFactor;
              currentNodeData.carbonFactorName = values.factorName;
              currentNodeData.activitydataSource = values.factorSource;
-             
-             // 根據節點類型更新特定字段
-             if ('material' in currentNodeData) {
-               // 產品節點
-               currentNodeData.material = values.category;
-             } else if ('energyType' in currentNodeData) {
-               // 製造節點
-               // 可以添加特定字段更新
-             } else if ('transportationMode' in currentNodeData) {
-               // 分銷節點
-               // 可以添加特定字段更新
+             currentNodeData.lifecycleStage = selectedStageName; // 更新 data 中的生命周期阶段名称
+
+             let finalNodeData = currentNodeData;
+
+             // 如果生命周期阶段（即节点类型）改变了，我们需要创建匹配新类型的数据结构
+             if (originalNodeType !== selectedNodeType) {
+                console.log(`节点 ${editingEmissionSource.id} 类型从 ${originalNodeType} 变为 ${selectedNodeType}，重新构建数据结构。`);
+                // 基于新类型创建数据对象，并尽可能保留通用字段
+                const commonData = {
+                    label: values.name,
+                    nodeName: values.name,
+                    lifecycleStage: selectedStageName, // 使用新的阶段名称
+                    emissionType: values.category, // 保留类别输入
+                    activitydataSource: values.factorSource, // 保留来源输入
+                    activityScore: currentNodeData.activityScore || 0,
+                    verificationStatus: currentNodeData.verificationStatus || '未驗證',
+                    carbonFootprint: String(currentNodeData.carbonFootprint || 0), // 确保是字符串
+                    quantity: String(values.activityData), // 确保是字符串
+                    carbonFactor: values.conversionFactor,
+                    carbonFactorName: values.factorName,
+                    unitConversion: String(currentNodeData.unitConversion ?? 1), // 确保是字符串
+                };
+
+                // 根据新的 selectedNodeType 创建特定数据结构
+                // (这部分逻辑与下面"添加新排放源"中的 switch 类似)
+                switch (selectedNodeType) {
+                    case 'product':
+                        finalNodeData = { ...commonData, material: values.category, weight_per_unit: '', isRecycled: false, recycledContent: '', recycledContentPercentage: 0, sourcingRegion: '', SourceLocation: '', weight: 0, supplier: '' }; break;
+                    case 'manufacturing':
+                        finalNodeData = { ...commonData, ElectricityAccountingMethod: '', ElectricityAllocationMethod: '', EnergyConsumptionMethodology: '', EnergyConsumptionAllocationMethod: '', chemicalsMaterial: '', MaterialAllocationMethod: '', WaterUseMethodology: '', WaterAllocationMethod: '', packagingMaterial: '', direct_emission: '', WasteGasTreatment: '', WasteDisposalMethod: '', WastewaterTreatment: '', energyConsumption: 0, energyType: '', processEfficiency: 0, wasteGeneration: 0, waterConsumption: 0, recycledMaterialPercentage: 0, productionCapacity: 0, machineUtilization: 0, qualityDefectRate: 0, processTechnology: '', manufacturingStandard: '', automationLevel: '', manufacturingLocation: '', byproducts: '', emissionControlMeasures: '' }; break;
+                    case 'distribution':
+                        finalNodeData = { ...commonData, transportationMode: '', transportationDistance: 0, startPoint: '', endPoint: '', vehicleType: '', fuelType: '', fuelEfficiency: 0, loadFactor: 0, refrigeration: false, packagingMaterial: '', packagingWeight: 0, warehouseEnergy: 0, storageTime: 0, storageConditions: '', distributionNetwork: '' }; break;
+                    case 'usage':
+                        finalNodeData = { ...commonData, lifespan: 0, energyConsumptionPerUse: 0, waterConsumptionPerUse: 0, consumablesUsed: '', consumablesWeight: 0, usageFrequency: 0, maintenanceFrequency: 0, repairRate: 0, userBehaviorImpact: 0, efficiencyDegradation: 0, standbyEnergyConsumption: 0, usageLocation: '', usagePattern: '' }; break;
+                    case 'disposal':
+                        finalNodeData = { ...commonData, recyclingRate: 0, landfillPercentage: 0, incinerationPercentage: 0, compostPercentage: 0, reusePercentage: 0, hazardousWasteContent: 0, biodegradability: 0, disposalEnergyRecovery: 0, transportToDisposal: 0, disposalMethod: '', endOfLifeTreatment: '', recyclingEfficiency: 0, dismantlingDifficulty: '' }; break;
+                    default: // 假设 'finalProduct' 或其他未知类型，使用基础结构
+                        finalNodeData = { ...commonData, finalProductName: values.name, totalCarbonFootprint: 0, certificationStatus: '未認證', environmentalImpact: '', sustainabilityScore: 0, productCategory: values.category, marketSegment: '', targetRegion: '', complianceStatus: '', carbonLabel: '' }; break;
+                }
              }
-             
+
              return {
                ...node,
-               data: currentNodeData
+               type: selectedNodeType, // 更新节点的类型
+               data: finalNodeData // 使用最终的数据对象
              };
            }
            return node;
@@ -332,19 +386,11 @@ export function CarbonCalculatorPanel() {
          message.success('排放源已更新（本地）');
        }
      } else {
-       // 添加新排放源
-       
-       // 根據當前選擇的生命週期階段確定節點類型
-       let nodeType = '';
-       switch (selectedStage) {
-         case '原材料獲取階段': nodeType = 'product'; break;
-         case '生產階段': nodeType = 'manufacturing'; break;
-         case '分銷運輸階段': nodeType = 'distribution'; break;
-         case '使用階段': nodeType = 'usage'; break;
-         case '壽命終止階段': nodeType = 'disposal'; break;
-         default: nodeType = 'product';
-       }
-       
+       // --- 添加新排放源 ---
+
+       // 根据用户在表单中选择的生命周期阶段确定节点类型
+       const nodeType = selectedNodeType; // 直接使用上面映射得到的类型
+
        // 創建新的排放源
        const newSourceId = Date.now().toString();
        const newSource: EmissionSource = {
@@ -361,8 +407,6 @@ export function CarbonCalculatorPanel() {
        if (setStoreNodes) {
          // 計算新節點位置（可以基於現有節點或使用默認位置）
          let position = { x: 100, y: 100 };
-         
-         // 如果有已存在的相同類型節點，相對位置有所調整
          const existingNodesOfSameType = nodes?.filter(n => n.type === nodeType) || [];
          if (existingNodesOfSameType.length > 0) {
            const lastNode = existingNodesOfSameType[existingNodesOfSameType.length - 1];
@@ -374,22 +418,25 @@ export function CarbonCalculatorPanel() {
          
          // 根據節點類型創建正確的節點數據對象
          let nodeData: NodeData;
+         const commonData = { // 提取通用数据创建逻辑
+             label: values.name,
+             nodeName: values.name,
+             lifecycleStage: selectedStageName, // 使用表单选择的阶段名称
+             emissionType: values.category,
+             activitydataSource: values.factorSource,
+             activityScore: 0,
+             verificationStatus: '未驗證',
+             carbonFootprint: String(0), // 确保是字符串
+             quantity: String(values.activityData), // 确保是字符串
+             carbonFactor: values.conversionFactor,
+             carbonFactorName: values.factorName,
+             unitConversion: String(1), // 确保是字符串
+         };
 
          switch (nodeType) {
            case 'product':
              nodeData = {
-               label: values.name,
-               nodeName: values.name,
-               lifecycleStage: selectedStage,
-               emissionType: values.category,
-               activitydataSource: values.factorSource,
-               activityScore: 0,
-               verificationStatus: '未驗證',
-               carbonFootprint: 0,
-               quantity: String(values.activityData),
-               carbonFactor: values.conversionFactor,
-               carbonFactorName: values.factorName,
-               unitConversion: 1,
+                ...commonData,
                material: values.category,
                weight_per_unit: '',
                isRecycled: false,
@@ -404,18 +451,7 @@ export function CarbonCalculatorPanel() {
            
            case 'manufacturing':
              nodeData = {
-               label: values.name,
-               nodeName: values.name,
-               lifecycleStage: selectedStage,
-               emissionType: values.category,
-               activitydataSource: values.factorSource,
-               activityScore: 0,
-               verificationStatus: '未驗證',
-               carbonFootprint: 0,
-               quantity: String(values.activityData),
-               carbonFactor: values.conversionFactor,
-               carbonFactorName: values.factorName,
-               unitConversion: 1,
+                ...commonData,
                ElectricityAccountingMethod: '',
                ElectricityAllocationMethod: '',
                EnergyConsumptionMethodology: '',
@@ -449,18 +485,7 @@ export function CarbonCalculatorPanel() {
            
            case 'distribution':
              nodeData = {
-               label: values.name,
-               nodeName: values.name,
-               lifecycleStage: selectedStage,
-               emissionType: values.category,
-               activitydataSource: values.factorSource,
-               activityScore: 0,
-               verificationStatus: '未驗證',
-               carbonFootprint: 0,
-               quantity: String(values.activityData),
-               carbonFactor: values.conversionFactor,
-               carbonFactorName: values.factorName,
-               unitConversion: 1,
+                ...commonData,
                transportationMode: '',
                transportationDistance: 0,
                startPoint: '',
@@ -481,18 +506,7 @@ export function CarbonCalculatorPanel() {
            
            case 'usage':
              nodeData = {
-               label: values.name,
-               nodeName: values.name,
-               lifecycleStage: selectedStage,
-               emissionType: values.category,
-               activitydataSource: values.factorSource,
-               activityScore: 0,
-               verificationStatus: '未驗證',
-               carbonFootprint: 0,
-               quantity: String(values.activityData),
-               carbonFactor: values.conversionFactor,
-               carbonFactorName: values.factorName,
-               unitConversion: 1,
+                ...commonData,
                lifespan: 0,
                energyConsumptionPerUse: 0,
                waterConsumptionPerUse: 0,
@@ -511,18 +525,7 @@ export function CarbonCalculatorPanel() {
            
            case 'disposal':
              nodeData = {
-               label: values.name,
-               nodeName: values.name,
-               lifecycleStage: selectedStage,
-               emissionType: values.category,
-               activitydataSource: values.factorSource,
-               activityScore: 0,
-               verificationStatus: '未驗證',
-               carbonFootprint: 0,
-               quantity: String(values.activityData),
-               carbonFactor: values.conversionFactor,
-               carbonFactorName: values.factorName,
-               unitConversion: 1,
+                ...commonData,
                recyclingRate: 0,
                landfillPercentage: 0,
                incinerationPercentage: 0,
@@ -541,18 +544,7 @@ export function CarbonCalculatorPanel() {
            
            default:
              nodeData = {
-               label: values.name,
-               nodeName: values.name,
-               lifecycleStage: selectedStage,
-               emissionType: values.category,
-               activitydataSource: values.factorSource,
-               activityScore: 0,
-               verificationStatus: '未驗證',
-               carbonFootprint: 0,
-               quantity: String(values.activityData),
-               carbonFactor: values.conversionFactor,
-               carbonFactorName: values.factorName,
-               unitConversion: 1,
+                ...commonData,
                finalProductName: values.name,
                totalCarbonFootprint: 0,
                certificationStatus: '未認證',
@@ -947,7 +939,12 @@ export function CarbonCalculatorPanel() {
         footer={null} // Using Form footer
         destroyOnClose // Ensure form state is reset each time
       >
-        <Form layout="vertical" onFinish={handleSaveEmissionSource} initialValues={editingEmissionSource || {}}>
+        <Form layout="vertical" onFinish={handleSaveEmissionSource} initialValues={drawerInitialValues} key={editingEmissionSource?.id || 'new'}>
+            <Form.Item name="lifecycleStage" label="生命周期阶段" rules={[{ required: true, message: '请选择生命周期阶段' }]}>
+              <Select placeholder="请选择生命周期阶段">
+                 {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
+              </Select>
+           </Form.Item>
            <Form.Item name="name" label="排放源名称" rules={[{ required: true, message: '请输入排放源名称' }]}>
               <Input placeholder="请输入排放源名称" />
            </Form.Item>
