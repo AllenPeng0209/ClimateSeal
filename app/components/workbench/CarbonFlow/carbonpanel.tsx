@@ -81,6 +81,11 @@ type UploadedFile = {
   status: 'pending' | 'parsing' | 'completed' | 'failed'; // Added status field based on PRD
 };
 
+// Extend antd's UploadFile type to include our custom selectedType
+type ModalUploadFile = UploadFile & {
+  selectedType?: string;
+};
+
 // File types enum based on PRD
 const RawFileTypes = [
     'BOM',
@@ -128,8 +133,7 @@ export function CarbonCalculatorPanel() {
   const [drawerInitialValues, setDrawerInitialValues] = useState<Partial<EmissionSource & { lifecycleStage: string }>>({}); // 用于传递初始值
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]); // State for main file list
   const [isUploadModalVisible, setIsUploadModalVisible] = useState(false); // State for the upload modal visibility
-  const [modalFileList, setModalFileList] = useState<UploadFile[]>([]); // State for files in the modal upload list
-  const [selectedFileType, setSelectedFileType] = useState<string | undefined>(undefined); // State for selected file type in modal
+  const [modalFileList, setModalFileList] = useState<ModalUploadFile[]>([]); // State for files in the modal upload list
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
 
@@ -671,52 +675,65 @@ export function CarbonCalculatorPanel() {
    const handleCloseUploadModal = () => {
        setIsUploadModalVisible(false);
        setModalFileList([]); // Clear file list on cancel
-       setSelectedFileType(undefined); // Clear selected type
        uploadModalFormRef.current?.resetFields(); // Reset form fields
    };
 
    // Handler for clicking OK in the upload modal
    const handleUploadModalOk = () => {
-     uploadModalFormRef.current?.validateFields().then(values => {
-         console.log('Upload Modal OK', values);
-         if (!selectedFileType) {
-             message.error('请选择文件类型');
-             return;
-         }
-         if (modalFileList.length === 0) {
-             message.error('请上传文件');
-             return;
-         }
+     console.log('Upload Modal OK');
+     if (modalFileList.length === 0) {
+         message.error('请上传文件');
+         return;
+     }
 
-         // Filter for successfully uploaded files (or files ready to be processed)
-         // In a real scenario, you'd check status === 'done' after actual upload
-         // Here, we'll just add all files present in the modal list for now
-         const filesToAdd = modalFileList.map((file) => ({
-             id: file.uid,
-             name: file.name,
-             type: selectedFileType, // Use the selected type
-             uploadTime: new Date().toISOString(),
-             status: 'pending' as const, // Initial status after confirmation
-             url: file.response?.url || file.thumbUrl // Use response URL or thumbUrl if available
-         }));
+     const filesWithoutType = modalFileList.filter(file => !file.selectedType);
+     if (filesWithoutType.length > 0) {
+         message.error(`请为所有文件选择文件类型: ${filesWithoutType.map(f => f.name).join(', ')}`);
+         return;
+     }
 
-         setUploadedFiles(prev => [...filesToAdd, ...prev]); // Add new files to the beginning
-         message.success(`${filesToAdd.length} 个文件已添加到列表`);
-         handleCloseUploadModal(); // Close modal and clear state
+     const filesToAdd = modalFileList.map((file) => ({
+         id: file.uid,
+         name: file.name,
+         type: file.selectedType!, // Use individual file's selected type
+         uploadTime: new Date().toISOString(),
+         status: 'pending' as const, 
+         url: file.response?.url || file.thumbUrl 
+     }));
 
-     }).catch(info => {
-         console.log('Validate Failed:', info);
-         message.error('请完成必填项');
-     });
+     setUploadedFiles(prev => [...filesToAdd, ...prev]); 
+     message.success(`${filesToAdd.length} 个文件已添加到列表`);
+     handleCloseUploadModal(); 
    };
 
    // Handler for Upload component changes in the modal
-   const handleModalUploadChange: UploadProps['onChange'] = ({ fileList: newFileList }) => {
-      setModalFileList(newFileList);
+   const handleModalUploadChange: UploadProps['onChange'] = ({ fileList: newFileListFromAntd }) => {
+      const updatedModalFileList = newFileListFromAntd.map(fileFromAntd => {
+        const existingFileInOurList = modalFileList.find(mf => mf.uid === fileFromAntd.uid);
+        return {
+            ...fileFromAntd,
+            selectedType: existingFileInOurList?.selectedType || undefined // Initialize with undefined or a default
+        };
+      });
+      setModalFileList(updatedModalFileList);
    };
 
-   // Handler for clearing the file list in the modal
-   const handleClearModalList = () => {
+   // Handler for changing a single file's type in the modal table
+   const handleModalFileTypeChange = (fileUid: string, type: string) => {
+    setModalFileList(prevList =>
+      prevList.map(file =>
+        file.uid === fileUid ? { ...file, selectedType: type } : file
+      )
+    );
+  };
+
+  // Handler for removing a file from the modal list (via table delete button)
+  const handleRemoveFileFromModalList = (fileUid: string) => {
+    setModalFileList(prevList => prevList.filter(file => file.uid !== fileUid));
+  };
+
+  // Handler for clearing the file list in the modal
+  const handleClearModalList = () => {
        setModalFileList([]);
    };
 
@@ -1017,46 +1034,13 @@ export function CarbonCalculatorPanel() {
         destroyOnClose // Reset state when modal is closed
       >
          <Form layout="vertical" ref={uploadModalFormRef}>
-            <Form.Item
-                name="fileType"
-                label="原始文件类型:"
-                rules={[{ required: true, message: '请选择文件类型' }]}
-                className="upload-modal-filetype-item"
-            >
-                <Select
-                    placeholder="选择文件类型"
-                    onChange={(value) => setSelectedFileType(value)}
-                    value={selectedFileType}
-                    allowClear // Allow clearing selection
-                    className="upload-modal-select" // Class for styling
-                >
-                    {RawFileTypes.map(type => (
-                        <Select.Option key={type} value={type}>{type}</Select.Option>
-                    ))}
-                </Select>
-            </Form.Item>
-
-            <Form.Item label="上传文件:" className="upload-modal-upload-item">
-                 <Space align="baseline" style={{ width: '100%', justifyContent: 'space-between' }}>
-                    {/* Label removed as Form.Item provides it */}
-                     {/* Buttons moved near the Dragger */}
-                     <Space>
-                         {/* We might not need a separate "上传" button if Dragger works */}
-                        {/* <Button>上传</Button> */}
-                        <Button icon={<ClearOutlined />} onClick={handleClearModalList} disabled={modalFileList.length === 0}>
-                            清空
-                        </Button>
-                     </Space>
-                 </Space>
+            <Form.Item label="添加文件:" className="upload-modal-upload-item">
                  <Upload.Dragger
-                    name="files" // name attribute for the upload request field
+                    name="files" 
                     multiple={true}
-                    // action="/api/upload" // No action for now, handle manually or on OK
                     onChange={handleModalUploadChange}
-                    fileList={modalFileList} // Control the file list
-                    // beforeUpload={() => false} // Prevent automatic upload if handling manually
-                    className="upload-modal-dragger" // Class for styling
-                    // Custom itemRender could be added here later for progress styling
+                    fileList={modalFileList} 
+                    showUploadList={false} // Hide default list, we use our table
                  >
                     <p className="ant-upload-drag-icon">
                         <InboxOutlined />
@@ -1067,6 +1051,61 @@ export function CarbonCalculatorPanel() {
                     </p>
                  </Upload.Dragger>
             </Form.Item>
+
+            {modalFileList.length > 0 && (
+              <Form.Item label="已选文件列表:">
+                <Table
+                  dataSource={modalFileList}
+                  columns={[
+                    { title: '文件名称', dataIndex: 'name', key: 'name', ellipsis: true },
+                    {
+                      title: '文件类型',
+                      dataIndex: 'uid', // Using uid as key for operations
+                      key: 'type',
+                      width: 180, // Adjusted width
+                      render: (uid: string, record: ModalUploadFile) => (
+                        <Select
+                          value={record.selectedType}
+                          onChange={(value) => handleModalFileTypeChange(uid, value)}
+                          placeholder="选择类型"
+                          style={{ width: '100%' }}
+                          allowClear
+                        >
+                          {RawFileTypes.map(type => (
+                            <Select.Option key={type} value={type}>{type}</Select.Option>
+                          ))}
+                        </Select>
+                      ),
+                    },
+                    {
+                      title: '操作',
+                      key: 'action',
+                      width: 80,
+                      render: (text: any, record: ModalUploadFile) => (
+                        <Tooltip title="删除">
+                          <Button
+                            danger
+                            type="link"
+                            icon={<DeleteOutlined />}
+                            onClick={() => handleRemoveFileFromModalList(record.uid)}
+                          />
+                        </Tooltip>
+                      ),
+                    },
+                  ]}
+                  rowKey="uid"
+                  size="small"
+                  pagination={false} // Or configure pagination if needed for many files
+                  scroll={{ y: 200 }} // Add scroll if list can be long
+                  className="upload-modal-file-table" // For potential styling
+                />
+                <div style={{ marginTop: '10px', textAlign: 'right' }}>
+                    <Button icon={<ClearOutlined />} onClick={handleClearModalList} disabled={modalFileList.length === 0}>
+                        清空列表
+                    </Button>
+                </div>
+              </Form.Item>
+            )}
          </Form>
       </Modal>
     </div>
@@ -1507,7 +1546,7 @@ const customStyles = `
     color: var(--bolt-danger, #ff4d4f) !important; /* Use danger variable or Antd default red */
 }
 
-/* Reduce font size in file upload table */
+/* Reduce font size in file upload table in main panel */
 .file-upload-table .ant-table-tbody > tr > td {
     font-size: 12px !important; /* Smaller font size */
 }
@@ -1516,6 +1555,21 @@ const customStyles = `
 .emission-source-table .ant-table-tbody > tr > td {
     font-size: 12px !important; /* Smaller font size */
 }
+
+/* Styles for the table within the upload modal */
+.upload-modal-file-table .ant-table-tbody > tr > td {
+  font-size: 12px; /* Consistent small font */
+  padding: 8px !important; /* Adjust padding for Select */
+}
+.upload-modal-file-table .ant-select-selector {
+  height: 30px !important; /* Ensure select fits well */
+  font-size: 12px;
+}
+.upload-modal-file-table .ant-select-selection-item,
+.upload-modal-file-table .ant-select-selection-placeholder {
+  line-height: 28px !important; /* Adjust line height for vertical centering */
+}
+
 
 `;
 
