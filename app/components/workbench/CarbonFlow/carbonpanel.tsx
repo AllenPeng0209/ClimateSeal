@@ -1560,6 +1560,11 @@ const customStyles = `
   font-size: 12px; /* Consistent small font */
   padding: 8px !important; /* Adjust padding for Select */
 }
+
+.upload-modal-file-table .ant-table-tbody > tr > td:nth-child(2) > .ant-select {
+  margin-left: 24px !important; /* 轻微向右推移 */
+}
+
 .upload-modal-file-table .ant-select-selector {
   height: 30px !important; /* Ensure select fits well */
   font-size: 12px;
