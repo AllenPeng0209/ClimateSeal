@@ -1251,6 +1251,10 @@ export function CarbonCalculatorPanel() {
             <Select placeholder="排放源类别 (全部)" style={{ width: 200 }} allowClear>
               {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
             </Select>
+            {/* 新增：因子匹配状态筛选框 */}
+            <Select placeholder="因子匹配状态 (全部)" style={{ width: 200 }} allowClear>
+              {(['未配置因子', 'AI匹配失败', 'AI匹配成功', '已手动配置因子'] as const).map(status => <Select.Option key={status} value={status}>{status}</Select.Option>)}
+            </Select>
             {/* TODO: 实现筛选逻辑 */}
           </Space>
           <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}>
