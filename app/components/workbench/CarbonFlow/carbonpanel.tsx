@@ -799,12 +799,11 @@ export function CarbonCalculatorPanel() {
   };
 
   const emissionTableColumns: TableProps<EmissionSource>['columns'] = [
-      { title: '序号', dataIndex: 'index', key: 'index', render: (_: any, __: any, index: number) => index + 1, width: 60 }, // Removed fixed: 'left'
+      { title: '序号', dataIndex: 'index', key: 'index', render: (_: any, __: any, index: number) => index + 1, width: 60 }, 
       {
         title: '排放源名称',
         dataIndex: 'name',
         key: 'name',
-        // Removed fixed: 'left'
         filterDropdown: (props: FilterDropdownProps) => {
           const { setSelectedKeys, selectedKeys, confirm, clearFilters } = props;
           return (
@@ -832,9 +831,10 @@ export function CarbonCalculatorPanel() {
         onFilter: (value, record) =>
           record.name.toString().toLowerCase().includes((value as string).toLowerCase()),
       },
-      { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' },
-      { title: '排放因子名称', dataIndex: 'factorName', key: 'factorName' },
-      { title: '因子匹配状态', dataIndex: 'factorMatchStatus', key: 'factorMatchStatus' }, // New column
+      { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: (text?: string) => text || '-' },
+      { title: '背景数据集名称', dataIndex: 'factorName', key: 'factorName' }, // 重命名并确保使用 factorName
+      // { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' }, // 移除
+      // { title: '因子匹配状态', dataIndex: 'factorMatchStatus', key: 'factorMatchStatus' }, // 移除
       { 
           title: '操作',
           key: 'action',
