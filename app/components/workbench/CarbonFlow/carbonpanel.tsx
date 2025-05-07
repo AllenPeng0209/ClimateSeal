@@ -74,6 +74,7 @@ type EmissionSource = {
   updatedAt: string;
   updatedBy: string;
   factorMatchStatus?: '未配置因子' | 'AI匹配失败' | 'AI匹配成功' | '已手动配置因子'; // 新增因子匹配状态
+  supplementaryInfo?: string; // 重新添加：排放源补充信息
 };
 
 // New type for Uploaded Files
@@ -209,6 +210,7 @@ export function CarbonCalculatorPanel() {
             updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
             updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
             factorMatchStatus: data.carbonFactor ? '已手动配置因子' : '未配置因子', // 根据是否已配置因子来设置初始状态
+            supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', // 添加：从节点数据获取补充信息
           };
         });
 
@@ -245,7 +247,8 @@ export function CarbonCalculatorPanel() {
         factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '',
         updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
         updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
-        factorMatchStatus: initialStatus, // 修复类型
+        factorMatchStatus: initialStatus, 
+        supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', // 添加：从节点数据获取补充信息
       };
       return source;
     });
@@ -293,7 +296,8 @@ export function CarbonCalculatorPanel() {
     // 编辑时，根据节点ID查找节点类型，并映射回中文阶段名称
     const node = nodes?.find(n => n.id === record.id);
     const stage = node ? nodeTypeToLifecycleStageMap[node.type || ''] || selectedStage : selectedStage;
-    setDrawerInitialValues({ ...record, lifecycleStage: stage });
+    // 确保 supplementaryInfo 传递到 drawerInitialValues
+    setDrawerInitialValues({ ...record, lifecycleStage: stage, supplementaryInfo: record.supplementaryInfo });
     setIsEmissionDrawerVisible(true);
   };
 
@@ -365,6 +369,7 @@ export function CarbonCalculatorPanel() {
                 updatedAt: new Date().toISOString(), 
                 updatedBy: 'User',
                 factorMatchStatus: editingEmissionSource.factorMatchStatus, // 保留原有的因子匹配状态
+                supplementaryInfo: values.supplementaryInfo || '', // 更新补充信息
              } 
            : item
        ));
@@ -390,6 +395,7 @@ export function CarbonCalculatorPanel() {
              dataToUpdate.carbonFactorUnit = values.factorUnit; // 保存因子单位
              dataToUpdate.activitydataSource = values.factorSource; // 保存因子来源
              dataToUpdate.lifecycleStage = selectedStageName;
+             dataToUpdate.supplementaryInfo = values.supplementaryInfo || ''; // 保存补充信息到节点数据
              // --- 结束更新通用字段保存逻辑 ---
 
              let finalNodeData = dataToUpdate; // 使用更新后的 dataToUpdate
@@ -413,6 +419,7 @@ export function CarbonCalculatorPanel() {
                     carbonFactorName: values.factorName, // 因子名称
                     carbonFactorUnit: values.factorUnit, // 因子单位
                     unitConversion: String(finalNodeData.unitConversion ?? 1), 
+                    supplementaryInfo: values.supplementaryInfo || '', // 通用数据中加入补充信息
                 };
 
                 // 根据新的 selectedNodeType 创建特定数据结构
@@ -466,6 +473,7 @@ export function CarbonCalculatorPanel() {
          updatedAt: new Date().toISOString(),
          updatedBy: 'User',
          factorMatchStatus: '未配置因子', // 新增因子匹配状态
+         supplementaryInfo: values.supplementaryInfo || '', // 新增时保存补充信息
        };
        
        // 更新本地狀態
@@ -501,6 +509,7 @@ export function CarbonCalculatorPanel() {
              carbonFactorName: values.factorName, // 因子名称
              carbonFactorUnit: values.factorUnit, // 因子单位
              unitConversion: String(1), 
+             supplementaryInfo: values.supplementaryInfo || '', // 新节点数据中加入补充信息
          };
 
          switch (nodeType) {
@@ -911,7 +920,7 @@ export function CarbonCalculatorPanel() {
     { title: '生命周期阶段', dataIndex: 'lifecycleStage', key: 'lifecycleStage' }, // render逻辑在Table组件中处理
     { title: '排放源名称', dataIndex: 'name', key: 'name' },
     { title: '排放源类别', dataIndex: 'category', key: 'category' },
-    { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: () => 'N/A' },
+    { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: (text?: string) => text || '-' }, // 更新显示逻辑
     { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' },
     { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit' },
     { title: '排放因子名称', dataIndex: 'factorName', key: 'factorName' },
@@ -1120,6 +1129,10 @@ export function CarbonCalculatorPanel() {
            </Form.Item>
            <Form.Item name="factorSource" label="排放因子来源" rules={[{ required: true, message: '请输入排放因子来源' }]}>
               <Input placeholder="请输入排放因子来源" />
+           </Form.Item>
+           {/* 添加排放源补充信息表单项 */}
+           <Form.Item name="supplementaryInfo" label="排放源补充信息">
+              <Input.TextArea placeholder="请输入排放源补充信息" rows={2} />
            </Form.Item>
            <Form.Item className="text-right">
              <Space>
