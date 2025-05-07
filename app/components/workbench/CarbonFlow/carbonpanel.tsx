@@ -73,6 +73,7 @@ type EmissionSource = {
   factorSource: string;
   updatedAt: string;
   updatedBy: string;
+  factorMatchStatus?: '未配置因子' | 'AI匹配失败' | 'AI匹配成功' | '已手动配置因子'; // 新增因子匹配状态
 };
 
 // New type for Uploaded Files
@@ -138,6 +139,8 @@ export function CarbonCalculatorPanel() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]); // State for main file list
   const [isUploadModalVisible, setIsUploadModalVisible] = useState(false); // State for the upload modal visibility
   const [modalFileList, setModalFileList] = useState<ModalUploadFile[]>([]); // State for files in the modal upload list
+  const [isFactorMatchModalVisible, setIsFactorMatchModalVisible] = useState(false); // 新增：因子匹配弹窗状态
+  const [selectedFactorMatchSources, setSelectedFactorMatchSources] = useState<React.Key[]>([]); // 新增：因子匹配弹窗中选中的排放源
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
 
@@ -204,11 +207,12 @@ export function CarbonCalculatorPanel() {
             factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '', // 读取 carbonFactorUnit
             factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '', // 读取 activitydataSource
             updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
-            updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System'
+            updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
+            factorMatchStatus: data.carbonFactor ? '已手动配置因子' : '未配置因子', // 根据是否已配置因子来设置初始状态
           };
         });
 
-      setEmissionSources(filteredNodes);
+      setEmissionSources(filteredNodes as EmissionSource[]); // Add type assertion
     }
   }, [nodes, selectedStage]);
 
@@ -218,9 +222,35 @@ export function CarbonCalculatorPanel() {
     alert('功能待实现');
   };
 
+  // 更新后的背景数据匹配按钮点击处理函数
   const handleCarbonFactorMatch = () => {
-    console.log('碳因子匹配 clicked');
-    alert('功能待实现');
+    console.log('背景数据匹配 clicked');
+    // 获取当前模型的所有排放源，并赋予初始状态
+    const allEmissionSourcesWithStatus: EmissionSource[] = nodes.map(node => {
+      const data = node.data as any;
+      const safeParseFloat = (val: any): number => {
+        const num = parseFloat(val);
+        return isNaN(num) ? 0 : num;
+      };
+      const initialStatus: '已手动配置因子' | '未配置因子' = data.carbonFactor ? '已手动配置因子' : '未配置因子';
+      const source: EmissionSource = {
+        id: node.id,
+        name: data.label || '未命名节点',
+        category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
+        activityData: safeParseFloat(data.quantity),
+        activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '',
+        conversionFactor: typeof data.carbonFactor === 'number' ? data.carbonFactor : 0,
+        factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '',
+        factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '',
+        factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '',
+        updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+        updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
+        factorMatchStatus: initialStatus, // 修复类型
+      };
+      return source;
+    });
+    setEmissionSources(allEmissionSourcesWithStatus); // 更新到state，用于弹窗显示
+    setIsFactorMatchModalVisible(true);
   };
 
   const handleCheckpointManage = () => {
@@ -333,7 +363,8 @@ export function CarbonCalculatorPanel() {
                 factorUnit: values.factorUnit,
                 factorSource: values.factorSource,
                 updatedAt: new Date().toISOString(), 
-                updatedBy: 'User' 
+                updatedBy: 'User',
+                factorMatchStatus: editingEmissionSource.factorMatchStatus, // 保留原有的因子匹配状态
              } 
            : item
        ));
@@ -433,7 +464,8 @@ export function CarbonCalculatorPanel() {
          ...values,
          id: newSourceId,
          updatedAt: new Date().toISOString(),
-         updatedBy: 'User'
+         updatedBy: 'User',
+         factorMatchStatus: '未配置因子', // 新增因子匹配状态
        };
        
        // 更新本地狀態
@@ -846,6 +878,56 @@ export function CarbonCalculatorPanel() {
       },
   ];
 
+  // 新增：因子匹配弹窗相关函数 - 确保在组件作用域内定义
+  const handleCloseFactorMatchModal = () => {
+    setIsFactorMatchModalVisible(false);
+    setSelectedFactorMatchSources([]); // 关闭时清空选项
+  };
+
+  const handleFactorMatchAI = () => {
+    console.log('AI匹配 invoked for sources:', selectedFactorMatchSources);
+    // TODO: 实现AI匹配逻辑
+    message.info('AI匹配功能待实现');
+    // 示例逻辑 (需要根据实际情况调整 emissionSources state)
+    // const updatedSources = emissionSources.map(source => {
+    //   if (selectedFactorMatchSources.includes(source.id)) {
+    //     const matchSuccess = Math.random() > 0.5;
+    //     const newStatus: 'AI匹配成功' | 'AI匹配失败' = matchSuccess ? 'AI匹配成功' : 'AI匹配失败';
+    //     return {
+    //       ...source,
+    //       factorMatchStatus: newStatus,
+    //       factorName: matchSuccess ? 'AI匹配因子名称' : source.factorName,
+    //       factorUnit: matchSuccess ? 'AI匹配因子单位' : source.factorUnit,
+    //     };
+    //   }
+    //   return source;
+    // });
+    // setEmissionSources(updatedSources);
+  };
+
+  // 用于因子匹配弹窗的列定义 - 确保在组件作用域内定义
+  const factorMatchTableColumns: TableProps<EmissionSource>['columns'] = [
+    { title: '序号', dataIndex: 'index', key: 'index', render: (_: any, __: any, index: number) => index + 1, width: 60 },
+    { title: '生命周期阶段', dataIndex: 'lifecycleStage', key: 'lifecycleStage' }, // render逻辑在Table组件中处理
+    { title: '排放源名称', dataIndex: 'name', key: 'name' },
+    { title: '排放源类别', dataIndex: 'category', key: 'category' },
+    { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: () => 'N/A' },
+    { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' },
+    { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit' },
+    { title: '排放因子名称', dataIndex: 'factorName', key: 'factorName' },
+    { title: '排放因子单位', dataIndex: 'factorUnit', key: 'factorUnit' },
+    {
+      title: '因子匹配状态',
+      dataIndex: 'factorMatchStatus',
+      key: 'factorMatchStatus',
+      render: (status?: EmissionSource['factorMatchStatus']) => { // 明确status类型并设为可选
+        let color = 'grey';
+        if (status === 'AI匹配成功' || status === '已手动配置因子') color = 'green';
+        else if (status === 'AI匹配失败') color = 'red';
+        return <span style={{ color }}>{status || '未配置因子'}</span>; // 处理undefined情况
+      }
+    },
+  ];
 
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
@@ -1132,6 +1214,59 @@ export function CarbonCalculatorPanel() {
               </Form.Item>
             )}
          </Form>
+      </Modal>
+
+      {/* 新增：因子匹配弹窗 */}
+      <Modal
+        title="背景数据匹配"
+        open={isFactorMatchModalVisible}
+        onCancel={handleCloseFactorMatchModal} // 现在应该能找到了
+        width="80%"
+        footer={[
+          <Button key="cancel" onClick={handleCloseFactorMatchModal}>取消</Button>, // 现在应该能找到了
+          <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}> {/* 现在应该能找到了 */}
+            AI匹配
+          </Button>,
+        ]}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Space>
+            <Select placeholder="生命周期阶段 (全部)" style={{ width: 200 }} allowClear>
+              {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
+            </Select>
+            <Input placeholder="排放源名称" style={{ width: 200 }} />
+            <Select placeholder="排放源类别 (全部)" style={{ width: 200 }} allowClear>
+              {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
+            </Select>
+            {/* TODO: 实现筛选逻辑 */}
+          </Space>
+        </div>
+        <Table
+          rowSelection={{
+            type: 'checkbox',
+            selectedRowKeys: selectedFactorMatchSources,
+            onChange: (selectedRowKeys: React.Key[]) => {
+              setSelectedFactorMatchSources(selectedRowKeys);
+            },
+          }}
+          columns={factorMatchTableColumns.map((col: ColumnType<EmissionSource>) => { // 现在应该能找到了
+            if (col.key === 'lifecycleStage') {
+              return {
+                ...col,
+                render: (text: any, record: EmissionSource) => {
+                    const node = nodes.find(n => n.id === record.id);
+                    return nodeTypeToLifecycleStageMap[node?.type || ''] || '未知';
+                }
+              };
+            }
+            return col;
+          })}
+          dataSource={emissionSources.map((source, index) => ({ ...source, key: source.id, index }))}
+          rowKey="id"
+          size="small"
+          pagination={{ pageSize: 10 }}
+          scroll={{ y: 'calc(60vh - 150px)' }}
+        />
       </Modal>
     </div>
   );
