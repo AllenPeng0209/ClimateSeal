@@ -37,6 +37,8 @@ import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 import { useCarbonFlowStore } from './CarbonFlowBridge';
 import type { Node } from 'reactflow';
 import type { NodeData } from '~/types/nodes';
+import type { TableProps, ColumnType } from 'antd/es/table';
+import type { FilterDropdownProps } from 'antd/es/table/interface';
 
 // Placeholder data types (replace with actual types later)
 type SceneInfoType = {
@@ -755,17 +757,72 @@ export function CarbonCalculatorPanel() {
     return Math.round(scoreData.score);
   };
 
-  const emissionTableColumns = [
+  const emissionTableColumns: TableProps<EmissionSource>['columns'] = [
       { title: '序号', dataIndex: 'index', key: 'index', render: (_: any, __: any, index: number) => index + 1, width: 60, fixed: 'left' as 'left' },
-      { title: '排放源名称', dataIndex: 'name', key: 'name', fixed: 'left' as 'left' },
-      { title: '排放源类别', dataIndex: 'category', key: 'category' },
+      {
+        title: '排放源名称',
+        dataIndex: 'name',
+        key: 'name',
+        fixed: 'left' as 'left',
+        filterDropdown: (props: FilterDropdownProps) => {
+          const { setSelectedKeys, selectedKeys, confirm, clearFilters } = props;
+          return (
+            <div style={{ padding: 8 }} onKeyDown={(e) => e.stopPropagation()}>
+              <Input
+                placeholder={`搜索名称`}
+                value={String(selectedKeys[0] ?? '')}
+                onChange={e => {
+                  const value = e.target.value;
+                  setSelectedKeys(value ? [value] : []);
+                  if (!value && clearFilters) {
+                    clearFilters();
+                  }
+                  confirm({ closeDropdown: false });
+                }}
+                onPressEnter={() => confirm({ closeDropdown: true })}
+                onBlur={() => confirm({ closeDropdown: false })}
+                style={{ marginBottom: 8, width: '100%' }}
+                allowClear
+              />
+            </div>
+          );
+        },
+        filterIcon: (filtered: boolean) => <SearchOutlined style={{ color: filtered ? '#1890ff' : undefined }} />,
+        onFilter: (value, record) =>
+          record.name.toString().toLowerCase().includes((value as string).toLowerCase()),
+      },
+      {
+        title: '排放源类别',
+        dataIndex: 'category',
+        key: 'category',
+        filterDropdown: (props: FilterDropdownProps) => {
+          const { setSelectedKeys, selectedKeys, confirm, clearFilters } = props;
+          return (
+            <div style={{ padding: 8 }} onKeyDown={(e) => e.stopPropagation()}>
+              <Select
+                placeholder="筛选类别"
+                value={selectedKeys[0]}
+                onChange={val => {
+                  setSelectedKeys(val ? [val as React.Key] : []);
+                  confirm({ closeDropdown: true });
+                }}
+                style={{ width: '100%', marginBottom: 8, display: 'block' }}
+                allowClear
+              >
+                {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
+              </Select>
+            </div>
+          );
+        },
+        filterIcon: (filtered: boolean) => <SearchOutlined style={{ color: filtered ? '#1890ff' : undefined }} />,
+        onFilter: (value, record) => record.category === (value as string),
+      },
       { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' },
       { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit' },
       { title: '单位转换系数', dataIndex: 'conversionFactor', key: 'conversionFactor' },
       { title: '排放因子名称', dataIndex: 'factorName', key: 'factorName' },
       { title: '排放因子单位', dataIndex: 'factorUnit', key: 'factorUnit' },
       { title: '数据库名称', dataIndex: 'factorSource', key: 'factorSource' },
-      // { title: '因子UUID', dataIndex: 'factorUUID', key: 'factorUUID' }, // 新增列 - 现在移除
       {
           title: '操作',
           key: 'action',
@@ -920,14 +977,7 @@ export function CarbonCalculatorPanel() {
              <Col span={19} className="flex flex-col h-full">
                <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
-                        <Space>
-                            <Input placeholder="排放源名称" prefix={<SearchOutlined />} style={{width: 120}} />
-                            <Select placeholder="排放源类别" allowClear style={{width: 120}}>
-                                {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
-                            </Select>
-                            <Button type="primary" icon={<SearchOutlined />}>查询</Button>
-                            <Button icon={<RedoOutlined />}>重置</Button>
-                        </Space>
+                        <div></div> {/* Empty div to maintain layout for right-aligned buttons */}
                         <Space>
                             <Button icon={<AimOutlined />} onClick={handleAIComplete}>AI一键补全</Button>
                             <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button>
