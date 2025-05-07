@@ -8,7 +8,7 @@ extract_env_vars() {
 }
 
 # First try to read from .env.local if it exists
-if [ -f ".env.local" ]; then
+if [ -f ".env" ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     if [[ ! "$line" =~ ^# ]] && [[ -n "$line" ]]; then
       name=$(echo "$line" | cut -d '=' -f 1)
@@ -16,7 +16,7 @@ if [ -f ".env.local" ]; then
       value=$(echo $value | sed 's/^"\(.*\)"$/\1/')
       bindings+="--binding ${name}=${value} "
     fi
-  done < .env.local
+  done < .env
 else
   # If .env.local doesn't exist, use environment variables defined in .d.ts
   env_vars=($(extract_env_vars))
