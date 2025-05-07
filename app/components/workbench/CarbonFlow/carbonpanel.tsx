@@ -946,7 +946,7 @@ export function CarbonCalculatorPanel() {
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space> {/* Buttons for the left side */}
                             <Button icon={<AimOutlined />} onClick={handleAIComplete}>AI一键补全</Button>
-                            <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button>
+                            <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>背景数据匹配</Button>
                         </Space>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
                     </div>
