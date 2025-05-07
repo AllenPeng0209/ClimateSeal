@@ -1233,16 +1233,16 @@ export function CarbonCalculatorPanel() {
       <Modal
         title="背景数据匹配"
         open={isFactorMatchModalVisible}
-        onCancel={handleCloseFactorMatchModal} // 现在应该能找到了
+        onCancel={handleCloseFactorMatchModal}
         width="80%"
         footer={[
-          <Button key="cancel" onClick={handleCloseFactorMatchModal}>取消</Button>, // 现在应该能找到了
-          <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}> {/* 现在应该能找到了 */}
-            AI匹配
-          </Button>,
+          <Button key="cancel" onClick={handleCloseFactorMatchModal}>取消</Button>,
+          // <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}>
+          // AI匹配
+          // </Button>, // 按钮移到筛选行
         ]}
       >
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space>
             <Select placeholder="生命周期阶段 (全部)" style={{ width: 200 }} allowClear>
               {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
@@ -1253,6 +1253,9 @@ export function CarbonCalculatorPanel() {
             </Select>
             {/* TODO: 实现筛选逻辑 */}
           </Space>
+          <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}>
+            执行AI匹配
+          </Button>
         </div>
         <Table
           rowSelection={{
