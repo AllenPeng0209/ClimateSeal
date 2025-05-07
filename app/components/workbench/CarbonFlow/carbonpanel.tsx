@@ -788,7 +788,7 @@ export function CarbonCalculatorPanel() {
   const fileTableColumns = [
       { title: '文件名称', dataIndex: 'name', key: 'name' },
       { title: '文件类型', dataIndex: 'type', key: 'type', width: 120 }, // Renamed header as per PRD
-      { title: '上传时间', dataIndex: 'uploadTime', key: 'uploadTime', width: 170, render: (ts: string) => new Date(ts).toLocaleString() },
+      // { title: '上传时间', dataIndex: 'uploadTime', key: 'uploadTime', width: 170, render: (ts: string) => new Date(ts).toLocaleString() },
       { title: '状态', dataIndex: 'status', key: 'status', width: 100 }, // Added Status column
       {
           title: '操作',
@@ -844,7 +844,7 @@ export function CarbonCalculatorPanel() {
             {/* 2.2 File Upload (Moved to middle) - Adjusted span to 14 */}
             <Col span={14} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
                 <Card
-                    title="原始文件"
+                    title="原始数据文件"
                     size="small"
                     extra={
                         <Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>上传文件</Button>
@@ -1562,7 +1562,7 @@ const customStyles = `
 }
 
 .upload-modal-file-table .ant-table-tbody > tr > td:nth-child(2) > .ant-select {
-  margin-left: 24px !important; /* 轻微向右推移 */
+  margin-left: 18px !important; /* 轻微向右推移 */
 }
 
 .upload-modal-file-table .ant-select-selector {
