@@ -29,6 +29,8 @@ import {
   EditOutlined,
   InboxOutlined,
   ClearOutlined,
+  AimOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
@@ -211,6 +213,11 @@ export function CarbonCalculatorPanel() {
   // --- Placeholder functions ---
   const handleAIComplete = () => {
     console.log('一键AI补全 clicked');
+    alert('功能待实现');
+  };
+
+  const handleCarbonFactorMatch = () => {
+    console.log('碳因子匹配 clicked');
     alert('功能待实现');
   };
 
@@ -921,7 +928,11 @@ export function CarbonCalculatorPanel() {
                             <Button type="primary" icon={<SearchOutlined />}>查询</Button>
                             <Button icon={<RedoOutlined />}>重置</Button>
                         </Space>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button>
+                        <Space>
+                            <Button icon={<AimOutlined />} onClick={handleAIComplete}>AI一键补全</Button>
+                            <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button>
+                            <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button>
+                        </Space>
                     </div>
                     <div className="flex-grow overflow-auto emission-source-table-scroll-container">
                         <Table
