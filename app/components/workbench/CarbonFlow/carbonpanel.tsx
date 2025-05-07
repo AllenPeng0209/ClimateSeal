@@ -758,12 +758,12 @@ export function CarbonCalculatorPanel() {
   };
 
   const emissionTableColumns: TableProps<EmissionSource>['columns'] = [
-      { title: '序号', dataIndex: 'index', key: 'index', render: (_: any, __: any, index: number) => index + 1, width: 60, fixed: 'left' as 'left' },
+      { title: '序号', dataIndex: 'index', key: 'index', render: (_: any, __: any, index: number) => index + 1, width: 60 }, // Removed fixed: 'left'
       {
         title: '排放源名称',
         dataIndex: 'name',
         key: 'name',
-        fixed: 'left' as 'left',
+        // Removed fixed: 'left'
         filterDropdown: (props: FilterDropdownProps) => {
           const { setSelectedKeys, selectedKeys, confirm, clearFilters } = props;
           return (
@@ -791,47 +791,16 @@ export function CarbonCalculatorPanel() {
         onFilter: (value, record) =>
           record.name.toString().toLowerCase().includes((value as string).toLowerCase()),
       },
-      {
-        title: '排放源类别',
-        dataIndex: 'category',
-        key: 'category',
-        filterDropdown: (props: FilterDropdownProps) => {
-          const { setSelectedKeys, selectedKeys, confirm, clearFilters } = props;
-          return (
-            <div style={{ padding: 8 }} onKeyDown={(e) => e.stopPropagation()}>
-              <Select
-                placeholder="筛选类别"
-                value={selectedKeys[0]}
-                onChange={val => {
-                  setSelectedKeys(val ? [val as React.Key] : []);
-                  confirm({ closeDropdown: true });
-                }}
-                style={{ width: '100%', marginBottom: 8, display: 'block' }}
-                allowClear
-              >
-                {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
-              </Select>
-            </div>
-          );
-        },
-        filterIcon: (filtered: boolean) => <SearchOutlined style={{ color: filtered ? '#1890ff' : undefined }} />,
-        onFilter: (value, record) => record.category === (value as string),
-      },
       { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' },
-      { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit' },
-      { title: '单位转换系数', dataIndex: 'conversionFactor', key: 'conversionFactor' },
       { title: '排放因子名称', dataIndex: 'factorName', key: 'factorName' },
-      { title: '排放因子单位', dataIndex: 'factorUnit', key: 'factorUnit' },
-      { title: '数据库名称', dataIndex: 'factorSource', key: 'factorSource' },
-      {
+      { title: '因子匹配状态', dataIndex: 'factorMatchStatus', key: 'factorMatchStatus' }, // New column
+      { 
           title: '操作',
           key: 'action',
-          fixed: 'right' as 'right',
           width: 150,
           render: (_: any, record: EmissionSource) => (
-              <Space size="small"> {/* Reduced space, similar to file table */}
+              <Space size="small">
                   <Tooltip title="查看">
-                      {/* Added View action - Placeholder */}
                       <Button type="link" icon={<EyeOutlined />} onClick={() => { console.log('Viewing:', record); message.info('查看功能待实现'); }} />
                   </Tooltip>
                   <Tooltip title="编辑">
@@ -851,12 +820,10 @@ export function CarbonCalculatorPanel() {
   const fileTableColumns = [
       { title: '文件名称', dataIndex: 'name', key: 'name' },
       { title: '文件类型', dataIndex: 'type', key: 'type', width: 120 }, // Renamed header as per PRD
-      // { title: '上传时间', dataIndex: 'uploadTime', key: 'uploadTime', width: 170, render: (ts: string) => new Date(ts).toLocaleString() },
       { title: '状态', dataIndex: 'status', key: 'status', width: 100 }, // Added Status column
       {
           title: '操作',
           key: 'action',
-          fixed: 'right' as 'right',
           width: 120, // Increased width for more icons
           render: (_: any, record: UploadedFile) => (
               <Space size="small"> {/* Reduced space slightly */}
@@ -977,12 +944,11 @@ export function CarbonCalculatorPanel() {
              <Col span={19} className="flex flex-col h-full">
                <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
-                        <div></div> {/* Empty div to maintain layout for right-aligned buttons */}
-                        <Space>
+                        <Space> {/* Buttons for the left side */}
                             <Button icon={<AimOutlined />} onClick={handleAIComplete}>AI一键补全</Button>
                             <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button>
-                            <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button>
                         </Space>
+                        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
                     </div>
                     <div className="flex-grow overflow-auto emission-source-table-scroll-container">
                         <Table
@@ -992,7 +958,7 @@ export function CarbonCalculatorPanel() {
                             rowKey="id"
                             size="small"
                             pagination={{ pageSize: 10 }}
-                            scroll={{ x: 1500, y: 'calc(100vh - 500px)' }}
+                            scroll={{ y: 'calc(100vh - 500px)' }} // Removed x scroll
                         />
                     </div>
                </Card>
