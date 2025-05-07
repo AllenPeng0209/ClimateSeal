@@ -1250,6 +1250,11 @@ const customStyles = `
     transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out !important; /* Added transition */
 }
 
+/* Ensure the select dropdown in filter controls has a minimum width */
+.filter-controls .ant-select-selector {
+    min-width: 120px !important;
+}
+
 /* Hover State for Input/Select */
 .filter-controls .ant-input-affix-wrapper:hover,
 .filter-controls .ant-select-selector:hover {
