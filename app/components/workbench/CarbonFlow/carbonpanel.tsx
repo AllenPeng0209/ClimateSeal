@@ -752,14 +752,13 @@ export function CarbonCalculatorPanel() {
       { title: '序号', dataIndex: 'index', key: 'index', render: (_: any, __: any, index: number) => index + 1, width: 60, fixed: 'left' as 'left' },
       { title: '排放源名称', dataIndex: 'name', key: 'name', fixed: 'left' as 'left' },
       { title: '排放源类别', dataIndex: 'category', key: 'category' },
-      { title: '活动数据', dataIndex: 'activityData', key: 'activityData' },
+      { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' },
       { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit' },
       { title: '单位转换系数', dataIndex: 'conversionFactor', key: 'conversionFactor' },
       { title: '排放因子名称', dataIndex: 'factorName', key: 'factorName' },
       { title: '排放因子单位', dataIndex: 'factorUnit', key: 'factorUnit' },
-      { title: '排放因子来源', dataIndex: 'factorSource', key: 'factorSource' },
-      { title: '更新时间', dataIndex: 'updatedAt', key: 'updatedAt', render: (ts: string) => new Date(ts).toLocaleString() },
-      { title: '更新人', dataIndex: 'updatedBy', key: 'updatedBy' },
+      { title: '数据库名称', dataIndex: 'factorSource', key: 'factorSource' },
+      // { title: '因子UUID', dataIndex: 'factorUUID', key: 'factorUUID' }, // 新增列 - 现在移除
       {
           title: '操作',
           key: 'action',
