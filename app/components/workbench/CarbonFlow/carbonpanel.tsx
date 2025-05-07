@@ -921,8 +921,8 @@ export function CarbonCalculatorPanel() {
                <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space>
-                            <Input placeholder="排放源名称" prefix={<SearchOutlined />} style={{width: 150}} />
-                            <Select placeholder="排放源类别" allowClear style={{width: 150}}>
+                            <Input placeholder="排放源名称" prefix={<SearchOutlined />} style={{width: 120}} />
+                            <Select placeholder="排放源类别" allowClear style={{width: 120}}>
                                 {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
                             </Select>
                             <Button type="primary" icon={<SearchOutlined />}>查询</Button>
