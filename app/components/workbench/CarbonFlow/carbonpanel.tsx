@@ -1111,9 +1111,15 @@ export function CarbonCalculatorPanel() {
              <Col span={5} className="flex flex-col h-full">
                <Card title="生命周期阶段" size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor">
                     <div className="flex-grow overflow-y-auto">
-                     <Space direction="vertical" className="w-full">
+                     <Space direction="vertical" className="w-full lifecycle-nav-bar">
                         {lifecycleStages.map(stage => (
-                          <Button key={stage} type={selectedStage === stage ? 'primary' : 'text'} onClick={() => handleStageSelect(stage)} block className="text-left">
+                          <Button 
+                            key={stage} 
+                            type={selectedStage === stage ? 'primary' : 'text'} 
+                            onClick={() => handleStageSelect(stage)} 
+                            block 
+                            className={`text-left ${stage === '全部' ? 'lifecycle-all-button' : ''}`}
+                          >
                             {stage}
                           </Button>
                         ))}
@@ -2141,6 +2147,73 @@ const customStyles = `
   box-shadow: 0 0 6px rgba(255, 77, 79, 0.4) !important;
   text-shadow: 0 0 5px rgba(255, 77, 79, 0.5) !important;
 }
+
+/* Lifecycle 'All' button styles */
+.lifecycle-all-button {
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.1) !important; /* Subtle primary background when not selected */
+  border-left: 3px solid transparent !important; /* Space for accent border */
+  transition: all 0.3s ease !important;
+}
+
+.lifecycle-all-button:hover {
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.2) !important;
+  border-left-color: var(--bolt-primary, #5165f9) !important;
+}
+
+.lifecycle-all-button.ant-btn-primary { /* When selected */
+  background: linear-gradient(90deg, var(--bolt-primary, #5165f9) 0%, rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.7) 100%) !important;
+  color: #fff !important;
+  border-left: 3px solid var(--bolt-primary-glow, #8da0ff) !important;
+  box-shadow: 0 0 10px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5), inset 0 0 5px rgba(255,255,255,0.2) !important;
+  font-weight: bold !important;
+}
+
+/* Common styles for all lifecycle navigation buttons */
+.lifecycle-nav-bar .ant-btn {
+  border-left: 3px solid transparent !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important;
+  padding-left: 13px !important; /* Adjust padding to maintain text alignment with border */
+  text-align: left !important;
+  display: block !important; 
+  border-radius: 4px !important; /* Slightly rounded corners for all */
+}
+
+/* Default state for non-'All', non-selected text buttons */
+.lifecycle-nav-bar .ant-btn-text:not(.lifecycle-all-button):not(.ant-btn-primary) {
+    color: var(--bolt-elements-textSecondary) !important; /* Dimmer text for inactive tabs */
+    background-color: transparent !important;
+}
+
+/* Hover style for non-selected, non-'All' lifecycle buttons (text buttons) */
+.lifecycle-nav-bar .ant-btn-text:not(.lifecycle-all-button):not(.ant-btn-primary):hover {
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.1) !important; /* Use primary color based hover */
+  border-left-color: var(--bolt-primary, #5165f9) !important;
+  color: var(--bolt-primary) !important; /* Text brightens to primary color */
+}
+
+/* Selected style for non-'All' lifecycle buttons */
+.lifecycle-nav-bar .ant-btn-primary:not(.lifecycle-all-button) {
+  background-color: var(--bolt-primary, #5165f9) !important;
+  color: var(--bolt-primary-contrast-text, #fff) !important;
+  border-left-color: var(--bolt-primary-glow, #8da0ff) !important; /* Brighter left border */
+  font-weight: 500 !important; /* Semi-bold */
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05) !important; /* Very subtle inner shadow */
+}
+
+/* Readjust 'All' button styles to ensure they integrate and override correctly */
+.lifecycle-all-button { /* This is for non-selected state of 'All' button */
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.15) !important; /* More prominent base */
+  color: var(--bolt-elements-textPrimary) !important;
+  /* border-left and transition are handled by common .lifecycle-nav-bar .ant-btn */
+}
+
+.lifecycle-all-button:hover:not(.ant-btn-primary) { /* Hover for 'All' button when NOT selected */
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.25) !important;
+  border-left-color: var(--bolt-primary, #5165f9) !important;
+  color: var(--bolt-primary) !important;
+}
+
+/* .lifecycle-all-button.ant-btn-primary (selected 'All' button) styles remain as they are, they are specific enough */
 
 `;
 
