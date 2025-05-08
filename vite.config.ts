@@ -89,6 +89,10 @@ export default defineConfig((config) => {
       __PKG_OPTIONAL_DEPENDENCIES: JSON.stringify(pkg.optionalDependencies),
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
     },
+    server: {
+      host: true,
+      allowedHosts: ['climateseals.com', 'www.climateseals.com'],
+    },
     build: {
       target: 'esnext',
       rollupOptions: {
@@ -166,7 +170,7 @@ export default defineConfig((config) => {
     css: {
       preprocessorOptions: {
         scss: {
-          api: 'modern-compiler'
+          api: 'modern-compiler',
         },
         less: {
           javascriptEnabled: true,
@@ -177,8 +181,8 @@ export default defineConfig((config) => {
       },
       modules: {
         localsConvention: 'camelCase',
-        generateScopedName: '[name]__[local]___[hash:base64:5]'
-      }
+        generateScopedName: '[name]__[local]___[hash:base64:5]',
+      },
     },
   };
 });

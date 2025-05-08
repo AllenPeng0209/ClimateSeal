@@ -58,3 +58,4 @@ docs/instructions/Roadmap.md
 !PROJECT.md
 .qodo
 .vercel
+*.pem

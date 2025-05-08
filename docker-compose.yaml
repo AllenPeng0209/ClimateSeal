@@ -1,13 +1,10 @@
 services:
   app-prod:
-    image: bolt-ai:production
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: bolt-ai-production
+    image: crpi-bvovg2g7y33dn86o.cn-shanghai.personal.cr.aliyuncs.com/climateseal/bolt-ai:your-new-tag
+
     ports:
       - '5173:5173'
-    env_file: '.env.local'
+    env_file: '.env'
     environment:
       - NODE_ENV=production
       - COMPOSE_PROFILES=production
@@ -24,9 +21,11 @@ services:
       - TOGETHER_API_KEY=${TOGETHER_API_KEY}
       - TOGETHER_API_BASE_URL=${TOGETHER_API_BASE_URL}
       - AWS_BEDROCK_CONFIG=${AWS_BEDROCK_CONFIG}
-      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
       - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
       - RUNNING_IN_DOCKER=true
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     command: pnpm run dockerstart
@@ -37,7 +36,7 @@ services:
     image: bolt-ai:development
     build:
       target: bolt-ai-development
-    env_file: '.env.local'
+    env_file: '.env'
     environment:
       - NODE_ENV=development
       - VITE_HMR_PROTOCOL=ws
@@ -60,6 +59,8 @@ services:
       - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
       - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
       - RUNNING_IN_DOCKER=true
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
