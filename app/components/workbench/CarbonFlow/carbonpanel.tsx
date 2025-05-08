@@ -868,7 +868,7 @@ export function CarbonCalculatorPanel() {
         dataIndex: 'activityDataStatus',
         key: 'activityDataStatus',
         render: (_: any, record: EmissionSource) => {
-          // \"完整，部分AI补充\" 状态暂不实现
+          // "完整，部分AI补充" 状态暂不实现
           const hasActivityDataValue = typeof record.activityData === 'number' && !isNaN(record.activityData);
           const hasActivityUnit = record.activityUnit && record.activityUnit.trim() !== '';
           if (hasActivityDataValue && hasActivityUnit) {
