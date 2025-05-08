@@ -34,8 +34,6 @@ import {
   ClearOutlined,
   AimOutlined,
   DatabaseOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
@@ -872,7 +870,47 @@ export function CarbonCalculatorPanel() {
           const hasActivityDataValue = typeof record.activityData === 'number' && !isNaN(record.activityData);
           const hasActivityUnit = record.activityUnit && record.activityUnit.trim() !== '';
           if (hasActivityDataValue && hasActivityUnit) {
-            return (\n              <span \n                style={{\n                  display: 'inline-flex',\n                  alignItems: 'center',\n                  padding: '2px 8px',\n                  borderRadius: '10px',\n                  backgroundColor: 'rgba(0, 170, 0, 0.15)',\n                  color: '#4ade80',\n                  border: '1px solid #4ade80',\n                  fontSize: '12px',\n                }}\n              >\n                <CheckCircleOutlined style={{ marginRight: '4px' }} />完整\n              </span>\n            );\n          }\n          return (\n            <span \n              style={{\n                display: 'inline-flex',\n                alignItems: 'center',\n                padding: '2px 8px',\n                borderRadius: '10px',\n                backgroundColor: 'rgba(255, 0, 0, 0.15)',\n                color: '#ff6b6b',\n                border: '1px solid #ff6b6b',\n                fontSize: '12px',\n              }}\n            >\n              <CloseCircleOutlined style={{ marginRight: '4px' }} />缺失\n            </span>\n          );\n        },\n      },\n      {\n        title: '证明材料',\n        dataIndex: 'evidenceMaterialStatus',\n        key: 'evidenceMaterialStatus',\n        render: (_: any, record: EmissionSource) => {\n          // \"完整，验证未通过\" 状态暂不实现，默认上传即验证通过\n          if (record.hasEvidenceFiles) {\n            return (\n              <span \n                style={{\n                  display: 'inline-flex',\n                  alignItems: 'center',\n                  padding: '2px 8px',\n                  borderRadius: '10px',\n                  backgroundColor: 'rgba(0, 170, 0, 0.15)',\n                  color: '#4ade80',\n                  border: '1px solid #4ade80',\n                  fontSize: '12px',\n                }}\n              >\n                <CheckCircleOutlined style={{ marginRight: '4px' }} />完整\n              </span>\n            );\n          }\n          return (\n            <span \n              style={{\n                display: 'inline-flex',\n                alignItems: 'center',\n                padding: '2px 8px',\n                borderRadius: '10px',\n                backgroundColor: 'rgba(255, 0, 0, 0.15)',\n                color: '#ff6b6b',\n                border: '1px solid #ff6b6b',\n                fontSize: '12px',\n              }}\n            >\n              <CloseCircleOutlined style={{ marginRight: '4px' }} />缺失\n            </span>\n          );\n        },\n      },\n      {\n        title: '背景数据状态',\n        dataIndex: 'backgroundDataStatus',\n        key: 'backgroundDataStatus',\n        render: (_: any, record: EmissionSource) => {\n          if (record.factorMatchStatus === '已手动配置因子') {\n            return (\n              <span \n                style={{\n                  display: 'inline-flex',\n                  alignItems: 'center',\n                  padding: '2px 8px',\n                  borderRadius: '10px',\n                  backgroundColor: 'rgba(0, 170, 0, 0.15)',\n                  color: '#4ade80',\n                  border: '1px solid #4ade80',\n                  fontSize: '12px',\n                }}\n              >\n                <CheckCircleOutlined style={{ marginRight: '4px' }} />完整，手动选择\n              </span>\n            );\n          }\n          if (record.factorMatchStatus === 'AI匹配成功') {\n            return (\n              <span \n                style={{\n                  display: 'inline-flex',\n                  alignItems: 'center',\n                  padding: '2px 8px',\n                  borderRadius: '10px',\n                  backgroundColor: 'rgba(0, 170, 0, 0.15)',\n                  color: '#4ade80',\n                  border: '1px solid #4ade80',\n                  fontSize: '12px',\n                }}\n              >\n                <CheckCircleOutlined style={{ marginRight: '4px' }} />完整，AI匹配\n              </span>\n            );\n          }\n          if (!record.factorName || record.factorName.trim() === '' || record.factorMatchStatus === '未配置因子' || record.factorMatchStatus === 'AI匹配失败') {\n            return (\n              <span \n                style={{\n                  display: 'inline-flex',\n                  alignItems: 'center',\n                  padding: '2px 8px',\n                  borderRadius: '10px',\n                  backgroundColor: 'rgba(255, 0, 0, 0.15)',\n                  color: '#ff6b6b',\n                  border: '1px solid #ff6b6b',\n                  fontSize: '12px',\n                }}\n              >\n                <CloseCircleOutlined style={{ marginRight: '4px' }} />缺失\n              </span>\n            );\n          }\n          return '未知'; // Fallback, though ideally not reached\n        },\n      },\n      { title: '数据风险', dataIndex: 'dataRisk', key: 'dataRisk', render: (text?: string) => text || '无' },\n      { 
+            return <span className="status-complete">完整</span>;
+          }
+          return <span className="status-missing">缺失</span>;
+        },
+      },
+      {
+        title: '证明材料',
+        dataIndex: 'evidenceMaterialStatus',
+        key: 'evidenceMaterialStatus',
+        render: (_: any, record: EmissionSource) => {
+          // "完整，验证未通过" 状态暂不实现，默认上传即验证通过
+          if (record.hasEvidenceFiles) {
+            return <span className="status-complete">完整</span>;
+          }
+          return <span className="status-missing">缺失</span>;
+        },
+      },
+      {
+        title: '背景数据状态',
+        dataIndex: 'backgroundDataStatus',
+        key: 'backgroundDataStatus',
+        render: (_: any, record: EmissionSource) => {
+          if (record.factorMatchStatus === '已手动配置因子') {
+            return <span className="status-complete">完整，手动选择</span>;
+          }
+          if (record.factorMatchStatus === 'AI匹配成功') {
+            return <span className="status-complete">完整，AI匹配</span>;
+          }
+          if (!record.factorName || record.factorName.trim() === '' || record.factorMatchStatus === '未配置因子' || record.factorMatchStatus === 'AI匹配失败') {
+            return <span className="status-missing">缺失</span>;
+          }
+          return '未知'; // Fallback, though ideally not reached
+        },
+      },
+      {
+        title: '数据风险',
+        dataIndex: 'dataRisk',
+        key: 'dataRisk',
+        render: (text?: string) => text || '无',
+      },
+      { 
           title: '操作',
           key: 'action',
           width: 150,
@@ -957,6 +995,7 @@ export function CarbonCalculatorPanel() {
     { title: '生命周期阶段', dataIndex: 'lifecycleStage', key: 'lifecycleStage' }, // render逻辑在Table组件中处理
     { title: '排放源名称', dataIndex: 'name', key: 'name' },
     { title: '排放源类别', dataIndex: 'category', key: 'category' },
+    { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: (text?: string) => text || '-' }, // 更新显示逻辑
     { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' },
     { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit' },
     { title: '因子名称', dataIndex: 'factorName', key: 'factorName' }, // PRD: 因子名称
