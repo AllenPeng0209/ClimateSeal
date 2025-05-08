@@ -81,6 +81,7 @@ type EmissionSource = {
   supplementaryInfo?: string; // 重新添加：排放源补充信息
   hasEvidenceFiles: boolean; // 证明材料
   dataRisk?: string; // 数据风险
+  backgroundDataSourceTab?: 'database' | 'manual'; // 新增：记录背景数据源选择的tab
 };
 
 // New type for Uploaded Files
@@ -226,6 +227,7 @@ export function CarbonCalculatorPanel() {
             supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', // 添加：从节点数据获取补充信息
             hasEvidenceFiles: data.hasEvidenceFiles || false, // 证明材料
             dataRisk: data.dataRisk || undefined, // 数据风险
+            backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
           };
         });
 
@@ -268,6 +270,7 @@ export function CarbonCalculatorPanel() {
         supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', 
         hasEvidenceFiles: data.hasEvidenceFiles || false, // 证明材料
         dataRisk: data.dataRisk || undefined, // 数据风险
+        backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
       };
       return source;
     });
@@ -316,7 +319,10 @@ export function CarbonCalculatorPanel() {
     const node = nodes?.find(n => n.id === record.id);
     const stage = node ? nodeTypeToLifecycleStageMap[node.type || ''] || selectedStage : selectedStage;
     // 确保 supplementaryInfo 传递到 drawerInitialValues
-    setDrawerInitialValues({ ...record, lifecycleStage: stage, supplementaryInfo: record.supplementaryInfo });
+    // 更新：同时设置背景数据源的 active tab key
+    const activeTab = record.backgroundDataSourceTab || 'database';
+    setBackgroundDataActiveTabKey(activeTab);
+    setDrawerInitialValues({ ...record, lifecycleStage: stage, supplementaryInfo: record.supplementaryInfo, backgroundDataSourceTab: activeTab });
     setIsEmissionDrawerVisible(true);
   };
 
@@ -392,6 +398,7 @@ export function CarbonCalculatorPanel() {
                 supplementaryInfo: values.supplementaryInfo || '', // 更新补充信息
                 hasEvidenceFiles: editingEmissionSource.hasEvidenceFiles, // 保留证明材料状态
                 dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
+                backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab
              } 
            : item
        ));
@@ -422,6 +429,7 @@ export function CarbonCalculatorPanel() {
              dataToUpdate.unitConversion = String(values.conversionFactor ?? 1); // 新增/修正：正确保存单位转换系数
              dataToUpdate.hasEvidenceFiles = editingEmissionSource.hasEvidenceFiles; // 保留证明材料状态
              dataToUpdate.dataRisk = editingEmissionSource.dataRisk; // 保留数据风险
+             dataToUpdate.backgroundDataSourceTab = backgroundDataActiveTabKey as ('database' | 'manual'); // 更新：保存当前选择的tab到节点
              // --- 结束更新通用字段保存逻辑 ---
 
              let finalNodeData = dataToUpdate; // 使用更新后的 dataToUpdate
@@ -449,6 +457,7 @@ export function CarbonCalculatorPanel() {
                     supplementaryInfo: values.supplementaryInfo || '', // 通用数据中加入补充信息
                     hasEvidenceFiles: editingEmissionSource.hasEvidenceFiles, // 保留证明材料状态
                     dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
+                    backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab到commonData
                 };
 
                 // 根据新的 selectedNodeType 创建特定数据结构
@@ -505,6 +514,7 @@ export function CarbonCalculatorPanel() {
          supplementaryInfo: values.supplementaryInfo || '', // 新增时保存补充信息
          hasEvidenceFiles: false, // 新增时默认为 false
          dataRisk: undefined, // 新增时默认为 undefined
+         backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 新增：保存当前选择的tab
        };
        
        // 更新本地狀態
@@ -544,6 +554,7 @@ export function CarbonCalculatorPanel() {
              supplementaryInfo: values.supplementaryInfo || '', // 新节点数据中加入补充信息
              hasEvidenceFiles: false, // 新增时默认为 false
              dataRisk: undefined, // 新增时默认为 undefined
+             backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 新增：保存当前选择的tab到nodeData
          };
 
          switch (nodeType) {
@@ -1279,7 +1290,7 @@ export function CarbonCalculatorPanel() {
 
             {/* 背景数据 */}
             <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px', paddingLeft: '8px' }}>背景数据</Typography.Title>
-            <Tabs defaultActiveKey="database" onChange={setBackgroundDataActiveTabKey}> {/* Re-add onChange to update state */}
+            <Tabs activeKey={backgroundDataActiveTabKey} onChange={setBackgroundDataActiveTabKey}> {/* Re-add onChange to update state, and set activeKey */}
               <Tabs.TabPane tab="数据库" key="database">
                 <Row gutter={16} align="bottom">
                     <Col span={18}>
