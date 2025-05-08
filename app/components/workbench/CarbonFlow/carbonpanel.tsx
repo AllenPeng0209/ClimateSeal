@@ -1134,8 +1134,8 @@ export function CarbonCalculatorPanel() {
            <Form.Item name="emissionFactorGeographicalRepresentativeness" label="排放因子地理代表性" rules={[{ required: true, message: '请输入排放因子地理代表性' }]}>
               <Input placeholder="请输入排放因子地理代表性" />
            </Form.Item>
-           <Form.Item name="factorSource" label="排放因子来源" rules={[{ required: true, message: '请输入排放因子来源' }]}>
-              <Input placeholder="请输入排放因子来源" />
+           <Form.Item name="factorSource" label="数据库名称" rules={[{ required: true, message: '请输入数据库名称' }]}>
+              <Input placeholder="请输入数据库名称" />
            </Form.Item>
            {/* 添加排放源补充信息表单项 */}
            <Form.Item name="supplementaryInfo" label="排放源补充信息">
