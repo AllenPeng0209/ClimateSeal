@@ -870,9 +870,9 @@ export function CarbonCalculatorPanel() {
           const hasActivityDataValue = typeof record.activityData === 'number' && !isNaN(record.activityData);
           const hasActivityUnit = record.activityUnit && record.activityUnit.trim() !== '';
           if (hasActivityDataValue && hasActivityUnit) {
-            return '完整';
+            return <span className="status-complete">完整</span>;
           }
-          return '缺失';
+          return <span className="status-missing">缺失</span>;
         },
       },
       {
@@ -882,9 +882,9 @@ export function CarbonCalculatorPanel() {
         render: (_: any, record: EmissionSource) => {
           // "完整，验证未通过" 状态暂不实现，默认上传即验证通过
           if (record.hasEvidenceFiles) {
-            return '完整';
+            return <span className="status-complete">完整</span>;
           }
-          return '缺失';
+          return <span className="status-missing">缺失</span>;
         },
       },
       {
@@ -893,13 +893,13 @@ export function CarbonCalculatorPanel() {
         key: 'backgroundDataStatus',
         render: (_: any, record: EmissionSource) => {
           if (record.factorMatchStatus === '已手动配置因子') {
-            return '完整，手动选择';
+            return <span className="status-complete">完整，手动选择</span>;
           }
           if (record.factorMatchStatus === 'AI匹配成功') {
-            return '完整，AI匹配';
+            return <span className="status-complete">完整，AI匹配</span>;
           }
           if (!record.factorName || record.factorName.trim() === '' || record.factorMatchStatus === '未配置因子' || record.factorMatchStatus === 'AI匹配失败') {
-            return '缺失';
+            return <span className="status-missing">缺失</span>;
           }
           return '未知'; // Fallback, though ideally not reached
         },
@@ -2113,6 +2113,13 @@ const customStyles = `
     padding-bottom: 6px !important; /* Further reduced from 8px */
 }
 
+/* Status color classes */
+.status-complete {
+  color: green !important;
+}
+.status-missing {
+  color: red !important;
+}
 
 `;
 
