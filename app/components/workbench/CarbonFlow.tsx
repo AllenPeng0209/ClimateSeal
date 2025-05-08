@@ -329,17 +329,24 @@ const CarbonFlowInner = () => {
 
     const handleActionEvent = (event: Event) => {
       const customEvent = event as CustomEvent;
-      const action = customEvent.detail as CarbonFlowAction & { traceId?: string };
+      // 从 customEvent.detail.action 获取真正的 action 对象
+      const actualAction = customEvent.detail.action as CarbonFlowAction & { traceId?: string };
 
-      console.log('[CarbonFlow] 收到操作:', action);
-      actionHandler.handleAction(action);
+      // 确保 actualAction 存在且是我们期望的类型
+      if (actualAction && typeof actualAction === 'object' && actualAction.type) {
+        console.log('[CarbonFlow] 收到操作:', actualAction);
+        actionHandler.handleAction(actualAction); // 传递正确的 action 对象
 
-      // 發送操作結果事件
-      window.dispatchEvent(
-        new CustomEvent('carbonflow-action-result', {
-          detail: { success: true, traceId: action.traceId, nodeId: action.nodeId },
-        }),
-      );
+        // 發送操作結果事件
+        window.dispatchEvent(
+          new CustomEvent('carbonflow-action-result', {
+            detail: { success: true, traceId: actualAction.traceId, nodeId: actualAction.nodeId },
+          }),
+        );
+      } else {
+        // 如果结构不符合预期，打印错误日志
+        console.error('[CarbonFlow] 收到的操作格式不正确或缺少action属性:', customEvent.detail);
+      }
     };
 
     // 添加事件監聽器

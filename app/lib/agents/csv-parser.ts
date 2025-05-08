@@ -1,5 +1,5 @@
-import { type LanguageModelV1 } from 'ai';
-import OpenAI from 'openai';
+import { type LanguageModelV1, streamText, type CoreMessage } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
 
 /**
  * Defines the structure for each item parsed by the CsvParsingAgent.
@@ -36,12 +36,12 @@ interface CsvParsingAgentOptions {
  */
 export async function parseCsvWithLlmAgent({
   csvContent,
-  llmProviderName,
-  apiKey = process.env.DASHSCOPE_API_KEY,
-  baseURL = 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  llmProviderName: _llmProviderName,
+  apiKey = process.env.DASHSCOPE_API_KEY || process.env.OPENAI_API_KEY,
+  baseURL,
   model = 'qwen-plus',
 }: CsvParsingAgentOptions): Promise<CsvParseResultItem[]> {
-  console.log(`[CsvParsingAgent] Starting CSV parsing using ${llmProviderName}...`);
+  console.log(`[CsvParsingAgent] Starting CSV parsing using OpenAI SDK compatible API...`);
 
   // --- 1. Construct the Prompt (Reverted to LLM determining nodeType) ---
   /*
@@ -151,27 +151,24 @@ ${csvContent}
   let llmResponseText: string;
 
   try {
-    console.log(`[CsvParsingAgent] Sending prompt to ${llmProviderName}...`);
+    console.log(`[CsvParsingAgent] Sending prompt using AI SDK for model ${model}...`);
 
-    // 初始化OpenAI客户端，使用阿里云DashScope
-    const openai = new OpenAI({
+    const openaiLlm = createOpenAI({
       apiKey,
       baseURL,
     });
 
-    // 使用chat.completions API调用模型
-    const completion = await openai.chat.completions.create({
-      model,
+    const { text } = await streamText({
+      model: openaiLlm(model),
       messages: [
         { role: 'system', content: 'You are an expert data extraction assistant.' },
         { role: 'user', content: prompt },
-      ],
-      max_tokens: 8192, // 调整为适合预期输出大小
+      ] as CoreMessage[],
+      maxTokens: 8192,
     });
 
-    // 获取API响应文本
-    llmResponseText = completion.choices[0].message.content || '';
-    console.log(`[CsvParsingAgent] Received raw response from ${llmProviderName}.`);
+    llmResponseText = await text;
+    console.log(`[CsvParsingAgent] Received raw response.`);
 
     // console.log("Raw LLM Response:", llmResponseText); // Uncomment for debugging
   } catch (error) {
