@@ -907,8 +907,26 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     );
 
     try {
-      // 使用缓存的文件内容
-      const fileContent = file.content;
+      let fileContent = file.content;
+      
+      // 如果没有缓存的内容，从 Supabase 存储中获取
+      if (!fileContent && file.url) {
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('files')
+          .download(file.url);
+          
+        if (downloadError) {
+          throw new Error(`Failed to download file: ${downloadError.message}`);
+        }
+        
+        if (!fileData) {
+          throw new Error('No file data received from storage');
+        }
+        
+        // 将文件数据转换为文本
+        fileContent = await fileData.text();
+      }
+
       if (!fileContent) {
         throw new Error('No file content available');
       }
