@@ -242,11 +242,6 @@ export function CarbonCalculatorPanel() {
     }
   }, [nodes, selectedStage]);
 
-  // --- Placeholder functions ---
-  const handleAIComplete = () => {
-    console.log('一键AI补全 clicked');
-    alert('功能待实现');
-  };
 
   // 更新后的背景数据匹配按钮点击处理函数
   const handleCarbonFactorMatch = () => {
@@ -1308,8 +1303,7 @@ export function CarbonCalculatorPanel() {
                <Card title={`排放源清单${selectedStage === '全部' ? '' : ` - ${selectedStage}`}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space> {/* Buttons for the left side */}
-                            <Button icon={<AimOutlined />} onClick={handleAIComplete}>AI一键补全</Button>
-                            <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>背景数据匹配</Button>
+                            <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>批量操作</Button>
                         </Space>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
                     </div>
@@ -1338,19 +1332,20 @@ export function CarbonCalculatorPanel() {
       >
             <Form layout="vertical" onFinish={handleSaveSettings} initialValues={sceneInfo}>
                 <Form.Item name="verificationLevel" label="预期核验等级" rules={[{ required: true, message: '请选择核验等级' }]}>
-                    <Select placeholder="选择核验等级">
+                    <Select placeholder="选择核验等级" className="custom-modal-select-small">
                         <Select.Option value="准核验级别">准核验级别</Select.Option>
                         <Select.Option value="披露级别">披露级别</Select.Option>
                     </Select>
                 </Form.Item>
                  <Form.Item name="standard" label="满足标准" rules={[{ required: true, message: '请选择满足标准' }]}>
-                    <Select placeholder="选择满足标准">
+                    <Select placeholder="选择满足标准" className="custom-modal-select-small">
                         <Select.Option value="ISO14067">ISO14067</Select.Option>
                         <Select.Option value="欧盟电池法">欧盟电池法</Select.Option>
                     </Select>
+
                 </Form.Item>
                  <Form.Item name="productName" label="核算产品" rules={[{ required: true, message: '请输入核算产品名称' }]}>
-                    <Input placeholder="输入产品名称" />
+                    <Input placeholder="输入产品名称" className="custom-modal-input-small" />
                 </Form.Item>
                  <Form.Item className="text-right">
                      <Space>
@@ -1372,18 +1367,18 @@ export function CarbonCalculatorPanel() {
       >
         <Form layout="vertical" onFinish={handleSaveEmissionSource} initialValues={drawerInitialValues} key={editingEmissionSource?.id || 'new'}>
             {/* 基本信息 */}
-            <Typography.Title level={5} style={{ marginTop: '8px', marginBottom: '16px', paddingLeft: '8px' }}>基本信息</Typography.Title>
+            <Typography.Title level={5} style={{ paddingLeft: '8px' }}>基本信息</Typography.Title>
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item name="lifecycleStage" label="生命周期阶段" rules={[{ required: true, message: '请选择生命周期阶段' }]}>
-                  <Select placeholder="请选择生命周期阶段">
+                  <Select placeholder="请选择生命周期阶段" className="panel-sider-select">
                      {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
                   </Select>
                </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item name="category" label="排放源类别" rules={[{ required: true, message: '请选择排放源类别' }]}>
-                  <Select placeholder="请选择排放源类别">
+                  <Select placeholder="请选择排放源类别" className="panel-sider-select">
                      {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
                   </Select>
                </Form.Item>
@@ -1392,12 +1387,12 @@ export function CarbonCalculatorPanel() {
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item name="name" label="排放源名称" rules={[{ required: true, message: '请输入排放源名称' }]}>
-                  <Input placeholder="请输入排放源名称" />
+                  <Input placeholder="请输入排放源名称" className="panel-sider-input" />
                 </Form.Item>
               </Col>
             </Row>
             <Form.Item name="supplementaryInfo" label="排放源补充信息">
-              <Input.TextArea placeholder="请输入排放源补充信息" rows={3} />
+              <Input.TextArea placeholder="请输入排放源补充信息" rows={3} className="panel-sider-textarea" />
             </Form.Item>
 
             {/* 活动水平数据 */}
@@ -1437,17 +1432,17 @@ export function CarbonCalculatorPanel() {
                     // { required: true, message: '请输入活动数据单位' } // Changed to not required
                   ]}
                 >
-                  <Input placeholder="请输入活动数据单位，例如：kg" />
+                  <Input placeholder="请输入活动数据单位，例如：kg" className="panel-sider-input" />
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item label="关联证据文件">
+              <Form.Item label="关联证据文件">
               <Upload
                 name="evidenceFiles"
                 listType="text"
                 maxCount={5}
               >
-                <Button icon={<UploadOutlined />}>上传</Button>
+                <Button icon={<UploadOutlined />} className="panel-sider-upload">上传</Button>
               </Upload>
               <div style={{marginTop: 4, fontSize: 12, color: '#888'}}>最多可上传5个证据文件</div>
             </Form.Item>
@@ -1459,48 +1454,48 @@ export function CarbonCalculatorPanel() {
                 <Row gutter={16} align="bottom">
                     <Col span={18}>
                         <Form.Item label="排放因子名称">
-                            <Input placeholder="请点击右侧按钮选择排放因子" disabled />
+                            <Input placeholder="请点击右侧按钮选择排放因子" disabled className="panel-sider-input" />
                         </Form.Item>
                     </Col>
                     <Col span={6}>
                         <Form.Item label=" "> {/* Empty label for alignment */}
-                            <Button type="primary" onClick={() => message.info('数据库检索功能待实现')} block>选择排放因子</Button>
+                            <Button type="primary" onClick={() => message.info('数据库检索功能待实现')} block className="panel-sider">选择排放因子</Button>
                         </Form.Item>
                     </Col>
                 </Row>
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Item label="排放因子数值 (kgCO2e)">
-                      <Input placeholder="从数据库选择" disabled />
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
                     <Form.Item label="排放因子分母单位">
-                      <Input placeholder="从数据库选择" disabled />
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
                     </Form.Item>
                   </Col>
                 </Row>
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Item label="地理代表性">
-                      <Input placeholder="从数据库选择" disabled />
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
                     </Form.Item>
                   </Col>
-                  <Col span={12}>
+                  <Col span={12}> 
                     <Form.Item label="发布时间">
-                      <Input placeholder="从数据库选择" disabled />
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
                     </Form.Item>
                   </Col>
                 </Row>
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Item label="数据库名称">
-                      <Input placeholder="从数据库选择" disabled />
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
                     <Form.Item label="因子UUID">
-                      <Input placeholder="从数据库选择" disabled />
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
                     </Form.Item>
                   </Col>
                 </Row>
@@ -1514,7 +1509,7 @@ export function CarbonCalculatorPanel() {
                     message: '请输入排放因子名称' 
                   }]}
                 >
-                  <Input placeholder="请输入排放因子名称，例如：水" />
+                  <Input placeholder="请输入排放因子名称，例如：水" className="panel-sider-input" />
                 </Form.Item>
                 <Row gutter={16}>
                   <Col span={12}>
@@ -1545,7 +1540,7 @@ export function CarbonCalculatorPanel() {
                         message: '请输入排放因子分母单位' 
                       }]}
                     >
-                      <Input placeholder="请输入排放因子分母单位，例如：kg" />
+                      <Input placeholder="请输入排放因子分母单位，例如：kg" className="panel-sider-input" />
                     </Form.Item>
                   </Col>
                 </Row>
@@ -1559,7 +1554,7 @@ export function CarbonCalculatorPanel() {
                         message: '请输入地理代表性' 
                       }]}
                     >
-                      <Input placeholder="请输入地理代表性，例如：GLO" />
+                      <Input placeholder="请输入地理代表性，例如：GLO" className="panel-sider-input" />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
@@ -1571,7 +1566,7 @@ export function CarbonCalculatorPanel() {
                         message: '请输入发布时间' 
                       }]}
                     >
-                      <Input placeholder="请输入发布时间，例如：2022" />
+                      <Input placeholder="请输入发布时间，例如：2022" className="panel-sider-input" />
                     </Form.Item>
                   </Col>
                 </Row>
@@ -1585,7 +1580,7 @@ export function CarbonCalculatorPanel() {
                         message: '请输入数据库名称' 
                       }]}
                     >
-                      <Input placeholder="请输入数据库名称，例如：Ecoinvent" />
+                      <Input placeholder="请输入数据库名称，例如：Ecoinvent" className="panel-sider-input" />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
@@ -1597,7 +1592,7 @@ export function CarbonCalculatorPanel() {
                         message: '请输入因子UUID' 
                       }]}
                     >
-                      <Input placeholder="请输入因子UUID" />
+                      <Input placeholder="请输入因子UUID" className="panel-sider-input" />
                     </Form.Item>
                   </Col>
                 </Row>
@@ -1634,7 +1629,7 @@ export function CarbonCalculatorPanel() {
                   ]} 
                   noStyle
                 >
-                  <Input type="number" step="0.0000000001" placeholder="系数" style={{width: 120, textAlign: 'center', marginLeft: 8, marginRight: 8}}/>
+                  <Input type="number" step="0.0000000001" placeholder="系数" style={{width: 120, textAlign: 'center', marginLeft: 8, marginRight: 8}} className="panel-sider"/>
                 </Form.Item>
                 <Typography.Text>
                   {/* TODO: Replace with dynamic values from form */}
@@ -1745,30 +1740,31 @@ export function CarbonCalculatorPanel() {
         onCancel={handleCloseFactorMatchModal}
         width="80%"
         footer={[
+          
+          <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}>
+          AI匹配
+          </Button>, // 按钮移到筛选行
           <Button key="cancel" onClick={handleCloseFactorMatchModal}>取消</Button>,
-          // <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}>
-          // AI匹配
-          // </Button>, // 按钮移到筛选行
+
         ]}
       >
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space>
-            <Select placeholder="生命周期阶段 (全部)" style={{ width: 200 }} allowClear>
+            <Input placeholder="排放源名称" style={{ width: 200 }} className="background-data-match-input" />
+            <Select placeholder="生命周期阶段 (全部)" style={{ width: 150 }} allowClear className="background-data-match-select">
               {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
             </Select>
-            <Input placeholder="排放源名称" style={{ width: 200 }} />
-            <Select placeholder="排放源类别 (全部)" style={{ width: 200 }} allowClear>
+            
+            <Select placeholder="排放源类别 (全部)" style={{ width: 200 }} allowClear className="background-data-match-select">
               {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
             </Select>
             {/* 新增：因子匹配状态筛选框 */}
-            <Select placeholder="因子匹配状态 (全部)" style={{ width: 200 }} allowClear>
+            <Select placeholder="因子匹配状态 (全部)" style={{ width: 200 }} allowClear className="background-data-match-select">
               {(['未配置因子', 'AI匹配失败', 'AI匹配成功', '已手动配置因子'] as const).map(status => <Select.Option key={status} value={status}>{status}</Select.Option>)}
             </Select>
             {/* TODO: 实现筛选逻辑 */}
           </Space>
-          <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}>
-            执行AI匹配
-          </Button>
+ 
         </div>
         <Table
           rowSelection={{
@@ -2466,6 +2462,66 @@ const customStyles = `
 }
 
 /* .lifecycle-all-button.ant-btn-primary (selected 'All' button) styles remain as they are, they are specific enough */
+
+/* Custom class to make modal select smaller */
+.custom-modal-select-small .ant-select-selector {
+  height: 40px !important;
+  padding: 10px 8px !important;
+
+  margin-left: 2px !important;
+  display: flex !important; /* For vertical alignment */
+  align-items: center !important; /* For vertical alignment */
+}
+
+.custom-modal-input-small .ant-input {
+  height: 40px !important;
+  padding: 10px 0px !important;
+  margin-left: 2px !important;
+}
+
+
+.background-data-match-select .ant-select-selector {
+  height: 40px !important;
+  padding: 10px 8px !important;
+  margin-left: 2px !important;
+  display: flex !important; /* For vertical alignment */
+  align-items: center !important; /* For vertical alignment */
+}
+
+.background-data-match-input {
+  height: 40px !important;
+  width: 350px !important;
+  padding: 10px 8px !important;
+  margin-top: 8px !important;
+  margin-left: 2px !important;
+}
+
+
+.panel-sider-select {
+  height: 40px !important;
+  padding: 30px 8px !important;
+  margin-left: 14px !important;
+  display: flex !important; /* For vertical alignment */
+  align-items: center !important; /* For vertical alignment */
+}
+
+.panel-sider-input {
+  height: 40px !important;
+  padding: 10px 8px !important;
+  
+  margin-top: 8px !important;
+  margin-left: 2px !important;
+
+}
+
+.panel-sider-textarea {
+  height: 40px !important;
+  padding: 10px 8px !important;
+  margin-left: 2px !important;
+  margin-top: 8px !important;
+}
+
+
 
 `;
 
