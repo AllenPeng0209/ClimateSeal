@@ -111,6 +111,7 @@ const RawFileTypes = [
 ];
 
 const lifecycleStages = [
+  '全部',
   '原材料获取阶段',
   '生产阶段',
   '分销运输阶段',
@@ -189,13 +190,16 @@ export function CarbonCalculatorPanel() {
         case '寿命终止阶段':
           stageType = 'disposal';
           break;
+        case '全部':
+          stageType = ''; // 空字符串表示不按类型筛选
+          break;
         default:
           stageType = '';
       }
 
       // 筛选节点并转换为排放源格式，使用类型断言避免类型错误
       const filteredNodes = nodes
-        .filter(node => node.type === stageType && node.data)
+        .filter(node => (stageType === '' || node.type === stageType) && node.data)
         .map(node => {
           // 从节点数据中提取排放源信息，使用any类型断言来避免类型检查错误
           const data = node.data as any;
@@ -1120,7 +1124,7 @@ export function CarbonCalculatorPanel() {
 
              {/* 3.2 Emission Source List (Bottom Right) - Adjusted span to 19 */}
              <Col span={19} className="flex flex-col h-full">
-               <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
+               <Card title={`排放源清单${selectedStage === '全部' ? '' : ` - ${selectedStage}`}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space> {/* Buttons for the left side */}
                             <Button icon={<AimOutlined />} onClick={handleAIComplete}>AI一键补全</Button>
@@ -1599,7 +1603,8 @@ export function CarbonCalculatorPanel() {
                 ...col,
                 render: (text: any, record: EmissionSource) => {
                     const node = nodes.find(n => n.id === record.id);
-                    return nodeTypeToLifecycleStageMap[node?.type || ''] || '未知';
+                    const stageType = node?.type || '';
+                    return nodeTypeToLifecycleStageMap[stageType] || '未知';
                 }
               };
             }
