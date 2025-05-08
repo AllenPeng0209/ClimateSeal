@@ -930,11 +930,12 @@ export function CarbonCalculatorPanel() {
     { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: (text?: string) => text || '-' }, // 更新显示逻辑
     { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' },
     { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit' },
-    { title: '排放因子名称', dataIndex: 'factorName', key: 'factorName' },
-    { title: '排放因子单位', dataIndex: 'factorUnit', key: 'factorUnit' },
-    { title: '排放因子地理代表性', dataIndex: 'emissionFactorGeographicalRepresentativeness', key: 'emissionFactorGeographicalRepresentativeness', render: (text?: string) => text || '-' },
+    { title: '因子名称', dataIndex: 'factorName', key: 'factorName' }, // PRD: 因子名称
+    { title: '因子单位', dataIndex: 'factorUnit', key: 'factorUnit' }, // PRD: 因子单位
+    { title: '地理代表性', dataIndex: 'emissionFactorGeographicalRepresentativeness', key: 'emissionFactorGeographicalRepresentativeness', render: (text?: string) => text || '-' }, // PRD: 地理代表性
+    { title: '单位转换系数', dataIndex: 'conversionFactor', key: 'conversionFactor', render: (val?: number) => (typeof val === 'number' ? val : '-') },
     {
-      title: '因子匹配状态',
+      title: '匹配状态', // PRD: 匹配状态
       dataIndex: 'factorMatchStatus',
       key: 'factorMatchStatus',
       render: (status?: EmissionSource['factorMatchStatus']) => { // 明确status类型并设为可选
@@ -943,6 +944,16 @@ export function CarbonCalculatorPanel() {
         else if (status === 'AI匹配失败') color = 'red';
         return <span style={{ color }}>{status || '未配置因子'}</span>; // 处理undefined情况
       }
+    },
+    { // 新增：操作列 - 手动选择因子
+      title: '操作',
+      key: 'manualFactorSelect',
+      width: 120,
+      render: (_: any, record: EmissionSource) => (
+        <Button type="link" onClick={() => message.info(`手动选择因子功能待实现: ${record.name}`)}>
+          选择因子
+        </Button>
+      ),
     },
   ];
 
