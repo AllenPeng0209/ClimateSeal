@@ -15,6 +15,9 @@ import {
   Popconfirm,
   Upload,
   Tooltip,
+  Tabs, // <-- Import Tabs
+  Divider, // <-- Import Divider
+  Typography, // <-- Import Typography
 } from 'antd';
 import type { FormInstance } from 'antd';
 import {
@@ -1111,7 +1114,7 @@ export function CarbonCalculatorPanel() {
 
        <Drawer
         title={editingEmissionSource ? "编辑排放源" : "新增排放源"}
-        width={500}
+        width={1000} // <-- Increased width
         onClose={handleCloseEmissionDrawer}
         open={isEmissionDrawerVisible}
         bodyStyle={{ paddingBottom: 80 }}
@@ -1119,45 +1122,185 @@ export function CarbonCalculatorPanel() {
         destroyOnClose // Ensure form state is reset each time
       >
         <Form layout="vertical" onFinish={handleSaveEmissionSource} initialValues={drawerInitialValues} key={editingEmissionSource?.id || 'new'}>
-            <Form.Item name="lifecycleStage" label="生命周期阶段" rules={[{ required: true, message: '请选择生命周期阶段' }]}>
-              <Select placeholder="请选择生命周期阶段">
-                 {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
-              </Select>
-           </Form.Item>
-           <Form.Item name="name" label="排放源名称" rules={[{ required: true, message: '请输入排放源名称' }]}>
-              <Input placeholder="请输入排放源名称" />
-           </Form.Item>
-            <Form.Item name="category" label="排放源类别" rules={[{ required: true, message: '请选择排放源类别' }]}>
-              <Select placeholder="请选择排放源类别">
-                 {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
-              </Select>
-           </Form.Item>
-           <Form.Item name="activityData" label="活动数据" rules={[{ required: true, message: '请输入活动数据' }]}>
-              <Input type="number" step="0.0000000001" placeholder="请输入活动数据" />
-           </Form.Item>
-            <Form.Item name="activityUnit" label="活动数据单位" rules={[{ required: true, message: '请输入活动数据单位' }]}>
-              <Input placeholder="请输入活动数据单位" />
-           </Form.Item>
-           <Form.Item name="conversionFactor" label="单位转换系数" rules={[{ required: true, message: '请输入单位转换系数' }]}>
-              <Input type="number" step="0.0000000001" placeholder="请输入单位转换系数" />
-           </Form.Item>
-           <Form.Item name="factorName" label="排放因子名称" rules={[{ required: true, message: '请输入排放因子名称' }]}>
-              <Input placeholder="请输入排放因子名称" />
-           </Form.Item>
-            <Form.Item name="factorUnit" label="排放因子单位" rules={[{ required: true, message: '请输入排放因子单位' }]}>
-              <Input placeholder="请输入排放因子单位" />
-           </Form.Item>
-           <Form.Item name="emissionFactorGeographicalRepresentativeness" label="排放因子地理代表性" rules={[{ required: true, message: '请输入排放因子地理代表性' }]}>
-              <Input placeholder="请输入排放因子地理代表性" />
-           </Form.Item>
-           <Form.Item name="factorSource" label="数据库名称" rules={[{ required: true, message: '请输入数据库名称' }]}>
-              <Input placeholder="请输入数据库名称" />
-           </Form.Item>
-           {/* 添加排放源补充信息表单项 */}
-           <Form.Item name="supplementaryInfo" label="排放源补充信息">
-              <Input.TextArea placeholder="请输入排放源补充信息" rows={2} />
-           </Form.Item>
-           <Form.Item className="text-right">
+            {/* 基本信息 */}
+            <Divider orientation="left" plain>基本信息</Divider>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="lifecycleStage" label="*生命周期阶段" rules={[{ required: true, message: '请选择生命周期阶段' }]}>
+                  <Select placeholder="请选择生命周期阶段">
+                     {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
+                  </Select>
+               </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="category" label="*排放源类别" rules={[{ required: true, message: '请选择排放源类别' }]}>
+                  <Select placeholder="请选择排放源类别">
+                     {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
+                  </Select>
+               </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="name" label="*排放源名称" rules={[{ required: true, message: '请输入排放源名称' }]}>
+                  <Input placeholder="请输入排放源名称" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="supplementaryInfo" label="排放源补充信息">
+              <Input.TextArea placeholder="请输入排放源补充信息" rows={3} />
+            </Form.Item>
+
+            {/* 活动水平数据 */}
+            <Divider orientation="left" plain>活动水平数据</Divider>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="activityData" label="活动数据数值" rules={[{ required: true, message: '请输入活动数据数值' }, { type: 'number', transform: value => String(value).trim() === '' ? undefined : Number(value), message: '请输入有效的数字' }, { validator: (_, value) => value === undefined || value === null || String(value).trim() === '' || Number(value) > 0 ? Promise.resolve() : Promise.reject(new Error('活动数据数值必须为正数')) }]}>
+                  <Input type="number" step="0.0000000001" placeholder="请输入活动数据数值，保留小数点后10位" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="activityUnit" label="活动数据单位" rules={[{ required: true, message: '请输入活动数据单位' }]}>
+                  <Input placeholder="请输入活动数据单位，例如：kg" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item label="关联证据文件">
+              <Upload
+                name="evidenceFiles"
+                listType="text"
+                maxCount={5}
+              >
+                <Button icon={<UploadOutlined />}>上传</Button>
+              </Upload>
+              <div style={{marginTop: 4, fontSize: 12, color: '#888'}}>最多可上传5个证据文件。上传后的文件会显示在此。例如：证据文件.pdf</div>
+            </Form.Item>
+
+            {/* 背景数据 */}
+            <Divider orientation="left" plain>背景数据</Divider>
+            <Tabs defaultActiveKey="database" type="card">
+              <Tabs.TabPane tab="数据库" key="database">
+                <Row gutter={16} align="bottom">
+                    <Col span={18}>
+                        <Form.Item label="排放因子名称">
+                            <Input placeholder="请点击右侧按钮选择排放因子" disabled />
+                        </Form.Item>
+                    </Col>
+                    <Col span={6}>
+                        <Form.Item label=" "> {/* Empty label for alignment */}
+                            <Button type="primary" onClick={() => message.info('数据库检索功能待实现')} block>选择排放因子</Button>
+                        </Form.Item>
+                    </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item label="排放因子数值 (kgCO2e)">
+                      <Input placeholder="从数据库选择" disabled />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item label="排放因子分母单位">
+                      <Input placeholder="从数据库选择" disabled />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item label="地理代表性">
+                      <Input placeholder="从数据库选择" disabled />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item label="发布时间">
+                      <Input placeholder="从数据库选择" disabled />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item label="数据库名称">
+                      <Input placeholder="从数据库选择" disabled />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item label="因子UUID">
+                      <Input placeholder="从数据库选择" disabled />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </Tabs.TabPane>
+              <Tabs.TabPane tab="手动填写" key="manual">
+                <Form.Item name="factorNameManual" label="排放因子名称" rules={[{ required: true, message: '请输入排放因子名称' }]}>
+                  <Input placeholder="请输入排放因子名称，例如：水" />
+                </Form.Item>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item name="backgroundData_factorValueManual" label="排放因子数值 (kgCO2e)" rules={[{ required: true, message: '请输入排放因子数值' }, { type: 'number', transform: value => Number(value), message: '请输入有效的数字' } ]}>
+                      <Input type="number" step="0.0000000001" placeholder="请输入排放因子数值，保留小数点后10位，可正可负" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item name="factorUnitManual" label="排放因子分母单位" rules={[{ required: true, message: '请输入排放因子分母单位' }]}>
+                      <Input placeholder="请输入排放因子分母单位，例如：kg" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item name="emissionFactorGeographicalRepresentativenessManual" label="地理代表性">
+                      <Input placeholder="请输入地理代表性，例如：GLO" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item name="factorPublicationDateManual" label="发布时间">
+                      <Input placeholder="请输入发布时间，例如：2022" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item name="factorSourceManual" label="数据库名称">
+                      <Input placeholder="请输入数据库名称，例如：Ecoinvent" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item name="factorUUIDManual" label="因子UUID">
+                      <Input placeholder="请输入因子UUID" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </Tabs.TabPane>
+            </Tabs>
+
+            {/* 单位转换 */}
+            <Divider orientation="left" plain>单位转换</Divider>
+            <Form.Item 
+              label={<Typography.Text>将活动水平数据单位与排放因子单位进行转换：</Typography.Text>}
+              labelCol={{ span: 24 }} // Ensure label takes full width if needed
+              wrapperCol={{ span: 24 }}
+            >
+              <Space align="baseline" wrap>
+                <Typography.Text>
+                  1
+                  {/* TODO: Replace with dynamic values from form using Form.useWatch or similar */}
+                  <span style={{ fontWeight: 'bold', marginLeft: 4, marginRight: 4 }}>kg 水溶液</span>
+                  对应
+                </Typography.Text>
+                <Form.Item
+                  name="conversionFactor"
+                  rules={[{ type: 'number', transform: value => String(value).trim() === '' ? undefined : Number(value) , message: '请输入有效的数字'} ]} // Not required based on PRD
+                  noStyle
+                >
+                  <Input type="number" step="0.0000000001" placeholder="系数" style={{width: 120, textAlign: 'center', marginLeft: 8, marginRight: 8}}/>
+                </Form.Item>
+                <Typography.Text>
+                  {/* TODO: Replace with dynamic values from form */}
+                  <span style={{ fontWeight: 'bold' }}>kg 水</span>
+                </Typography.Text>
+              </Space>
+            </Form.Item>
+
+           <Form.Item className="text-right" style={{marginTop: 24, paddingTop: 10, borderTop: '1px solid var(--bolt-elements-borderColor, #333)'}}>
              <Space>
                  <Button onClick={handleCloseEmissionDrawer}>取消</Button>
                  <Button type="primary" htmlType="submit">保存</Button>
