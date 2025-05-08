@@ -1126,14 +1126,14 @@ export function CarbonCalculatorPanel() {
             <Divider orientation="left" orientationMargin="8px" style={{ marginTop: '8px', marginBottom: '12px' }}>基本信息</Divider>
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Item name="lifecycleStage" label="*生命周期阶段" rules={[{ required: true, message: '请选择生命周期阶段' }]}>
+                <Form.Item name="lifecycleStage" label="生命周期阶段" rules={[{ required: true, message: '请选择生命周期阶段' }]}>
                   <Select placeholder="请选择生命周期阶段">
                      {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
                   </Select>
                </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="category" label="*排放源类别" rules={[{ required: true, message: '请选择排放源类别' }]}>
+                <Form.Item name="category" label="排放源类别" rules={[{ required: true, message: '请选择排放源类别' }]}>
                   <Select placeholder="请选择排放源类别">
                      {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
                   </Select>
@@ -1142,7 +1142,7 @@ export function CarbonCalculatorPanel() {
             </Row>
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Item name="name" label="*排放源名称" rules={[{ required: true, message: '请输入排放源名称' }]}>
+                <Form.Item name="name" label="排放源名称" rules={[{ required: true, message: '请输入排放源名称' }]}>
                   <Input placeholder="请输入排放源名称" />
                 </Form.Item>
               </Col>
@@ -1152,7 +1152,7 @@ export function CarbonCalculatorPanel() {
             </Form.Item>
 
             {/* 活动水平数据 */}
-            <Divider orientation="left" orientationMargin="8px" style={{ marginTop: '24px', marginBottom: '12px' }}>活动水平数据</Divider>
+            <Divider orientation="left" orientationMargin="8px" style={{ marginTop: '0px', marginBottom: '0px' }}>活动水平数据</Divider>
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item name="activityData" label="活动数据数值" rules={[{ required: true, message: '请输入活动数据数值' }, { type: 'number', transform: value => String(value).trim() === '' ? undefined : Number(value), message: '请输入有效的数字' }, { validator: (_, value) => value === undefined || value === null || String(value).trim() === '' || Number(value) > 0 ? Promise.resolve() : Promise.reject(new Error('活动数据数值必须为正数')) }]}>
@@ -1173,7 +1173,7 @@ export function CarbonCalculatorPanel() {
               >
                 <Button icon={<UploadOutlined />}>上传</Button>
               </Upload>
-              <div style={{marginTop: 4, fontSize: 12, color: '#888'}}>最多可上传5个证据文件。上传后的文件会显示在此。例如：证据文件.pdf</div>
+              <div style={{marginTop: 4, fontSize: 12, color: '#888'}}>最多可上传5个证据文件</div>
             </Form.Item>
 
             {/* 背景数据 */}
