@@ -2115,10 +2115,26 @@ const customStyles = `
 
 /* Status color classes */
 .status-complete {
-  color: green !important;
+  color: #00ff7f !important;
+  background-color: rgba(0, 255, 127, 0.15) !important;
+  padding: 2px 10px !important;
+  border-radius: 12px !important;
+  font-size: 12px !important;
+  display: inline-block !important;
+  border: 1px solid rgba(0, 255, 127, 0.3) !important;
+  box-shadow: 0 0 6px rgba(0, 255, 127, 0.4) !important;
+  text-shadow: 0 0 5px rgba(0, 255, 127, 0.5) !important;
 }
 .status-missing {
-  color: red !important;
+  color: #ff4d4f !important;
+  background-color: rgba(255, 77, 79, 0.15) !important;
+  padding: 2px 10px !important;
+  border-radius: 12px !important;
+  font-size: 12px !important;
+  display: inline-block !important;
+  border: 1px solid rgba(255, 77, 79, 0.3) !important;
+  box-shadow: 0 0 6px rgba(255, 77, 79, 0.4) !important;
+  text-shadow: 0 0 5px rgba(255, 77, 79, 0.5) !important;
 }
 
 `;
