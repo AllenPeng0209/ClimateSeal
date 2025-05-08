@@ -79,6 +79,8 @@ type EmissionSource = {
   updatedBy: string;
   factorMatchStatus?: '未配置因子' | 'AI匹配失败' | 'AI匹配成功' | '已手动配置因子'; // 新增因子匹配状态
   supplementaryInfo?: string; // 重新添加：排放源补充信息
+  hasEvidenceFiles: boolean; // 证明材料
+  dataRisk?: string; // 数据风险
 };
 
 // New type for Uploaded Files
@@ -218,6 +220,8 @@ export function CarbonCalculatorPanel() {
             updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
             factorMatchStatus: data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子', // 如果carbonFactor非0则认为已配置
             supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', // 添加：从节点数据获取补充信息
+            hasEvidenceFiles: data.hasEvidenceFiles || false, // 证明材料
+            dataRisk: data.dataRisk || undefined, // 数据风险
           };
         });
 
@@ -258,6 +262,8 @@ export function CarbonCalculatorPanel() {
         updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
         factorMatchStatus: initialStatus, 
         supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', 
+        hasEvidenceFiles: data.hasEvidenceFiles || false, // 证明材料
+        dataRisk: data.dataRisk || undefined, // 数据风险
       };
       return source;
     });
@@ -380,6 +386,8 @@ export function CarbonCalculatorPanel() {
                 updatedBy: 'User',
                 factorMatchStatus: editingEmissionSource.factorMatchStatus, // 保留原有的因子匹配状态
                 supplementaryInfo: values.supplementaryInfo || '', // 更新补充信息
+                hasEvidenceFiles: editingEmissionSource.hasEvidenceFiles, // 保留证明材料状态
+                dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
              } 
            : item
        ));
@@ -408,6 +416,8 @@ export function CarbonCalculatorPanel() {
              dataToUpdate.lifecycleStage = selectedStageName;
              dataToUpdate.supplementaryInfo = values.supplementaryInfo || ''; // 保存补充信息到节点数据
              dataToUpdate.unitConversion = String(values.conversionFactor ?? 1); // 新增/修正：正确保存单位转换系数
+             dataToUpdate.hasEvidenceFiles = editingEmissionSource.hasEvidenceFiles; // 保留证明材料状态
+             dataToUpdate.dataRisk = editingEmissionSource.dataRisk; // 保留数据风险
              // --- 结束更新通用字段保存逻辑 ---
 
              let finalNodeData = dataToUpdate; // 使用更新后的 dataToUpdate
@@ -433,6 +443,8 @@ export function CarbonCalculatorPanel() {
                     emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 排放因子地理代表性
                     unitConversion: String(values.conversionFactor ?? 1), // 正确设置单位转换系数
                     supplementaryInfo: values.supplementaryInfo || '', // 通用数据中加入补充信息
+                    hasEvidenceFiles: editingEmissionSource.hasEvidenceFiles, // 保留证明材料状态
+                    dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
                 };
 
                 // 根据新的 selectedNodeType 创建特定数据结构
@@ -487,6 +499,8 @@ export function CarbonCalculatorPanel() {
          updatedBy: 'User',
          factorMatchStatus: '未配置因子', // 新增因子匹配状态
          supplementaryInfo: values.supplementaryInfo || '', // 新增时保存补充信息
+         hasEvidenceFiles: false, // 新增时默认为 false
+         dataRisk: undefined, // 新增时默认为 undefined
        };
        
        // 更新本地狀態
@@ -524,6 +538,8 @@ export function CarbonCalculatorPanel() {
              emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 保存排放因子地理代表性
              unitConversion: String(values.conversionFactor ?? 1), // 正确保存单位转换系数
              supplementaryInfo: values.supplementaryInfo || '', // 新节点数据中加入补充信息
+             hasEvidenceFiles: false, // 新增时默认为 false
+             dataRisk: undefined, // 新增时默认为 undefined
          };
 
          switch (nodeType) {
@@ -845,10 +861,55 @@ export function CarbonCalculatorPanel() {
         onFilter: (value, record) =>
           record.name.toString().toLowerCase().includes((value as string).toLowerCase()),
       },
-      { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: (text?: string) => text || '-' },
-      { title: '背景数据集名称', dataIndex: 'factorName', key: 'factorName' }, // 重命名并确保使用 factorName
-      // { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' }, // 移除
-      // { title: '因子匹配状态', dataIndex: 'factorMatchStatus', key: 'factorMatchStatus' }, // 移除
+      {
+        title: '活动水平数据状态',
+        dataIndex: 'activityDataStatus',
+        key: 'activityDataStatus',
+        render: (_: any, record: EmissionSource) => {
+          // "完整，部分AI补充" 状态暂不实现
+          const hasActivityDataValue = typeof record.activityData === 'number' && !isNaN(record.activityData);
+          const hasActivityUnit = record.activityUnit && record.activityUnit.trim() !== '';
+          if (hasActivityDataValue && hasActivityUnit) {
+            return '完整';
+          }
+          return '缺失';
+        },
+      },
+      {
+        title: '证明材料',
+        dataIndex: 'evidenceMaterialStatus',
+        key: 'evidenceMaterialStatus',
+        render: (_: any, record: EmissionSource) => {
+          // "完整，验证未通过" 状态暂不实现，默认上传即验证通过
+          if (record.hasEvidenceFiles) {
+            return '完整';
+          }
+          return '缺失';
+        },
+      },
+      {
+        title: '背景数据状态',
+        dataIndex: 'backgroundDataStatus',
+        key: 'backgroundDataStatus',
+        render: (_: any, record: EmissionSource) => {
+          if (record.factorMatchStatus === '已手动配置因子') {
+            return '完整，手动选择';
+          }
+          if (record.factorMatchStatus === 'AI匹配成功') {
+            return '完整，AI匹配';
+          }
+          if (!record.factorName || record.factorName.trim() === '' || record.factorMatchStatus === '未配置因子' || record.factorMatchStatus === 'AI匹配失败') {
+            return '缺失';
+          }
+          return '未知'; // Fallback, though ideally not reached
+        },
+      },
+      {
+        title: '数据风险',
+        dataIndex: 'dataRisk',
+        key: 'dataRisk',
+        render: (text?: string) => text || '无',
+      },
       { 
           title: '操作',
           key: 'action',
