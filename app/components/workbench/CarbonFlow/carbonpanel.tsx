@@ -68,9 +68,9 @@ type EmissionSource = {
   id: string;
   name: string;
   category: string;
-  activityData: number;
+  activityData: number | undefined; // Allow undefined
   activityUnit: string;
-  conversionFactor: number;
+  conversionFactor: number | undefined; // Allow undefined
   factorName: string;
   factorUnit: string;
   emissionFactorGeographicalRepresentativeness?: string; // 排放因子地理代表性
@@ -198,17 +198,18 @@ export function CarbonCalculatorPanel() {
           // 从节点数据中提取排放源信息，使用any类型断言来避免类型检查错误
           const data = node.data as any;
           // Helper to safely parse number from potentially non-numeric string
-          const safeParseFloat = (val: any): number => {
-              const num = parseFloat(val);
-              return isNaN(num) ? 0 : num;
+          const safeParseFloat = (val: any): number | undefined => { // Modified to return undefined for empty/NaN
+              if (val === null || val === undefined || String(val).trim() === '') return undefined;
+              const num = parseFloat(String(val));
+              return isNaN(num) ? undefined : num;
           };
           return {
             id: node.id,
             name: data.label || '未命名节点',
             category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
-            activityData: safeParseFloat(data.quantity), // 读取 quantity 并转为 number
+            activityData: safeParseFloat(data.quantity), // 读取 quantity 并转为 number or undefined
             activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '', // 读取 activityUnit
-            conversionFactor: data.unitConversion ? safeParseFloat(data.unitConversion) : 1, // 修正：从unitConversion读取，默认为1
+            conversionFactor: safeParseFloat(data.unitConversion), // Modified: Read unitConversion, use safeParseFloat
             factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '', // 读取 carbonFactorName
             factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '', // 读取 carbonFactorUnit
             emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '', // 读取 emissionFactorGeographicalRepresentativeness
@@ -236,18 +237,19 @@ export function CarbonCalculatorPanel() {
     // 获取当前模型的所有排放源，并赋予初始状态
     const allEmissionSourcesWithStatus: EmissionSource[] = nodes.map(node => {
       const data = node.data as any;
-      const safeParseFloat = (val: any): number => {
-        const num = parseFloat(val);
-        return isNaN(num) ? 0 : num;
+      const safeParseFloat = (val: any): number | undefined => { // Ensure this local definition matches the global one
+        if (val === null || val === undefined || String(val).trim() === '') return undefined;
+        const num = parseFloat(String(val));
+        return isNaN(num) ? undefined : num;
       };
-      const initialStatus: '已手动配置因子' | '未配置因子' = data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子'; // 如果carbonFactor非0则认为已配置
+      const initialStatus: '已手动配置因子' | '未配置因子' = data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子'; 
       const source: EmissionSource = {
         id: node.id,
         name: data.label || '未命名节点',
         category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
         activityData: safeParseFloat(data.quantity),
         activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '',
-        conversionFactor: data.unitConversion ? safeParseFloat(data.unitConversion) : 1, // 修正：从unitConversion读取，默认为1
+        conversionFactor: safeParseFloat(data.unitConversion), // Use the modified safeParseFloat here as well
         factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '', 
         factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '',
         emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '', 
@@ -1156,12 +1158,39 @@ export function CarbonCalculatorPanel() {
             <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px', paddingLeft: '8px' }}>活动水平数据</Typography.Title>
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Item name="activityData" label="活动数据数值" rules={[{ required: true, message: '请输入活动数据数值' }, { type: 'number', transform: value => String(value).trim() === '' ? undefined : Number(value), message: '请输入有效的数字' }, { validator: (_, value) => value === undefined || value === null || String(value).trim() === '' || Number(value) > 0 ? Promise.resolve() : Promise.reject(new Error('活动数据数值必须为正数')) }]}>
+                <Form.Item 
+                  name="activityData" 
+                  label="活动数据数值" 
+                  rules={[
+                    // { required: true, message: '请输入活动数据数值' }, // Already not required
+                    { 
+                      transform: value => {
+                        const trimmedValue = String(value).trim();
+                        if (trimmedValue === '' || value === null || value === undefined) return undefined;
+                        return Number(trimmedValue);
+                      },
+                      type: 'number',
+                      message: '活动数据数值必须为有效的数字' 
+                    }, 
+                    { 
+                      validator: (_, value) => { // Corrected: validator is a property of this rule object
+                        if (value === undefined || value === null || String(value).trim() === '') return Promise.resolve();
+                        return Number(value) > 0 ? Promise.resolve() : Promise.reject(new Error('活动数据数值必须为正数')); 
+                      }
+                    }
+                  ]}
+                >
                   <Input type="number" step="0.0000000001" placeholder="请输入活动数据数值，保留小数点后10位" />
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="activityUnit" label="活动数据单位" rules={[{ required: true, message: '请输入活动数据单位' }]}>
+                <Form.Item 
+                  name="activityUnit" 
+                  label="活动数据单位" 
+                  rules={[
+                    // { required: true, message: '请输入活动数据单位' } // Changed to not required
+                  ]}
+                >
                   <Input placeholder="请输入活动数据单位，例如：kg" />
                 </Form.Item>
               </Col>
@@ -1345,7 +1374,18 @@ export function CarbonCalculatorPanel() {
                 </Typography.Text>
                 <Form.Item
                   name="conversionFactor"
-                  rules={[{ type: 'number', transform: value => String(value).trim() === '' ? undefined : Number(value) , message: '请输入有效的数字'} ]} // Not required based on PRD
+                  rules={[
+                    // No required rule here, it's already not required
+                    {
+                      transform: value => {
+                        const trimmedValue = String(value).trim();
+                        if (trimmedValue === '' || value === null || value === undefined) return undefined;
+                        return Number(trimmedValue);
+                      },
+                      type: 'number', 
+                      message: '单位转换系数必须为有效的数字'
+                    }
+                  ]} 
                   noStyle
                 >
                   <Input type="number" step="0.0000000001" placeholder="系数" style={{width: 120, textAlign: 'center', marginLeft: 8, marginRight: 8}}/>
