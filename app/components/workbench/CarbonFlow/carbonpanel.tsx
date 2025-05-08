@@ -1123,7 +1123,7 @@ export function CarbonCalculatorPanel() {
       >
         <Form layout="vertical" onFinish={handleSaveEmissionSource} initialValues={drawerInitialValues} key={editingEmissionSource?.id || 'new'}>
             {/* 基本信息 */}
-            <Divider orientation="left" orientationMargin="8px" style={{ marginTop: '8px', marginBottom: '12px' }}>基本信息</Divider>
+            <Typography.Title level={5} style={{ marginTop: '8px', marginBottom: '16px', paddingLeft: '8px' }}>基本信息</Typography.Title>
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item name="lifecycleStage" label="生命周期阶段" rules={[{ required: true, message: '请选择生命周期阶段' }]}>
@@ -1152,7 +1152,7 @@ export function CarbonCalculatorPanel() {
             </Form.Item>
 
             {/* 活动水平数据 */}
-            <Divider orientation="left" orientationMargin="8px" style={{ marginTop: '0px', marginBottom: '0px' }}>活动水平数据</Divider>
+            <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px', paddingLeft: '8px' }}>活动水平数据</Typography.Title>
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item name="activityData" label="活动数据数值" rules={[{ required: true, message: '请输入活动数据数值' }, { type: 'number', transform: value => String(value).trim() === '' ? undefined : Number(value), message: '请输入有效的数字' }, { validator: (_, value) => value === undefined || value === null || String(value).trim() === '' || Number(value) > 0 ? Promise.resolve() : Promise.reject(new Error('活动数据数值必须为正数')) }]}>
@@ -1177,8 +1177,8 @@ export function CarbonCalculatorPanel() {
             </Form.Item>
 
             {/* 背景数据 */}
-            <Divider orientation="left" orientationMargin="8px" style={{ marginTop: '24px', marginBottom: '12px' }}>背景数据</Divider>
-            <Tabs defaultActiveKey="database" type="card">
+            <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px', paddingLeft: '8px' }}>背景数据</Typography.Title>
+            <Tabs defaultActiveKey="database"> {/* Removed type="card" */}
               <Tabs.TabPane tab="数据库" key="database">
                 <Row gutter={16} align="bottom">
                     <Col span={18}>
@@ -1273,7 +1273,7 @@ export function CarbonCalculatorPanel() {
             </Tabs>
 
             {/* 单位转换 */}
-            <Divider orientation="left" orientationMargin="8px" style={{ marginTop: '24px', marginBottom: '12px' }}>单位转换</Divider>
+            <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px', paddingLeft: '8px' }}>单位转换</Typography.Title>
             <Form.Item 
               label={<Typography.Text>将活动水平数据单位与排放因子单位进行转换：</Typography.Text>}
               labelCol={{ span: 24 }} // Ensure label takes full width if needed
@@ -1670,8 +1670,24 @@ const customStyles = `
 }
 
 /* Style form elements within the drawer */
-.ant-drawer-body .ant-form-item-label > label {
+.ant-drawer-body .ant-form-item-label > label,
+.ant-drawer-body .ant-form-item-label {
     color: var(--bolt-elements-textSecondary, #ccc) !important; /* Lighter label color */
+    border-bottom: none !important; /* Attempt to remove any bottom border on the label container */
+    padding-bottom: 2px !important; /* Further reduced padding, was 4px */
+    line-height: 1.2em !important; /* Adjust line-height if label text itself has large internal spacing, use em for relative sizing */
+}
+
+/* Reduce margin below the entire form item to tighten up rows */
+.ant-drawer-body .ant-form-item {
+  margin-bottom:15px !important; /* Further reduced from 12px, adjust as needed */
+}
+
+/* Target the control wrapper to see if it has top padding creating a gap */
+.ant-drawer-body .ant-form-item-control {
+  padding-top: 0px !important; /* Attempt to remove any top padding on the control wrapper */
+  /* Adding min-height to ensure control itself doesn't collapse if it was relying on padding */
+  min-height: auto !important; /* Or set to a specific value like 32px if inputs have fixed height */ 
 }
 
 /* Force styling on ALL relevant input/select elements within the drawer's form items */
@@ -1703,7 +1719,7 @@ const customStyles = `
     background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Match drawer body */
     margin-top: 24px; /* Add some space above buttons */
     padding-top: 10px; /* Padding like a footer */
-    border-top: 1px solid var(--bolt-elements-borderColor, #333) !important; /* Separator line */
+    /* border-top: 1px solid var(--bolt-elements-borderColor, #333) !important; */ /* Separator line REMOVED */
 }
 
 .ant-drawer-body .ant-btn {
@@ -1927,6 +1943,16 @@ const customStyles = `
 .upload-modal-file-table .ant-select-selection-item,
 .upload-modal-file-table .ant-select-selection-placeholder {
   line-height: 28px !important; /* Adjust line height for vertical centering */
+}
+
+/* Ensure Tabs component in Drawer has no bottom border for the nav/header part */
+.ant-drawer-body .ant-tabs-nav {
+    border-bottom: none !important;
+    margin-bottom: 8px !important; /* Slightly reduced from 12px */
+}
+.ant-drawer-body .ant-tabs-tab {
+    padding-top: 2px !important; /* Further reduced from 4px */
+    padding-bottom: 6px !important; /* Further reduced from 8px */
 }
 
 
