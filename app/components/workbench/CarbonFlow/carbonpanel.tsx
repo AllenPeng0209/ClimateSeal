@@ -146,6 +146,7 @@ export function CarbonCalculatorPanel() {
   const [modalFileList, setModalFileList] = useState<ModalUploadFile[]>([]); // State for files in the modal upload list
   const [isFactorMatchModalVisible, setIsFactorMatchModalVisible] = useState(false); // 新增：因子匹配弹窗状态
   const [selectedFactorMatchSources, setSelectedFactorMatchSources] = useState<React.Key[]>([]); // 新增：因子匹配弹窗中选中的排放源
+  const [backgroundDataActiveTabKey, setBackgroundDataActiveTabKey] = useState<string>('database'); // Re-add state for active background data tab
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
 
@@ -1178,7 +1179,7 @@ export function CarbonCalculatorPanel() {
 
             {/* 背景数据 */}
             <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px', paddingLeft: '8px' }}>背景数据</Typography.Title>
-            <Tabs defaultActiveKey="database"> {/* Removed type="card" */}
+            <Tabs defaultActiveKey="database" onChange={setBackgroundDataActiveTabKey}> {/* Re-add onChange to update state */}
               <Tabs.TabPane tab="数据库" key="database">
                 <Row gutter={16} align="bottom">
                     <Col span={18}>
@@ -1230,41 +1231,97 @@ export function CarbonCalculatorPanel() {
                 </Row>
               </Tabs.TabPane>
               <Tabs.TabPane tab="手动填写" key="manual">
-                <Form.Item name="factorNameManual" label="排放因子名称" rules={[{ required: true, message: '请输入排放因子名称' }]}>
+                <Form.Item 
+                  name="factorNameManual" 
+                  label="排放因子名称" 
+                  rules={[{ 
+                    required: backgroundDataActiveTabKey === 'manual', 
+                    message: '请输入排放因子名称' 
+                  }]}
+                >
                   <Input placeholder="请输入排放因子名称，例如：水" />
                 </Form.Item>
                 <Row gutter={16}>
                   <Col span={12}>
-                    <Form.Item name="backgroundData_factorValueManual" label="排放因子数值 (kgCO2e)" rules={[{ required: true, message: '请输入排放因子数值' }, { type: 'number', transform: value => Number(value), message: '请输入有效的数字' } ]}>
+                    <Form.Item 
+                      name="backgroundData_factorValueManual" 
+                      label="排放因子数值 (kgCO2e)" 
+                      rules={[
+                        { 
+                          required: backgroundDataActiveTabKey === 'manual', 
+                          message: '请输入排放因子数值' 
+                        }, 
+                        { 
+                          type: 'number', 
+                          transform: value => String(value).trim() === '' ? undefined : Number(value), 
+                          message: '请输入有效的数字' 
+                        } 
+                      ]}
+                    >
                       <Input type="number" step="0.0000000001" placeholder="请输入排放因子数值，保留小数点后10位，可正可负" />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
-                    <Form.Item name="factorUnitManual" label="排放因子分母单位" rules={[{ required: true, message: '请输入排放因子分母单位' }]}>
+                    <Form.Item 
+                      name="factorUnitManual" 
+                      label="排放因子分母单位" 
+                      rules={[{ 
+                        required: backgroundDataActiveTabKey === 'manual', 
+                        message: '请输入排放因子分母单位' 
+                      }]}
+                    >
                       <Input placeholder="请输入排放因子分母单位，例如：kg" />
                     </Form.Item>
                   </Col>
                 </Row>
                 <Row gutter={16}>
                   <Col span={12}>
-                    <Form.Item name="emissionFactorGeographicalRepresentativenessManual" label="地理代表性">
+                    <Form.Item 
+                      name="emissionFactorGeographicalRepresentativenessManual" 
+                      label="地理代表性" 
+                      rules={[{ 
+                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        message: '请输入地理代表性' 
+                      }]}
+                    >
                       <Input placeholder="请输入地理代表性，例如：GLO" />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
-                    <Form.Item name="factorPublicationDateManual" label="发布时间">
+                    <Form.Item 
+                      name="factorPublicationDateManual" 
+                      label="发布时间" 
+                      rules={[{ 
+                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        message: '请输入发布时间' 
+                      }]}
+                    >
                       <Input placeholder="请输入发布时间，例如：2022" />
                     </Form.Item>
                   </Col>
                 </Row>
                 <Row gutter={16}>
                   <Col span={12}>
-                    <Form.Item name="factorSourceManual" label="数据库名称">
+                    <Form.Item 
+                      name="factorSourceManual" 
+                      label="数据库名称" 
+                      rules={[{ 
+                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        message: '请输入数据库名称' 
+                      }]}
+                    >
                       <Input placeholder="请输入数据库名称，例如：Ecoinvent" />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
-                    <Form.Item name="factorUUIDManual" label="因子UUID">
+                    <Form.Item 
+                      name="factorUUIDManual" 
+                      label="因子UUID" 
+                      rules={[{ 
+                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        message: '请输入因子UUID' 
+                      }]}
+                    >
                       <Input placeholder="请输入因子UUID" />
                     </Form.Item>
                   </Col>
@@ -1670,7 +1727,7 @@ const customStyles = `
 }
 
 /* Style form elements within the drawer */
-.ant-drawer-body .ant-form-item-label > label,
+.ant-drawer-body .ant-form-item-l abel > label,
 .ant-drawer-body .ant-form-item-label {
     color: var(--bolt-elements-textSecondary, #ccc) !important; /* Lighter label color */
     border-bottom: none !important; /* Attempt to remove any bottom border on the label container */
