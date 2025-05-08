@@ -152,9 +152,10 @@ export function CarbonCalculatorPanel() {
   const [showMatchResultsModal, setShowMatchResultsModal] = useState(false); // 新增：匹配结果弹窗显示状态
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
+  const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
 
   // 从CarbonFlowStore获取数据
-  const { nodes, edges, aiSummary, setNodes: setStoreNodes } = useCarbonFlowStore();
+  const { nodes, aiSummary, setNodes: setStoreNodes } = useCarbonFlowStore();
 
   // 当aiSummary更新时，更新modelScore
   useEffect(() => {
@@ -995,6 +996,10 @@ export function CarbonCalculatorPanel() {
   // 添加事件监听器，接收匹配结果
   useEffect(() => {
     const handleMatchResults = (event: CustomEvent) => {
+      if (loadingMessageRef.current) {
+        loadingMessageRef.current();
+        loadingMessageRef.current = null;
+      }
       console.log('收到匹配结果事件:', event.detail);
       
       // 更新匹配结果状态
@@ -1061,9 +1066,13 @@ export function CarbonCalculatorPanel() {
       return;
     }
 
-    // 移除旧的 setTimeout 和 message.success
+    if (loadingMessageRef.current) {
+      loadingMessageRef.current();
+      loadingMessageRef.current = null;
+    }
     
     try {
+      loadingMessageRef.current = message.loading('正在进行碳因子匹配，请稍候...', 0);
       const action: CarbonFlowAction = {
         type: 'carbonflow',
         operation: 'carbon_factor_match',
@@ -1082,7 +1091,10 @@ export function CarbonCalculatorPanel() {
       // 这里不再需要 setTimeout 来关闭 loadingMessage
 
     } catch (error) {
-      loadingMessage(); // 确保在派发事件出错时关闭加载
+      if (loadingMessageRef.current) {
+        loadingMessageRef.current();
+        loadingMessageRef.current = null;
+      }
       console.error('执行碳因子匹配请求派发时出错:', error);
       message.error('发送碳因子匹配请求失败，请查看控制台');
     }
