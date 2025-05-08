@@ -204,14 +204,14 @@ export function CarbonCalculatorPanel() {
             category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
             activityData: safeParseFloat(data.quantity), // 读取 quantity 并转为 number
             activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '', // 读取 activityUnit
-            conversionFactor: typeof data.carbonFactor === 'number' ? data.carbonFactor : 0, // 读取 carbonFactor
+            conversionFactor: data.unitConversion ? safeParseFloat(data.unitConversion) : 1, // 修正：从unitConversion读取，默认为1
             factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '', // 读取 carbonFactorName
             factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '', // 读取 carbonFactorUnit
             emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '', // 读取 emissionFactorGeographicalRepresentativeness
             factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '', // 读取 activitydataSource
             updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
             updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
-            factorMatchStatus: data.carbonFactor ? '已手动配置因子' : '未配置因子', // 根据是否已配置因子来设置初始状态
+            factorMatchStatus: data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子', // 如果carbonFactor非0则认为已配置
             supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', // 添加：从节点数据获取补充信息
           };
         });
@@ -236,22 +236,22 @@ export function CarbonCalculatorPanel() {
         const num = parseFloat(val);
         return isNaN(num) ? 0 : num;
       };
-      const initialStatus: '已手动配置因子' | '未配置因子' = data.carbonFactor ? '已手动配置因子' : '未配置因子';
+      const initialStatus: '已手动配置因子' | '未配置因子' = data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子'; // 如果carbonFactor非0则认为已配置
       const source: EmissionSource = {
         id: node.id,
         name: data.label || '未命名节点',
         category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
         activityData: safeParseFloat(data.quantity),
         activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '',
-        conversionFactor: typeof data.carbonFactor === 'number' ? data.carbonFactor : 0,
-        factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '',
+        conversionFactor: data.unitConversion ? safeParseFloat(data.unitConversion) : 1, // 修正：从unitConversion读取，默认为1
+        factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '', 
         factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '',
-        emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '', // 读取 emissionFactorGeographicalRepresentativeness
+        emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '', 
         factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '',
         updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
         updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
         factorMatchStatus: initialStatus, 
-        supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', // 添加：从节点数据获取补充信息
+        supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', 
       };
       return source;
     });
@@ -394,13 +394,14 @@ export function CarbonCalculatorPanel() {
              dataToUpdate.emissionType = values.category; // 保存类别
              dataToUpdate.quantity = String(values.activityData); // 保存活动数据为 string
              dataToUpdate.activityUnit = values.activityUnit; // 保存活动数据单位
-             dataToUpdate.carbonFactor = values.conversionFactor; // 保存转换系数 (因子)
+             dataToUpdate.carbonFactor = String(typeof currentNodeData.carbonFactor !== 'undefined' ? currentNodeData.carbonFactor : 0); // 保留已有的排放因子数值或设为0, 转为string
              dataToUpdate.carbonFactorName = values.factorName; // 保存因子名称
              dataToUpdate.carbonFactorUnit = values.factorUnit; // 保存因子单位
              dataToUpdate.emissionFactorGeographicalRepresentativeness = values.emissionFactorGeographicalRepresentativeness || ''; // 保存排放因子地理代表性
              dataToUpdate.activitydataSource = values.factorSource; // 保存因子来源
              dataToUpdate.lifecycleStage = selectedStageName;
              dataToUpdate.supplementaryInfo = values.supplementaryInfo || ''; // 保存补充信息到节点数据
+             dataToUpdate.unitConversion = String(values.conversionFactor ?? 1); // 新增/修正：正确保存单位转换系数
              // --- 结束更新通用字段保存逻辑 ---
 
              let finalNodeData = dataToUpdate; // 使用更新后的 dataToUpdate
@@ -420,11 +421,11 @@ export function CarbonCalculatorPanel() {
                     carbonFootprint: String(finalNodeData.carbonFootprint || 0),
                     quantity: String(values.activityData), // 活动数据
                     activityUnit: values.activityUnit, // 活动数据单位
-                    carbonFactor: values.conversionFactor, // 转换系数 (因子)
+                    carbonFactor: String(typeof finalNodeData.carbonFactor !== 'undefined' ? finalNodeData.carbonFactor : 0), // 保留已有的排放因子数值, 转为string
                     carbonFactorName: values.factorName, // 因子名称
                     carbonFactorUnit: values.factorUnit, // 因子单位
                     emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 排放因子地理代表性
-                    unitConversion: String(finalNodeData.unitConversion ?? 1), 
+                    unitConversion: String(values.conversionFactor ?? 1), // 正确设置单位转换系数
                     supplementaryInfo: values.supplementaryInfo || '', // 通用数据中加入补充信息
                 };
 
@@ -511,11 +512,11 @@ export function CarbonCalculatorPanel() {
              carbonFootprint: String(0),
              quantity: String(values.activityData), // 活动数据
              activityUnit: values.activityUnit, // 活动数据单位
-             carbonFactor: values.conversionFactor, // 转换系数 (因子)
+             carbonFactor: String(0), // 新增排放源时，排放因子数值默认为0 (string), 待后续匹配
              carbonFactorName: values.factorName, // 因子名称
              carbonFactorUnit: values.factorUnit, // 因子单位
              emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 保存排放因子地理代表性
-             unitConversion: String(1), 
+             unitConversion: String(values.conversionFactor ?? 1), // 正确保存单位转换系数
              supplementaryInfo: values.supplementaryInfo || '', // 新节点数据中加入补充信息
          };
 
