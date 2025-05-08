@@ -70,6 +70,7 @@ type EmissionSource = {
   conversionFactor: number;
   factorName: string;
   factorUnit: string;
+  emissionFactorGeographicalRepresentativeness?: string; // 排放因子地理代表性
   factorSource: string;
   updatedAt: string;
   updatedBy: string;
@@ -206,6 +207,7 @@ export function CarbonCalculatorPanel() {
             conversionFactor: typeof data.carbonFactor === 'number' ? data.carbonFactor : 0, // 读取 carbonFactor
             factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '', // 读取 carbonFactorName
             factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '', // 读取 carbonFactorUnit
+            emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '', // 读取 emissionFactorGeographicalRepresentativeness
             factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '', // 读取 activitydataSource
             updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
             updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
@@ -244,6 +246,7 @@ export function CarbonCalculatorPanel() {
         conversionFactor: typeof data.carbonFactor === 'number' ? data.carbonFactor : 0,
         factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '',
         factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '',
+        emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '', // 读取 emissionFactorGeographicalRepresentativeness
         factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '',
         updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
         updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
@@ -365,6 +368,7 @@ export function CarbonCalculatorPanel() {
                 conversionFactor: values.conversionFactor, 
                 factorName: values.factorName,
                 factorUnit: values.factorUnit,
+                emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness, // 保存 emissionFactorGeographicalRepresentativeness
                 factorSource: values.factorSource,
                 updatedAt: new Date().toISOString(), 
                 updatedBy: 'User',
@@ -1126,6 +1130,9 @@ export function CarbonCalculatorPanel() {
            </Form.Item>
             <Form.Item name="factorUnit" label="排放因子单位" rules={[{ required: true, message: '请输入排放因子单位' }]}>
               <Input placeholder="请输入排放因子单位" />
+           </Form.Item>
+           <Form.Item name="emissionFactorGeographicalRepresentativeness" label="排放因子地理代表性" rules={[{ required: true, message: '请输入排放因子地理代表性' }]}>
+              <Input placeholder="请输入排放因子地理代表性" />
            </Form.Item>
            <Form.Item name="factorSource" label="排放因子来源" rules={[{ required: true, message: '请输入排放因子来源' }]}>
               <Input placeholder="请输入排放因子来源" />
