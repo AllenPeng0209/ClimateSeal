@@ -368,7 +368,7 @@ export function CarbonCalculatorPanel() {
                 conversionFactor: values.conversionFactor, 
                 factorName: values.factorName,
                 factorUnit: values.factorUnit,
-                emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness, // 保存 emissionFactorGeographicalRepresentativeness
+                emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 保存 emissionFactorGeographicalRepresentativeness
                 factorSource: values.factorSource,
                 updatedAt: new Date().toISOString(), 
                 updatedBy: 'User',
@@ -397,6 +397,7 @@ export function CarbonCalculatorPanel() {
              dataToUpdate.carbonFactor = values.conversionFactor; // 保存转换系数 (因子)
              dataToUpdate.carbonFactorName = values.factorName; // 保存因子名称
              dataToUpdate.carbonFactorUnit = values.factorUnit; // 保存因子单位
+             dataToUpdate.emissionFactorGeographicalRepresentativeness = values.emissionFactorGeographicalRepresentativeness || ''; // 保存排放因子地理代表性
              dataToUpdate.activitydataSource = values.factorSource; // 保存因子来源
              dataToUpdate.lifecycleStage = selectedStageName;
              dataToUpdate.supplementaryInfo = values.supplementaryInfo || ''; // 保存补充信息到节点数据
@@ -422,6 +423,7 @@ export function CarbonCalculatorPanel() {
                     carbonFactor: values.conversionFactor, // 转换系数 (因子)
                     carbonFactorName: values.factorName, // 因子名称
                     carbonFactorUnit: values.factorUnit, // 因子单位
+                    emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 排放因子地理代表性
                     unitConversion: String(finalNodeData.unitConversion ?? 1), 
                     supplementaryInfo: values.supplementaryInfo || '', // 通用数据中加入补充信息
                 };
@@ -512,6 +514,7 @@ export function CarbonCalculatorPanel() {
              carbonFactor: values.conversionFactor, // 转换系数 (因子)
              carbonFactorName: values.factorName, // 因子名称
              carbonFactorUnit: values.factorUnit, // 因子单位
+             emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 保存排放因子地理代表性
              unitConversion: String(1), 
              supplementaryInfo: values.supplementaryInfo || '', // 新节点数据中加入补充信息
          };
@@ -929,6 +932,7 @@ export function CarbonCalculatorPanel() {
     { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit' },
     { title: '排放因子名称', dataIndex: 'factorName', key: 'factorName' },
     { title: '排放因子单位', dataIndex: 'factorUnit', key: 'factorUnit' },
+    { title: '排放因子地理代表性', dataIndex: 'emissionFactorGeographicalRepresentativeness', key: 'emissionFactorGeographicalRepresentativeness', render: (text?: string) => text || '-' },
     {
       title: '因子匹配状态',
       dataIndex: 'factorMatchStatus',
