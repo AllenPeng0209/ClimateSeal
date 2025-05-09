@@ -1207,21 +1207,22 @@ export function CarbonCalculatorPanel() {
                         <Form.Item 
                             name="referenceFlowValue" 
                             label="基准流" 
+                            normalize={(value: any) => {
+                                if (value === undefined || value === null || String(value).trim() === '') {
+                                    return undefined;
+                                }
+                                const num = Number(value);
+                                return num; 
+                            }}
                             rules={[
-                                // { required: true, message: '请输入基准流数值' }, // Not required anymore
                                 { 
                                     type: 'number', 
-                                    transform: value => {
-                                        const sValue = String(value).trim();
-                                        if (sValue === '' || value === null || value === undefined) return undefined;
-                                        return Number(sValue);
-                                    },
                                     message: '基准流数值必须为有效的数字' 
                                 },
                                 {
-                                    validator: (_, value) => {
-                                        if (value === undefined || value === null || String(value).trim() === '') return Promise.resolve();
-                                        return Number(value) > 0 ? Promise.resolve() : Promise.reject(new Error('基准流数值必须大于0'));
+                                    validator: (rule: any, value: number | undefined) => { // Explicitly typed rule and value
+                                        if (value === undefined || value === null) return Promise.resolve(); 
+                                        return value > 0 ? Promise.resolve() : Promise.reject(new Error('基准流数值必须大于0'));
                                     }
                                 }
                             ]}
