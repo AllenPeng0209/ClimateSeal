@@ -290,13 +290,19 @@ export function CarbonCalculatorPanel() {
   const handleCloseSettings = () => setIsSettingsModalVisible(false);
   const handleSaveSettings = (values: any) => {
     console.log('Saving settings:', values);
-    // TODO: API call to save settings
+
+    // Explicitly convert referenceFlowValue to a number or undefined
+    const rawRefFlowValue = values.referenceFlowValue;
+    const numericRefFlowValue = (rawRefFlowValue === undefined || rawRefFlowValue === null || String(rawRefFlowValue).trim() === '')
+                                ? undefined
+                                : Number(String(rawRefFlowValue).trim());
+
     setSceneInfo({
         verificationLevel: values.verificationLevel,
         standard: values.standard,
         productName: values.productName,
         functionalUnit: values.functionalUnit, // 保存功能单位
-        referenceFlowValue: values.referenceFlowValue, // 保存基准流数值
+        referenceFlowValue: Number.isNaN(numericRefFlowValue) ? undefined : numericRefFlowValue, // 保存基准流数值, Ensure NaN becomes undefined
         referenceFlowUnit: values.referenceFlowUnit, // 保存基准流单位
     });
     message.success('场景信息已保存');
