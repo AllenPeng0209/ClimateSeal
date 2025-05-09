@@ -1846,21 +1846,31 @@ const CarbonFlowInner = () => {
           top: '10px',
           right: '10px',
           zIndex: 1000,
+          display: 'flex',
+          gap: '8px'
         }}
       >
-        <Button
-          onClick={toggleViewMode}
-          className="view-toggle-button"
-          style={{
-            backgroundColor: '#1890ff',
-            color: 'white',
-          }}
+        <AntButton
+          onClick={() => setViewMode('dataOperation')}
+          type={viewMode === 'dataOperation' ? 'primary' : 'default'}
         >
-          {viewMode === 'flow' ? '切换到面板视图' : '切换到流程图视图'}
-        </Button>
+          数据操作台
+        </AntButton>
+        <AntButton
+          onClick={() => setViewMode('flow')}
+          type={viewMode === 'flow' ? 'primary' : 'default'}
+        >
+          流程图
+        </AntButton>
+        <AntButton
+          onClick={() => setViewMode('dataCheck')}
+          type={viewMode === 'dataCheck' ? 'primary' : 'default'}
+        >
+          数据查验
+        </AntButton>
       </div>
 
-      {viewMode === 'flow' ? (
+      {viewMode === 'flow' && (
         <div className="editor-layout">
           <div className="editor-header">
             <div className="header-left">
@@ -2172,9 +2182,14 @@ const CarbonFlowInner = () => {
             />
           </Modal>
         </div>
-      ) : (
-        <div className="carbon-panel-container" style={{ height: '100vh', width: '100%' }}>
-          <CarbonCalculatorPanelClient />
+      )}
+      {viewMode === 'dataOperation' && (
+        <CarbonCalculatorPanelClient />
+      )}
+      {viewMode === 'dataCheck' && (
+        <div style={{ padding: '20px', textAlign: 'center', marginTop: '60px' }}>
+          <Typography.Title level={3}>数据查验面板 (待开发)</Typography.Title>
+          <Empty description="此视图的内容正在建设中。" />
         </div>
       )}
     </>
