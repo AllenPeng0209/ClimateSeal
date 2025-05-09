@@ -1073,9 +1073,11 @@ export function CarbonCalculatorPanel() {
                   <div>满足标准: {sceneInfo.standard ? sceneInfo.standard : <span className="status-unset">未设置</span>}</div>
                   <div>核算产品: {sceneInfo.productName ? sceneInfo.productName : <span className="status-unset">未设置</span>}</div>
                   <div>功能单位: {sceneInfo.functionalUnit ? sceneInfo.functionalUnit : <span className="status-unset">未设置</span>}</div>
-                  <div>基准流: {typeof sceneInfo.referenceFlowValue === 'number' 
-                                ? `${sceneInfo.referenceFlowValue}${sceneInfo.referenceFlowUnit ? ` ${sceneInfo.referenceFlowUnit}` : ''}` 
-                                : <span className="status-unset">未设置</span>}
+                  <div>基准流: {
+                        (typeof sceneInfo.referenceFlowValue === 'number' && sceneInfo.referenceFlowUnit && String(sceneInfo.referenceFlowUnit).trim() !== '')
+                        ? `${sceneInfo.referenceFlowValue} ${String(sceneInfo.referenceFlowUnit).trim()}`
+                        : <span className="status-unset">未设置</span>
+                  }
                   </div>
                 </Space>
               </Card>
@@ -1226,13 +1228,14 @@ export function CarbonCalculatorPanel() {
                                 },
                                 {
                                     validator: (rule: any, value: number | undefined) => { 
-                                        // value here is the transformed and type-checked value from the first rule
-                                        if (value === undefined || value === null) { 
-                                            return Promise.resolve(); 
+                                        // Check if the field is effectively empty
+                                        if (value === undefined || value === null || String(value).trim() === '') {
+                                            return Promise.resolve(); // Pass validation if empty (as it's not required)
                                         }
+                                        // If not empty, and is a number (guaranteed by the first rule if it passed onChange)
                                         return value > 0 ? Promise.resolve() : Promise.reject(new Error('基准流数值必须大于0'));
-                                    },
-                                    validateTrigger: 'onBlur' 
+                                    }
+                                    // validateTrigger: 'onBlur' removed, so it defaults to 'onChange'
                                 }
                             ]}
                         >
