@@ -48,6 +48,9 @@ type SceneInfoType = {
   verificationLevel?: string;
   standard?: string;
   productName?: string;
+  functionalUnit?: string; // 新增：功能单位
+  referenceFlowValue?: number; // 新增：基准流数值
+  referenceFlowUnit?: string; // 新增：基准流单位
 };
 
 // Define a type for individual scores (0-1 range) based on AISummary logic
@@ -292,6 +295,9 @@ export function CarbonCalculatorPanel() {
         verificationLevel: values.verificationLevel,
         standard: values.standard,
         productName: values.productName,
+        functionalUnit: values.functionalUnit, // 保存功能单位
+        referenceFlowValue: values.referenceFlowValue, // 保存基准流数值
+        referenceFlowUnit: values.referenceFlowUnit, // 保存基准流单位
     });
     message.success('场景信息已保存');
     handleCloseSettings();
@@ -1060,6 +1066,8 @@ export function CarbonCalculatorPanel() {
                   <div>预期核验等级: {sceneInfo.verificationLevel || '未设置'}</div>
                   <div>满足标准: {sceneInfo.standard || '未设置'}</div>
                   <div>核算产品: {sceneInfo.productName || '未设置'}</div>
+                  <div>功能单位: {sceneInfo.functionalUnit || '未设置'}</div>
+                  <div>基准流: {typeof sceneInfo.referenceFlowValue === 'number' ? `${sceneInfo.referenceFlowValue} ${sceneInfo.referenceFlowUnit || ''}`.trim() : '未设置'}</div>
                 </Space>
               </Card>
             </Col>
@@ -1188,6 +1196,42 @@ export function CarbonCalculatorPanel() {
                  <Form.Item name="productName" label="核算产品" rules={[{ required: true, message: '请输入核算产品名称' }]}>
                     <Input placeholder="输入产品名称" />
                 </Form.Item>
+                <Form.Item name="functionalUnit" label="功能单位" rules={[{ required: true, message: '请输入功能单位' }]}>
+                    <Input placeholder="输入功能单位" />
+                </Form.Item>
+                <Row gutter={16}>
+                    <Col span={16}>
+                        <Form.Item 
+                            name="referenceFlowValue" 
+                            label="基准流" 
+                            rules={[
+                                { required: true, message: '请输入基准流数值' },
+                                { 
+                                    type: 'number', 
+                                    transform: value => String(value).trim() === '' ? undefined : Number(value),
+                                    message: '基准流数值必须为有效的数字' 
+                                },
+                                {
+                                    validator: (_, value) => {
+                                        if (value === undefined || value === null || String(value).trim() === '') return Promise.resolve(); // Allow empty if not required / handle required elsewhere
+                                        return Number(value) > 0 ? Promise.resolve() : Promise.reject(new Error('基准流数值必须大于0'));
+                                    }
+                                }
+                            ]}
+                        >
+                            <Input type="number" step="0.0000000001" placeholder="输入数值，大于0，保留10位小数" />
+                        </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                        <Form.Item 
+                            name="referenceFlowUnit" 
+                            label="&nbsp;" // For alignment
+                            rules={[{ required: true, message: '请输入基准流单位' }]}
+                        >
+                            <Input placeholder="单位" />
+                        </Form.Item>
+                    </Col>
+                </Row>
                  <Form.Item className="text-right">
                      <Space>
                         <Button onClick={handleCloseSettings}>取消</Button>
