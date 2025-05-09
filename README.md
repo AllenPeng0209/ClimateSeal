@@ -1,6 +1,6 @@
 # ClimateSeals AI-Powered Product Carbon Footprint Platform
 
-[![AI Carbon Footprint Platform](./public/social_preview_index.jpg)](https://your-project-link.com)
+
 
 Welcome to the AI-Powered Product Carbon Footprint (PCF) Platform, a solution designed to simplify and automate how businesses calculate, manage, and report their products' carbon footprints. This platform leverages Artificial Intelligence, with a core **AI Carbon Consultant**, to guide users through the complex PCF process, enhance data quality, and provide actionable insights for decarbonization.
 
