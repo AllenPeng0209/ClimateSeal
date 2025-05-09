@@ -1550,12 +1550,13 @@ const CarbonFlowInner = () => {
     message.success('碳因子匹配请求已发送');
   }, [actionHandler, handleCarbonFlowAction]);
 
-  // 添加视图模式状态，默认为流程图视图
-  const [viewMode, setViewMode] = useState<'flow' | 'panel'>('flow');
+  // Define viewMode state for toggling between Flowchart and Data Operation Panel
+  type ViewMode = 'flow' | 'dataOperation' | 'dataCheck'; // Ensure 'dataCheck' is included if it's a valid mode
+  const [viewMode, setViewMode] = useState<ViewMode>('dataOperation'); // Default to 'dataOperation'
 
   // 切换视图模式的处理函数
   const toggleViewMode = () => {
-    setViewMode((prevMode) => (prevMode === 'flow' ? 'panel' : 'flow'));
+    setViewMode((prevMode) => (prevMode === 'flow' ? 'dataOperation' : prevMode === 'dataOperation' ? 'dataCheck' : 'flow'));
   };
 
   const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
