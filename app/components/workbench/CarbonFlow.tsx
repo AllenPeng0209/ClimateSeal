@@ -111,23 +111,23 @@ const nodeTypeMapping: Record<string, NodeType> = {
 };
 
 const initialNodes: Node<NodeData>[] = [
-  {
-    id: 'product-1',
-    type: 'product',
-    position: { x: 100, y: 100 },
-    data: {
-      label: '初始材料',
-      nodeName: 'InitialMaterial',
-      lifecycleStage: 'product',
-      emissionType: 'default',
-      activityScore: 100,
-      carbonFactor: 0,
-      activitydataSource: 'default',
-      carbonFootprint: 0,
-      material: '',
-      weight_per_unit: '0',
-    } as ProductNodeData,
-  },
+  // {
+  //   id: 'product-1',
+  //   type: 'product',
+  //   position: { x: 100, y: 100 },
+  //   data: {
+  //     label: '初始材料',
+  //     nodeName: 'InitialMaterial',
+  //     lifecycleStage: 'product',
+  //     emissionType: 'default',
+  //     activityScore: 100,
+  //     carbonFactor: 0,
+  //     activitydataSource: 'default',
+  //     carbonFootprint: 0,
+  //     material: '',
+  //     weight_per_unit: '0',
+  //   } as ProductNodeData,
+  // },
 ];
 
 const initialEdges: Edge[] = [];
