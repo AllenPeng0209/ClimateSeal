@@ -1207,23 +1207,26 @@ export function CarbonCalculatorPanel() {
                         <Form.Item 
                             name="referenceFlowValue" 
                             label="基准流" 
-                            normalize={(value: any) => {
-                                if (value === undefined || value === null || String(value).trim() === '') {
-                                    return undefined;
-                                }
-                                const num = Number(value);
-                                return num; 
-                            }}
                             rules={[
-                                { 
-                                    type: 'number', 
+                                {
+                                    transform: (value: any) => {
+                                        const trimmedValue = String(value).trim();
+                                        if (trimmedValue === '' || value === null || value === undefined) return undefined;
+                                        return Number(trimmedValue);
+                                    },
+                                    type: 'number',
                                     message: '基准流数值必须为有效的数字' 
+                                    // This rule will use the default validateTrigger: 'onChange'
                                 },
                                 {
-                                    validator: (rule: any, value: number | undefined) => { // Explicitly typed rule and value
-                                        if (value === undefined || value === null) return Promise.resolve(); 
+                                    validator: (rule: any, value: number | undefined) => { 
+                                        // value here is the transformed and type-checked value from the first rule
+                                        if (value === undefined || value === null) { 
+                                            return Promise.resolve(); 
+                                        }
                                         return value > 0 ? Promise.resolve() : Promise.reject(new Error('基准流数值必须大于0'));
-                                    }
+                                    },
+                                    validateTrigger: 'onBlur' 
                                 }
                             ]}
                         >
