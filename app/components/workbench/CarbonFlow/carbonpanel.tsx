@@ -96,6 +96,21 @@ type UploadedFile = {
   status: 'pending' | 'parsing' | 'completed' | 'failed'; // Added status field based on PRD
 };
 
+// New type for Parsed Emission Sources in the Parse File Modal
+type ParsedEmissionSource = {
+  id: string; // Unique ID for this parsed item
+  key: React.Key; // For table selection
+  index: number; // For display order
+  lifecycleStage: string;
+  name: string;
+  category: string;
+  supplementaryInfo?: string;
+  activityData?: number;
+  activityUnit?: string;
+  dataStatus: '未生效' | '已生效' | '已删除'; // Key new field from PRD
+  sourceFileId: string; // Link back to the UploadedFile
+};
+
 // Extend antd's UploadFile type to include our custom selectedType
 type ModalUploadFile = UploadFile & {
   selectedType?: string;
@@ -157,6 +172,14 @@ export function CarbonCalculatorPanel() {
   }); // 新增：存储匹配结果的状态
   const [showMatchResultsModal, setShowMatchResultsModal] = useState(false); // 新增：匹配结果弹窗显示状态
   const [backgroundDataActiveTabKey, setBackgroundDataActiveTabKey] = useState<string>('database'); // Re-add state for active background data tab
+
+  // States for the new Parse File Modal
+  const [isParseFileModalVisible, setIsParseFileModalVisible] = useState(false);
+  const [currentParsingFile, setCurrentParsingFile] = useState<UploadedFile | null>(null);
+  const [parsedEmissionSources, setParsedEmissionSources] = useState<ParsedEmissionSource[]>([]);
+  const [selectedParsedSourceKeys, setSelectedParsedSourceKeys] = useState<React.Key[]>([]);
+  const [parsingStatus, setParsingStatus] = useState<'未开始' | '解析中' | '解析成功' | '解析失败'>('未开始');
+  const [parseResultSummary, setParseResultSummary] = useState<string>('无概览信息。');
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
   const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
@@ -752,9 +775,21 @@ export function CarbonCalculatorPanel() {
 
    // Placeholder handlers for new file actions
    const handleParseFile = (file: UploadedFile) => {
-       console.log('Parsing file:', file);
-       // TODO: Implement parsing logic trigger
-       message.info('解析功能待实现');
+       console.log('Opening parse modal for file:', file);
+       setCurrentParsingFile(file);
+       // TODO: In a real scenario, you might fetch existing parsed data for this file here
+       // For now, we'll reset to a default state.
+       setParsedEmissionSources([
+        // Example dummy data, replace with actual parsing logic
+        { id: 'parsed-1', key: 'parsed-1', index: 1, lifecycleStage: '原材料获取阶段', name: '示例排放源A', category: '原材料', activityData: 100, activityUnit: 'kg', dataStatus: '未生效', sourceFileId: file.id, supplementaryInfo: '来自文件解析' },
+        { id: 'parsed-2', key: 'parsed-2', index: 2, lifecycleStage: '生产阶段', name: '示例排放源B', category: '能耗', activityData: 500, activityUnit: 'kWh', dataStatus: '未生效', sourceFileId: file.id, supplementaryInfo: '自动生成' },
+       ]);
+       setSelectedParsedSourceKeys([]);
+       setParsingStatus('未开始'); // Or load last known status
+       setParseResultSummary('文件尚未开始解析。'); // Or load last summary
+       setIsParseFileModalVisible(true);
+       // Original placeholder message removed as we are now opening a modal
+       // message.info('解析功能待实现');
    };
 
    const handleEditFile = (file: UploadedFile) => {
@@ -833,6 +868,52 @@ export function CarbonCalculatorPanel() {
   const handleClearModalList = () => {
        setModalFileList([]);
    };
+
+  // --- Handlers for the Parse File Modal ---
+  const handleCloseParseFileModal = () => {
+    setIsParseFileModalVisible(false);
+    setCurrentParsingFile(null);
+    setParsedEmissionSources([]);
+    setSelectedParsedSourceKeys([]);
+    setParsingStatus('未开始');
+    setParseResultSummary('');
+  };
+
+  const handleStartParsing = () => {
+    if (!currentParsingFile) return;
+    setParsingStatus('解析中');
+    setParseResultSummary('正在解析文件...');
+    // Simulate parsing
+    setTimeout(() => {
+      // Simulate some results
+      const newParsedSources: ParsedEmissionSource[] = [
+        { id: 'parsed-sim-1', key: 'parsed-sim-1', index: 1, lifecycleStage: '原材料获取阶段', name: '解析结果A', category: '原材料', activityData: 120, activityUnit: 'kg', dataStatus: '未生效', sourceFileId: currentParsingFile.id, supplementaryInfo: '模拟解析数据1' },
+        { id: 'parsed-sim-2', key: 'parsed-sim-2', index: 2, lifecycleStage: '生产阶段', name: '解析结果B', category: '能耗', activityData: 240, activityUnit: 'kWh', dataStatus: '未生效', sourceFileId: currentParsingFile.id, supplementaryInfo: '模拟解析数据2' },
+        { id: 'parsed-sim-3', key: 'parsed-sim-3', index: 3, lifecycleStage: '分销运输阶段', name: '解析结果C', category: '运输', activityData: 360, activityUnit: 't*km', dataStatus: '未生效', sourceFileId: currentParsingFile.id, supplementaryInfo: '模拟解析数据3' },
+      ];
+      setParsedEmissionSources(newParsedSources);
+      setParsingStatus('解析成功');
+      setParseResultSummary(`解析完成：成功生成 ${newParsedSources.length} 条数据。`);
+      message.success('文件解析模拟完成！');
+    }, 2000);
+  };
+
+  const handleBatchSetStatus = (status: '未生效' | '已生效' | '已删除') => {
+    if (selectedParsedSourceKeys.length === 0) {
+      message.warning('请至少选择一条数据进行操作。');
+      return;
+    }
+    setParsedEmissionSources(prev =>
+      prev.map(item =>
+        selectedParsedSourceKeys.includes(item.key) ? { ...item, dataStatus: status } : item
+      )
+    );
+    message.success(`选中的 ${selectedParsedSourceKeys.length} 条数据已批量设置为 "${status}"。`);
+    setSelectedParsedSourceKeys([]); // Clear selection after batch operation
+
+    // TODO: If status is '已生效', consider adding these to the main `emissionSources` / nodes
+    // For now, this only updates the local state within this modal.
+  };
 
   // --- Render functions ---
 
@@ -1871,6 +1952,101 @@ export function CarbonCalculatorPanel() {
           </Tabs>
         </div>
       </Modal>
+
+      {/* 原始数据文件解析模态框 */}
+      <Modal
+        title="原始数据文件解析"
+        open={isParseFileModalVisible}
+        onCancel={handleCloseParseFileModal}
+        width="85%" // Wider modal
+        style={{ top: 20 }} // Position closer to the top
+        footer={[
+          <Button key="close" onClick={handleCloseParseFileModal}>
+            返回
+          </Button>,
+          <Button
+            key="startParse"
+            type="primary"
+            onClick={handleStartParsing}
+            disabled={parsingStatus === '解析中' || (parsedEmissionSources.length > 0 && (parsingStatus === '解析成功' || parsingStatus === '解析失败'))}
+            loading={parsingStatus === '解析中'}
+          >
+            {parsingStatus === '解析中' ? '正在解析...' : '开始解析'}
+          </Button>,
+          <Button key="batchEffective" onClick={() => handleBatchSetStatus('已生效')} disabled={selectedParsedSourceKeys.length === 0}>
+            批量生效
+          </Button>,
+          <Button key="batchIneffective" onClick={() => handleBatchSetStatus('未生效')} disabled={selectedParsedSourceKeys.length === 0}>
+            批量失效
+          </Button>,
+          // "批量删除" might be needed based on PRD ("已删除" state)
+          // <Button key="batchDelete" danger onClick={() => handleBatchSetStatus('已删除')} disabled={selectedParsedSourceKeys.length === 0}>
+          //  批量删除
+          // </Button>,
+        ]}
+      >
+        {currentParsingFile && (
+          <div style={{ marginBottom: 24 }}>
+            <Typography.Title level={5}>文件信息</Typography.Title>
+            <Row gutter={16}>
+              <Col span={8}><strong>文件名称:</strong> {currentParsingFile.name}</Col>
+              <Col span={8}><strong>上传时间:</strong> {new Date(currentParsingFile.uploadTime).toLocaleString()}</Col>
+              <Col span={8}>
+                <strong>文件路径:</strong>{' '}
+                {currentParsingFile.url ? (
+                  <a href={currentParsingFile.url} target="_blank" rel="noopener noreferrer">
+                    点击预览
+                  </a>
+                ) : (
+                  '无可用链接'
+                )}
+              </Col>
+            </Row>
+            <Divider />
+            <Typography.Title level={5} style={{ marginTop: 16 }}>解析结果</Typography.Title>
+            <Row gutter={16}>
+                <Col span={8}><strong>解析状态:</strong> {parsingStatus}</Col>
+                <Col span={16}><strong>解析结果概览:</strong> {parseResultSummary}</Col>
+            </Row>
+          </div>
+        )}
+        <Typography.Title level={5} style={{ marginTop: 16, marginBottom: 16 }}>解析结果数据</Typography.Title>
+        <Table
+          rowSelection={{
+            type: 'checkbox',
+            selectedRowKeys: selectedParsedSourceKeys,
+            onChange: (keys: React.Key[]) => {
+              setSelectedParsedSourceKeys(keys);
+            },
+          }}
+          columns={[
+            { title: '序号', dataIndex: 'index', key: 'index', render: (text: any, record: ParsedEmissionSource, index: number) => index + 1, width: 60 },
+            { title: '生命周期阶段', dataIndex: 'lifecycleStage', key: 'lifecycleStage' },
+            { title: '排放源名称', dataIndex: 'name', key: 'name' },
+            { title: '排放源类别', dataIndex: 'category', key: 'category' },
+            { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: (text?: string) => text || '-' },
+            { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData', render: (val?: number) => (typeof val === 'number' ? val : '-') },
+            { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit', render: (text?: string) => text || '-' },
+            {
+              title: '数据状态',
+              dataIndex: 'dataStatus',
+              key: 'dataStatus',
+              render: (status: ParsedEmissionSource['dataStatus']) => {
+                let color = 'grey';
+                if (status === '已生效') color = 'green';
+                else if (status === '已删除') color = 'red';
+                return <span style={{ color }}>{status}</span>;
+              },
+            },
+          ]}
+          dataSource={parsedEmissionSources}
+          rowKey="key"
+          size="small"
+          pagination={{ pageSize: 10 }}
+          scroll={{ y: 'calc(60vh - 250px)' }} // Adjust scroll height as needed
+        />
+      </Modal>
+
     </div>
   );
 }
