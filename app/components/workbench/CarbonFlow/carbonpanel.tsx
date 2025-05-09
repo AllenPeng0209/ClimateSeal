@@ -777,19 +777,47 @@ export function CarbonCalculatorPanel() {
    const handleParseFile = (file: UploadedFile) => {
        console.log('Opening parse modal for file:', file);
        setCurrentParsingFile(file);
-       // TODO: In a real scenario, you might fetch existing parsed data for this file here
-       // For now, we'll reset to a default state.
-       setParsedEmissionSources([
-        // Example dummy data, replace with actual parsing logic
-        { id: 'parsed-1', key: 'parsed-1', index: 1, lifecycleStage: '原材料获取阶段', name: '示例排放源A', category: '原材料', activityData: 100, activityUnit: 'kg', dataStatus: '未生效', sourceFileId: file.id, supplementaryInfo: '来自文件解析' },
-        { id: 'parsed-2', key: 'parsed-2', index: 2, lifecycleStage: '生产阶段', name: '示例排放源B', category: '能耗', activityData: 500, activityUnit: 'kWh', dataStatus: '未生效', sourceFileId: file.id, supplementaryInfo: '自动生成' },
-       ]);
+
+       let initialModalParsingStatus: '未开始' | '解析中' | '解析成功' | '解析失败' = '未开始';
+       let initialSummary = '';
+       let initialParsedSources: ParsedEmissionSource[] = [];
+
+       switch (file.status) {
+           case 'pending':
+               initialModalParsingStatus = '未开始';
+               initialSummary = '文件待解析。点击"开始解析"以处理文件。';
+               // No initial parsed sources for pending, should be empty until parse.
+               break;
+           case 'parsing':
+               initialModalParsingStatus = '解析中';
+               initialSummary = '文件当前正在解析中...';
+               // Parsed sources might be empty or partially filled from an ongoing process.
+               // For now, keep it empty for simplicity unless we fetch mid-parse state.
+               break;
+           case 'completed':
+               initialModalParsingStatus = '解析成功';
+               initialSummary = '文件已解析完成。以下为解析结果。';
+               // TODO: Fetch actual parsed data for this file. Using dummy data for now.
+               initialParsedSources = [
+                 { id: 'parsed-comp-1', key: 'parsed-comp-1', index: 1, lifecycleStage: '原材料获取阶段', name: '已解析源X', category: '原材料', activityData: 200, activityUnit: 'kg', dataStatus: '未生效', sourceFileId: file.id, supplementaryInfo: '来自成功解析' },
+                 { id: 'parsed-comp-2', key: 'parsed-comp-2', index: 2, lifecycleStage: '生产阶段', name: '已解析源Y', category: '能耗', activityData: 300, activityUnit: 'kWh', dataStatus: '已生效', sourceFileId: file.id, supplementaryInfo: '来自成功解析' },
+               ];
+               break;
+           case 'failed':
+               initialModalParsingStatus = '解析失败';
+               initialSummary = '文件解析失败。可尝试重新解析。';
+               // Parsed sources should be empty.
+               break;
+           default: // Should not happen
+               initialModalParsingStatus = '未开始';
+               initialSummary = `未知文件状态 (${file.status})。`;
+       }
+
+       setParsingStatus(initialModalParsingStatus);
+       setParseResultSummary(initialSummary);
+       setParsedEmissionSources(initialParsedSources);
        setSelectedParsedSourceKeys([]);
-       setParsingStatus('未开始'); // Or load last known status
-       setParseResultSummary('文件尚未开始解析。'); // Or load last summary
        setIsParseFileModalVisible(true);
-       // Original placeholder message removed as we are now opening a modal
-       // message.info('解析功能待实现');
    };
 
    const handleEditFile = (file: UploadedFile) => {
@@ -915,6 +943,26 @@ export function CarbonCalculatorPanel() {
     // For now, this only updates the local state within this modal.
   };
 
+  // Helper function to get Chinese status message for UploadedFile status
+  const getChineseFileStatusMessage = (status: UploadedFile['status'] | ('未开始' | '解析中' | '解析成功' | '解析失败')) : string => {
+    switch (status) {
+        case 'pending':
+        case '未开始': // Also handle the internal state if it's already in a preliminary Chinese form
+            return '未解析';
+        case 'parsing':
+        case '解析中':
+            return '解析中';
+        case 'completed':
+        case '解析成功':
+            return '解析完成';
+        case 'failed':
+        case '解析失败':
+            return '解析失败';
+        default:
+            return status; // Fallback
+    }
+  };
+
   // --- Render functions ---
 
   // Updated renderScore to return the score value (0-100, rounded) or 0 if invalid/missing/zero
@@ -1034,7 +1082,26 @@ export function CarbonCalculatorPanel() {
   const fileTableColumns = [
       { title: '文件名称', dataIndex: 'name', key: 'name' },
       { title: '文件类型', dataIndex: 'type', key: 'type', width: 120 }, // Renamed header as per PRD
-      { title: '状态', dataIndex: 'status', key: 'status', width: 100 }, // Added Status column
+      { 
+        title: '状态', 
+        dataIndex: 'status', 
+        key: 'status', 
+        width: 100, 
+        render: (status: UploadedFile['status']) => {
+          switch (status) {
+            case 'pending':
+              return '未解析';
+            case 'parsing':
+              return '解析中';
+            case 'completed':
+              return '解析完成';
+            case 'failed':
+              return '解析失败';
+            default:
+              return status; // Fallback, though should not happen
+          }
+        }
+      }, // Added Status column
       {
           title: '操作',
           key: 'action',
@@ -1044,12 +1111,12 @@ export function CarbonCalculatorPanel() {
                   <Tooltip title="解析">
                       <Button type="link" icon={<ExperimentOutlined />} onClick={() => handleParseFile(record)} />
                   </Tooltip>
-                  <Tooltip title="编辑">
+                  {/* <Tooltip title="编辑">
                        <Button type="link" icon={<EditOutlined />} onClick={() => handleEditFile(record)} />
                   </Tooltip>
                   <Tooltip title="预览">
                       <Button type="link" icon={<EyeOutlined />} onClick={() => handlePreviewFile(record)} />
-                  </Tooltip>
+                  </Tooltip> */}
                   <Tooltip title="删除">
                        <Popconfirm title="确定删除吗?" onConfirm={() => handleDeleteFile(record.id)}>
                           <Button type="link" danger icon={<DeleteOutlined />} />
@@ -1968,7 +2035,7 @@ export function CarbonCalculatorPanel() {
             key="startParse"
             type="primary"
             onClick={handleStartParsing}
-            disabled={parsingStatus === '解析中' || (parsedEmissionSources.length > 0 && (parsingStatus === '解析成功' || parsingStatus === '解析失败'))}
+            disabled={parsingStatus === '解析中' || parsingStatus === '解析成功'}
             loading={parsingStatus === '解析中'}
           >
             {parsingStatus === '解析中' ? '正在解析...' : '开始解析'}
@@ -2005,7 +2072,7 @@ export function CarbonCalculatorPanel() {
             <Divider />
             <Typography.Title level={5} style={{ marginTop: 16 }}>解析结果</Typography.Title>
             <Row gutter={16}>
-                <Col span={8}><strong>解析状态:</strong> {parsingStatus}</Col>
+                <Col span={8}><strong>解析状态:</strong> {getChineseFileStatusMessage(parsingStatus)}</Col>
                 <Col span={16}><strong>解析结果概览:</strong> {parseResultSummary}</Col>
             </Row>
           </div>
