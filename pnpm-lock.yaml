@@ -288,7 +288,7 @@ importers:
         specifier: ^0.15.2
         version: 0.15.2(zod@3.24.3)
       openai:
-        specifier: ^4.97.0
+        specifier: ^4.96.0
         version: 4.97.0(encoding@0.1.13)(ws@8.18.1)(zod@3.24.3)
       papaparse:
         specifier: ^5.5.2
@@ -3775,6 +3775,9 @@ packages:
 
   '@types/node@22.15.16':
     resolution: {integrity: sha512-3pr+KjwpVujqWqOKT8mNR+rd09FqhBLwg+5L/4t0cNYBzm/yEiYGCxWttjaPBsLtAo+WFNoXzGJfolM1JuRXoA==}
+
+  '@types/papaparse@5.3.15':
+    resolution: {integrity: sha512-JHe6vF6x/8Z85nCX4yFdDslN11d+1pr12E526X8WAfhadOeaOTx5AuIkvDKIBopfvlzpzkdMx4YyvSKCM9oqtw==}
 
   '@types/path-browserify@1.0.3':
     resolution: {integrity: sha512-ZmHivEbNCBtAfcrFeBCiTjdIc2dey0l7oCGNGpSuRTy8jP6UVND7oUowlvDujBy8r2Hoa8bfFUOCiPWfmtkfxw==}
@@ -13589,7 +13592,7 @@ snapshots:
 
   '@types/node-fetch@2.6.12':
     dependencies:
-      '@types/node': 22.14.1
+      '@types/node': 22.15.16
       form-data: 4.0.2
 
   '@types/node@18.19.95':
@@ -13606,7 +13609,7 @@ snapshots:
 
   '@types/papaparse@5.3.15':
     dependencies:
-      '@types/node': 22.14.1
+      '@types/node': 22.15.16
 
   '@types/path-browserify@1.0.3': {}
 
