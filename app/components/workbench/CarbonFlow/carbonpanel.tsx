@@ -1063,11 +1063,14 @@ export function CarbonCalculatorPanel() {
                 bodyStyle={{ overflow: 'auto' }}
               >
                 <Space direction="vertical" className="w-full">
-                  <div>预期核验等级: {sceneInfo.verificationLevel || '未设置'}</div>
-                  <div>满足标准: {sceneInfo.standard || '未设置'}</div>
-                  <div>核算产品: {sceneInfo.productName || '未设置'}</div>
-                  <div>功能单位: {sceneInfo.functionalUnit || '未设置'}</div>
-                  <div>基准流: {typeof sceneInfo.referenceFlowValue === 'number' ? `${sceneInfo.referenceFlowValue} ${sceneInfo.referenceFlowUnit || ''}`.trim() : '未设置'}</div>
+                  <div>预期核验等级: {sceneInfo.verificationLevel ? sceneInfo.verificationLevel : <span className="status-unset">未设置</span>}</div>
+                  <div>满足标准: {sceneInfo.standard ? sceneInfo.standard : <span className="status-unset">未设置</span>}</div>
+                  <div>核算产品: {sceneInfo.productName ? sceneInfo.productName : <span className="status-unset">未设置</span>}</div>
+                  <div>功能单位: {sceneInfo.functionalUnit ? sceneInfo.functionalUnit : <span className="status-unset">未设置</span>}</div>
+                  <div>基准流: {typeof sceneInfo.referenceFlowValue === 'number' 
+                                ? `${sceneInfo.referenceFlowValue}${sceneInfo.referenceFlowUnit ? ` ${sceneInfo.referenceFlowUnit}` : ''}` 
+                                : <span className="status-unset">未设置</span>}
+                  </div>
                 </Space>
               </Card>
             </Col>
@@ -1181,23 +1184,23 @@ export function CarbonCalculatorPanel() {
         footer={null} // Use Form's footer
       >
             <Form layout="vertical" onFinish={handleSaveSettings} initialValues={sceneInfo}>
-                <Form.Item name="verificationLevel" label="预期核验等级" rules={[{ required: true, message: '请选择核验等级' }]}>
-                    <Select placeholder="选择核验等级">
+                <Form.Item name="verificationLevel" label="预期核验等级">
+                    <Select placeholder="选择核验等级" allowClear>
                         <Select.Option value="准核验级别">准核验级别</Select.Option>
                         <Select.Option value="披露级别">披露级别</Select.Option>
                     </Select>
                 </Form.Item>
-                 <Form.Item name="standard" label="满足标准" rules={[{ required: true, message: '请选择满足标准' }]}>
-                    <Select placeholder="选择满足标准">
+                 <Form.Item name="standard" label="满足标准">
+                    <Select placeholder="选择满足标准" allowClear>
                         <Select.Option value="ISO14067">ISO14067</Select.Option>
                         <Select.Option value="欧盟电池法">欧盟电池法</Select.Option>
                     </Select>
                 </Form.Item>
-                 <Form.Item name="productName" label="核算产品" rules={[{ required: true, message: '请输入核算产品名称' }]}>
-                    <Input placeholder="输入产品名称" />
+                 <Form.Item name="productName" label="核算产品">
+                    <Input placeholder="输入产品名称" allowClear />
                 </Form.Item>
-                <Form.Item name="functionalUnit" label="功能单位" rules={[{ required: true, message: '请输入功能单位' }]}>
-                    <Input placeholder="输入功能单位" />
+                <Form.Item name="functionalUnit" label="功能单位">
+                    <Input placeholder="输入功能单位" allowClear />
                 </Form.Item>
                 <Row gutter={16}>
                     <Col span={16}>
@@ -1205,30 +1208,34 @@ export function CarbonCalculatorPanel() {
                             name="referenceFlowValue" 
                             label="基准流" 
                             rules={[
-                                { required: true, message: '请输入基准流数值' },
+                                // { required: true, message: '请输入基准流数值' }, // Not required anymore
                                 { 
                                     type: 'number', 
-                                    transform: value => String(value).trim() === '' ? undefined : Number(value),
+                                    transform: value => {
+                                        const sValue = String(value).trim();
+                                        if (sValue === '' || value === null || value === undefined) return undefined;
+                                        return Number(sValue);
+                                    },
                                     message: '基准流数值必须为有效的数字' 
                                 },
                                 {
                                     validator: (_, value) => {
-                                        if (value === undefined || value === null || String(value).trim() === '') return Promise.resolve(); // Allow empty if not required / handle required elsewhere
+                                        if (value === undefined || value === null || String(value).trim() === '') return Promise.resolve();
                                         return Number(value) > 0 ? Promise.resolve() : Promise.reject(new Error('基准流数值必须大于0'));
                                     }
                                 }
                             ]}
                         >
-                            <Input type="number" step="0.0000000001" placeholder="输入数值，大于0，保留10位小数" />
+                            <Input type="number" step="0.0000000001" placeholder="输入数值，大于0，保留10位小数" allowClear />
                         </Form.Item>
                     </Col>
                     <Col span={8}>
                         <Form.Item 
                             name="referenceFlowUnit" 
                             label="&nbsp;" // For alignment
-                            rules={[{ required: true, message: '请输入基准流单位' }]}
+                            // rules={[{ required: true, message: '请输入基准流单位' }]} // Not required anymore
                         >
-                            <Input placeholder="单位" />
+                            <Input placeholder="单位" allowClear />
                         </Form.Item>
                     </Col>
                 </Row>
