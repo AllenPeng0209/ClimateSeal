@@ -14,7 +14,7 @@ import CarbonFactorSearchSection from "~/components/dashboard/sections/CarbonFac
 import EnterpriseKnowledgeSection from "~/components/dashboard/sections/EnterpriseKnowledgeSection";
 import IndustryKnowledgeSection from "~/components/dashboard/sections/IndustryKnowledgeSection";
 import "~/styles/dashboard.css";
-import { useAuth } from '../components/auth/AuthProvider';
+import { useAuthContext } from '../contexts/AuthContext';
 import { PrivateRoute } from '../components/auth/PrivateRoute';
 import {
   LogoutOutlined,
@@ -132,7 +132,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function Dashboard() {
-  const { authState } = useAuth();
+  const { user, loading } = useAuthContext();
   const { 
     workflows,
     products,
@@ -401,7 +401,7 @@ export default function Dashboard() {
               <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
                 <Space style={{ cursor: 'pointer' }}>
                   <Avatar icon={<UserOutlined />} />
-                  {authState.user && <span>{authState.user.email}</span>}
+                  {user && <span>{user.email}</span>}
                 </Space>
               </Dropdown>
             </Space>

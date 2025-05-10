@@ -109,8 +109,8 @@ export function useAuth() {
     loading,
     error,
     login,
-    register,
     logout,
+    register,
     loginWithGoogle,
     checkAuth,
   };
