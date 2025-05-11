@@ -1,477 +1,698 @@
-import { useMemo } from 'react';
-import type { Edge } from 'reactflow';
-import type { NodeData } from '~/types/nodes';
+import React, { useCallback, useState, useEffect } from 'react';
+import type { Node } from 'reactflow';
+import {
+  Tag,
+  Collapse,
+  Progress,
+  Empty,
+  Typography,
+} from 'antd';
+import { UpOutlined, DownOutlined } from '@ant-design/icons';
+import type {
+  NodeData,
+  ProductNodeData,
+  ManufacturingNodeData,
+  DistributionNodeData,
+  // UsageNodeData, // Not explicitly used in calc, but good to have for future
+  // DisposalNodeData, // Not explicitly used in calc, but good to have for future
+} from '~/types/nodes';
+import { useCarbonFlowStore } from './CarbonFlowBridge';
+// It's good practice to create a dedicated CSS file for the component.
+// Ensure styles from CarbonFlow.css related to AI summary are moved here or new styles are created.
+import './AISummary.css'; 
 
-interface AISummaryProps {
-  nodes: NodeData[];
-  edges: Edge[];
-}
-
-interface IncompleteNode {
-  id: string;
-  data: {
-    label: string;
+export interface AISummaryReport {
+  credibilityScore: number;
+  missingLifecycleStages: string[];
+  isExpanded: boolean;
+  modelCompleteness: {
+    score: number;
+    lifecycleCompleteness: number;
+    nodeCompleteness: number;
+    incompleteNodes: {
+      id: string;
+      label: string;
+      missingFields: string[];
+    }[];
   };
-  missingFields: string[];
+  massBalance: {
+    score: number;
+    ratio: number;
+    incompleteNodes: {
+      id: string;
+      label: string;
+      missingFields: string[];
+    }[];
+  };
+  dataTraceability: {
+    score: number;
+    coverage: number;
+    incompleteNodes: {
+      id: string;
+      label: string;
+      missingFields: string[];
+    }[];
+  };
+  validation: {
+    score: number;
+    consistency: number;
+    incompleteNodes: {
+      id: string;
+      label: string;
+      missingFields: string[];
+    }[];
+  };
+  expandedSection: 'overview' | 'details' | null;
 }
 
-interface OptimizableNode {
-  label: string;
-  reason: string;
+const initialAiSummaryReport: AISummaryReport = {
+  credibilityScore: 0,
+  missingLifecycleStages: [],
+  isExpanded: true,
+  modelCompleteness: {
+    score: 0,
+    lifecycleCompleteness: 0,
+    nodeCompleteness: 0,
+    incompleteNodes: [],
+  },
+  massBalance: {
+    score: 0,
+    ratio: 0,
+    incompleteNodes: [],
+  },
+  dataTraceability: {
+    score: 0,
+    coverage: 0,
+    incompleteNodes: [],
+  },
+  validation: {
+    score: 0,
+    consistency: 0,
+    incompleteNodes: [],
+  },
+  expandedSection: null,
+};
+
+interface CarbonFlowAISummaryProps {
+  nodes: Node<NodeData>[];
+  setSelectedNode: (node: Node<NodeData> | null) => void;
 }
 
-interface ManualNode {
-  id: string;
-  label: string;
-}
+export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISummaryProps) => {
+  const [aiReport, setAiReport] = useState<AISummaryReport>(initialAiSummaryReport);
+  const { setAiSummary: setStoreAiSummary } = useCarbonFlowStore();
 
-export const AISummary = ({ nodes, edges }: AISummaryProps) => {
-  const summary = useMemo(() => {
-    // 計算模型完整性
-    const modelCompleteness = calculateModelCompleteness(nodes);
+  const calculateAiSummaryInternal = useCallback((currentNodes: Node<NodeData>[]): AISummaryReport => {
+    // Define mapping from English stage keys (used in node data) to Chinese names (used in this calculation logic)
+    const stageNameMapping: Record<string, string> = {
+      'product': '原材料获取',
+      'manufacturing': '生产制造',
+      'distribution': '分销和储存',
+      'usage': '产品使用',
+      'disposal': '废弃处置',
+      // 'finalProduct' is not typically part of this specific lifecycle completeness check
+    };
 
-    // 計算質量平衡
-    const massBalance = calculateMassBalance(nodes);
+    if (!currentNodes || currentNodes.length === 0) {
+      return {
+        ...initialAiSummaryReport,
+        isExpanded: aiReport.isExpanded, 
+      };
+    }
 
-    // 計算數據可追溯性
-    const dataTraceability = calculateDataTraceability(nodes);
+    const lifecycle = ['原材料获取', '生产制造', '分销和储存', '产品使用', '废弃处置'];
+    // Use mapped stage names for calculating existing stages
+    const existingStages = new Set(
+      currentNodes.map(node => node.data?.lifecycleStage ? stageNameMapping[node.data.lifecycleStage] : undefined).filter(Boolean)
+    );
+    const missingLifecycleStages = lifecycle.filter((stage) => !existingStages.has(stage));
+    let lifecycleCompletenessScore = 0;
+    if (lifecycle.length > 0) {
+        lifecycleCompletenessScore = ((lifecycle.length - missingLifecycleStages.length) / lifecycle.length) * 100;
+    }
 
-    // 計算驗證狀態
-    const validation = calculateValidation(nodes);
+
+    let totalFields = 0;
+    let completedFields = 0;
+    const completeIncompleteNodes: AISummaryReport['modelCompleteness']['incompleteNodes'] = [];
+
+    currentNodes.forEach((node) => {
+      const missingFields: string[] = [];
+      if (!node.data) return;
+
+      // Use mapped stage name for the switch statement
+      const mappedStage = node.data?.lifecycleStage ? stageNameMapping[node.data.lifecycleStage] : undefined;
+
+      switch (mappedStage) {
+        case '原材料获取': {
+          const productData = node.data as ProductNodeData;
+          const quantity =
+            productData.quantity !== undefined && !Number.isNaN(Number(productData.quantity))
+              ? Number(productData.quantity)
+              : 0;
+          if (quantity === 0) {
+            totalFields++;
+            missingFields.push('数量');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (
+            typeof node.data.carbonFactor === 'undefined' ||
+            node.data.carbonFactor === null ||
+            Number(node.data.carbonFactor) === 0 
+          ) {
+            totalFields++;
+            missingFields.push('碳足迹因子');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof node.data.carbonFactorName === 'undefined' || node.data.carbonFactorName === '') {
+            totalFields++;
+            missingFields.push('碳足迹因子名称');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (!node.data.carbonFactordataSource) {
+            totalFields++;
+            missingFields.push('碳足迹因子数据来源');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          break;
+        }
+        case '生产制造': {
+          const manufacturingData = node.data as ManufacturingNodeData;
+          if (
+            typeof node.data.carbonFactor === 'undefined' ||
+            node.data.carbonFactor === null ||
+            Number(node.data.carbonFactor) === 0
+          ) {
+            totalFields++;
+            missingFields.push('碳足迹因子');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (
+            typeof manufacturingData.energyConsumption === 'undefined' ||
+            manufacturingData.energyConsumption === null ||
+            manufacturingData.energyConsumption === 0
+          ) {
+            totalFields++;
+            missingFields.push('能源消耗');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof manufacturingData.energyType === 'undefined' || manufacturingData.energyType === '') {
+            totalFields++;
+            missingFields.push('能源类型');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          break;
+        }
+        case '分销和储存': {
+          const distributionData = node.data as DistributionNodeData;
+          if (
+            typeof node.data.carbonFactor === 'undefined' ||
+            node.data.carbonFactor === null ||
+            Number(node.data.carbonFactor) === 0
+          ) {
+            totalFields++;
+            missingFields.push('碳足迹因子');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof distributionData.startPoint === 'undefined' || distributionData.startPoint === '') {
+            totalFields++;
+            missingFields.push('起点');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (typeof distributionData.endPoint === 'undefined' || distributionData.endPoint === '') {
+            totalFields++;
+            missingFields.push('终点');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          if (
+            typeof distributionData.transportationDistance === 'undefined' ||
+            distributionData.transportationDistance === null ||
+            distributionData.transportationDistance === 0
+          ) {
+            totalFields++;
+            missingFields.push('运输距离');
+          } else {
+            completedFields++;
+            totalFields++;
+          }
+          break;
+        }
+      }
+
+      if (missingFields.length > 0) {
+        completeIncompleteNodes.push({
+          id: node.id,
+          label: node.data.label || `Node ${node.id}`,
+          missingFields: missingFields,
+        });
+      }
+    });
+
+    const NodeCompletenessScore = totalFields > 0 ? Math.round((completedFields / totalFields) * 100) : (currentNodes.length > 0 ? 100 : 0);
+    const modelCompletenessScore = Math.round(0.25 * NodeCompletenessScore + 0.75 * lifecycleCompletenessScore);
+
+    const massIncompleteNodes: AISummaryReport['massBalance']['incompleteNodes'] = [];
+    let totalInputMass = 0;
+    let totalOutputMass = 0;
+
+    currentNodes.forEach((node) => {
+      if (!node.data) return;
+      if (node.data.lifecycleStage === '原材料获取') {
+        const productData = node.data as ProductNodeData;
+        const quantity =
+          productData.quantity !== undefined && !Number.isNaN(Number(productData.quantity))
+            ? Number(productData.quantity)
+            : 0;
+        if (quantity === 0) {
+          massIncompleteNodes.push({
+            id: node.id,
+            label: node.data.label || `Node ${node.id}`,
+            missingFields: ['数量'],
+          });
+        } else {
+          totalInputMass += quantity;
+        }
+      }
+
+      if (node.data.lifecycleStage === '最终节点') { 
+        const finalProductData = node.data; 
+        const quantity =
+          (finalProductData as ProductNodeData).quantity !== undefined && !Number.isNaN(Number((finalProductData as ProductNodeData).quantity))
+            ? Number((finalProductData as ProductNodeData).quantity)
+            : 0;
+        if (quantity === 0) {
+          massIncompleteNodes.push({
+            id: node.id,
+            label: node.data.label || `Node ${node.id}`,
+            missingFields: ['数量'],
+          });
+        } else {
+          totalOutputMass += quantity;
+        }
+      }
+    });
+
+    const errorPercentage = totalInputMass > 0 ? (Math.abs(totalInputMass - totalOutputMass) / totalInputMass) * 100 : (totalOutputMass > 0 ? 100 : 0) ;
+    let massBalanceScore = 100;
+    if (errorPercentage > 5) {
+      massBalanceScore = Math.max(0, 100 - Math.round(errorPercentage - 5));
+    }
+
+    const traceableIncompleteNodes: AISummaryReport['dataTraceability']['incompleteNodes'] = [];
+    let totalTraceableNodeNumber = 0;
+    let dataOkTraceableNodeNumber = 0;
+
+    currentNodes.forEach((node) => {
+      if (!node.data) return;
+      totalTraceableNodeNumber++;
+      if (node.data.carbonFactordataSource?.includes('数据库匹配')) {
+        dataOkTraceableNodeNumber++;
+      } else {
+        traceableIncompleteNodes.push({
+          id: node.id,
+          label: node.data.label || `Node ${node.id}`,
+          missingFields: ['碳足迹因子数据来源'],
+        });
+      }
+    });
+
+    const dataTraceabilityScore = Math.round(
+      totalTraceableNodeNumber > 0 ? (dataOkTraceableNodeNumber / totalTraceableNodeNumber) * 100 : (currentNodes.length > 0 ? 100 : 0),
+    );
+
+    const validationIncompleteNodes: AISummaryReport['validation']['incompleteNodes'] = [];
+    let totalValidationNodeNumber = 0;
+    let dataOkValidationNodeNumber = 0;
+
+    currentNodes.forEach((node) => {
+      if (!node.data) return;
+      totalValidationNodeNumber++;
+      const verificationStatus = node.data.verificationStatus;
+
+      if (verificationStatus === '未验证') {
+        validationIncompleteNodes.push({
+          id: node.id,
+          label: node.data.label || `Node ${node.id}`,
+          missingFields: ['验证状态'],
+        });
+      } else {
+        dataOkValidationNodeNumber++;
+      }
+    });
+
+    const validationScore = Math.round(
+      totalValidationNodeNumber > 0 ? (dataOkValidationNodeNumber / totalValidationNodeNumber) * 100 : (currentNodes.length > 0 ? 100 : 0),
+    );
+
+    const lifecycleCompletenessScore100 = Math.round(Math.max(0, Math.min(100, lifecycleCompletenessScore)));
+    const NodeCompletenessScore100 = Math.round(Math.max(0, Math.min(100, NodeCompletenessScore)));
+    const massBalanceScore100 = Math.round(Math.max(0, Math.min(100, massBalanceScore)));
+    const dataTraceabilityScore100 = Math.round(Math.max(0, Math.min(100, dataTraceabilityScore)));
+    const validationScore100 = Math.round(Math.max(0, Math.min(100, validationScore)));
+
+    const credibilityScore = Math.round(
+      0.1 * lifecycleCompletenessScore100 +
+        0.3 * NodeCompletenessScore100 +
+        0.1 * massBalanceScore100 +
+        0.35 * dataTraceabilityScore100 +
+        0.15 * validationScore100,
+    );
 
     return {
-      credibilityScore: calculateOverallScore([modelCompleteness, massBalance, dataTraceability, validation]),
-      modelCompleteness,
-      massBalance,
-      dataTraceability,
-      validation,
-      missingLifecycleStages: findMissingStages(nodes),
-      optimizableNode: findOptimizableNode(nodes),
-      manualRequiredNodes: findManualRequiredNodes(nodes),
-      uncertainAiNodes: findUncertainNodes(nodes),
+      credibilityScore,
+      missingLifecycleStages,
+      isExpanded: aiReport.isExpanded, 
+      modelCompleteness: {
+        score: modelCompletenessScore,
+        lifecycleCompleteness: lifecycleCompletenessScore,
+        nodeCompleteness: NodeCompletenessScore,
+        incompleteNodes: completeIncompleteNodes,
+      },
+      massBalance: {
+        score: massBalanceScore100,
+        ratio: totalInputMass > 0 ? totalOutputMass / totalInputMass : 0, 
+        incompleteNodes: massIncompleteNodes,
+      },
+      dataTraceability: {
+        score: dataTraceabilityScore100, 
+        coverage: dataTraceabilityScore100, 
+        incompleteNodes: traceableIncompleteNodes,
+      },
+      validation: {
+        score: validationScore100, 
+        consistency: validationScore100, 
+        incompleteNodes: validationIncompleteNodes,
+      },
+      expandedSection: aiReport.expandedSection, 
     };
-  }, [nodes, edges]);
+  }, [aiReport.isExpanded, aiReport.expandedSection]); 
+
+  useEffect(() => {
+    const summary = calculateAiSummaryInternal(nodes);
+    setAiReport(summary);
+    setStoreAiSummary(summary);
+  }, [nodes, calculateAiSummaryInternal, setStoreAiSummary]);
+
+  const toggleAiSummaryExpand = useCallback(() => {
+    setAiReport((prev) => ({
+      ...prev,
+      isExpanded: !prev.isExpanded,
+    }));
+  }, []);
+
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return '#52c41a'; 
+    if (score >= 75) return '#1890ff'; 
+    if (score >= 60) return '#faad14'; 
+    return '#f5222d'; 
+  };
+
+  const getScoreStatus = (score: number) => {
+    if (score >= 90) return '优';
+    if (score >= 75) return '良';
+    if (score >= 60) return '中';
+    return '差';
+  };
+  
+  const { credibilityScore, isExpanded, modelCompleteness, massBalance, dataTraceability, validation } = aiReport;
+  const credibilityScorePercent = Math.round(credibilityScore);
+
+  // Avoid rendering if nodes are not yet populated to prevent errors with empty summary
+  if (!nodes) {
+      return null; 
+  }
 
   return (
-    <div className="ai-summary">
-      <div className="ai-summary-header">
-        <h3>AI Analysis Summary</h3>
-        <div className="credibility-score">Score: {summary.credibilityScore.toFixed(1)}</div>
+    <div className={`ai-summary-module ${isExpanded ? 'expanded' : 'collapsed'}`}>
+      <div className="ai-summary-header" onClick={toggleAiSummaryExpand}>
+        <Typography.Title level={4} style={{ margin: 0 }}>AI工作流分析</Typography.Title>
+        {isExpanded ? <UpOutlined /> : <DownOutlined />}
       </div>
 
-      <div className="ai-summary-content">
-        <section className="model-completeness">
-          <h4>Model Completeness</h4>
-          <div className="score-bar">
-            <div className="score-fill" style={{ width: `${summary.modelCompleteness.score * 100}%` }} />
-          </div>
-          <div className="score-details">
-            {summary.modelCompleteness.incompleteNodes.map((node) => (
-              <div key={node.id} className="incomplete-node">
-                <span>{node.data.label}</span>
-                <span className="missing-fields">{node.missingFields.join(', ')}</span>
+      {isExpanded && (
+        <div className="ai-summary-content">
+          <div className="summary-score-section">
+            <div className="total-score">
+              <div className="score-circle" style={{ color: getScoreColor(credibilityScorePercent) }}>
+                {credibilityScorePercent}
+                <span className="score-unit">分</span>
               </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mass-balance">
-          <h4>Mass Balance</h4>
-          <div className="score-bar">
-            <div className="score-fill" style={{ width: `${summary.massBalance.score * 100}%` }} />
-          </div>
-          <div className="score-details">
-            {summary.massBalance.incompleteNodes.map((node) => (
-              <div key={node.id} className="incomplete-node">
-                <span>{node.data.label}</span>
-                <span className="missing-fields">{node.missingFields.join(', ')}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="data-traceability">
-          <h4>Data Traceability</h4>
-          <div className="score-bar">
-            <div className="score-fill" style={{ width: `${summary.dataTraceability.score * 100}%` }} />
-          </div>
-          <div className="score-details">
-            {summary.dataTraceability.incompleteNodes.map((node) => (
-              <div key={node.id} className="incomplete-node">
-                <span>{node.data.label}</span>
-                <span className="missing-fields">{node.missingFields.join(', ')}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="validation">
-          <h4>Validation</h4>
-          <div className="score-bar">
-            <div className="score-fill" style={{ width: `${summary.validation.score * 100}%` }} />
-          </div>
-          <div className="score-details">
-            {summary.validation.incompleteNodes.map((node) => (
-              <div key={node.id} className="incomplete-node">
-                <span>{node.data.label}</span>
-                <span className="missing-fields">{node.missingFields.join(', ')}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="optimization-suggestions">
-          <h4>Optimization Suggestions</h4>
-          {summary.optimizableNode && (
-            <div className="optimization-node">
-              <span className="node-label">{summary.optimizableNode.label}</span>
-              <span className="optimization-reason">{summary.optimizableNode.reason}</span>
+              <div className="score-label">总体可信度</div>
+              <Tag color={getScoreColor(credibilityScorePercent)}>{getScoreStatus(credibilityScorePercent)}</Tag>
             </div>
-          )}
-        </section>
+          </div>
 
-        <section className="manual-required">
-          <h4>Manual Review Required</h4>
-          {summary.manualRequiredNodes.map((node) => (
-            <div key={node.id} className="manual-node">
-              <span>{node.label}</span>
-            </div>
-          ))}
-        </section>
-      </div>
+          <Collapse defaultActiveKey={['modelCompleteness']}>
+            <Collapse.Panel
+              header={
+                <div className="score-panel-header">
+                  <span>模型完整度</span>
+                  <span className="score-value" style={{ color: getScoreColor(modelCompleteness.score) }}>
+                    {modelCompleteness.score}分
+                  </span>
+                </div>
+              }
+              key="modelCompleteness"
+            >
+              <div className="score-detail-content">
+                <Progress
+                  percent={modelCompleteness.score}
+                  strokeColor={getScoreColor(modelCompleteness.score)}
+                  size="small"
+                />
+                <div className="score-summary">
+                  <Typography.Title level={5}>评分总结</Typography.Title>
+                  <div className="score-item">
+                    <span>生命周期完整性:</span>
+                    <span>{modelCompleteness.lifecycleCompleteness.toFixed(0)}%</span>
+                  </div>
+                  <div className="score-item">
+                    <span>节点完整性:</span>
+                    <span>{modelCompleteness.nodeCompleteness.toFixed(0)}%</span>
+                  </div>
+                </div>
+                {modelCompleteness.incompleteNodes.length > 0 ? (
+                  <div className="optimization-nodes">
+                    <Typography.Title level={5}>需要优化的节点</Typography.Title>
+                    {modelCompleteness.incompleteNodes.map((node) => (
+                      <div
+                        key={node.id}
+                        className="node-item"
+                        onClick={() => {
+                          const targetNode = nodes.find((n) => n.id === node.id);
+                          if (targetNode) {
+                            setSelectedNode(targetNode);
+                          }
+                        }}
+                      >
+                        <div className="node-header">
+                          <Tag color="warning">{node.label}</Tag>
+                        </div>
+                        <div className="node-details">
+                          <div>缺失字段:</div>
+                          <div className="missing-fields">
+                            {node.missingFields.map((field) => (
+                              <Tag key={field} color="error">
+                                {field}
+                              </Tag>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (<Empty description="模型完整度良好" />)}
+              </div>
+            </Collapse.Panel>
+
+            <Collapse.Panel
+              header={
+                <div className="score-panel-header">
+                  <span>质量平衡</span>
+                  <span className="score-value" style={{ color: getScoreColor(massBalance.score) }}>
+                    {massBalance.score}分
+                  </span>
+                </div>
+              }
+              key="massBalance"
+            >
+              <div className="score-detail-content">
+                <Progress percent={massBalance.score} strokeColor={getScoreColor(massBalance.score)} size="small" />
+                <div className="score-summary">
+                  <Typography.Title level={5}>评分总结</Typography.Title>
+                  <div className="score-item">
+                    <span>平衡率 (输出/输入):</span>
+                    <span>{massBalance.ratio.toFixed(2)}</span>
+                  </div>
+                </div>
+                {massBalance.incompleteNodes.length > 0 ? (
+                  <div className="optimization-nodes">
+                    <Typography.Title level={5}>需要优化的节点 (缺失数量信息)</Typography.Title>
+                    {massBalance.incompleteNodes.map((node) => (
+                     <div
+                        key={node.id}
+                        className="node-item"
+                        onClick={() => {
+                          const targetNode = nodes.find((n) => n.id === node.id);
+                          if (targetNode) {
+                            setSelectedNode(targetNode);
+                          }
+                        }}
+                      >
+                        <div className="node-header">
+                          <Tag color="warning">{node.label}</Tag>
+                        </div>
+                        <div className="node-details">
+                          <div>缺失字段:</div>
+                          <div className="missing-fields">
+                            {node.missingFields.map((field) => (
+                              <Tag key={field} color="error">
+                                {field}
+                              </Tag>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ): (<Empty description="质量平衡良好或无需检查" />)}
+              </div>
+            </Collapse.Panel>
+
+            <Collapse.Panel
+              header={
+                <div className="score-panel-header">
+                  <span>数据可追溯性</span>
+                  <span className="score-value" style={{ color: getScoreColor(dataTraceability.score) }}>
+                    {dataTraceability.score}分
+                  </span>
+                </div>
+              }
+              key="dataTraceability"
+            >
+              <div className="score-detail-content">
+                <Progress
+                  percent={dataTraceability.score}
+                  strokeColor={getScoreColor(dataTraceability.score)}
+                  size="small"
+                />
+                <div className="score-summary">
+                  <Typography.Title level={5}>评分总结</Typography.Title>
+                  <div className="score-item">
+                    <span>关键数据覆盖率:</span>
+                    <span>{dataTraceability.coverage.toFixed(0)}%</span>
+                  </div>
+                </div>
+                 {dataTraceability.incompleteNodes.length > 0 ? (
+                  <div className="optimization-nodes">
+                    <Typography.Title level={5}>需要优化的节点 (数据来源非数据库匹配)</Typography.Title>
+                    {dataTraceability.incompleteNodes.map((node) => (
+                      <div
+                        key={node.id}
+                        className="node-item"
+                        onClick={() => {
+                          const targetNode = nodes.find((n) => n.id === node.id);
+                          if (targetNode) {
+                            setSelectedNode(targetNode);
+                          }
+                        }}
+                      >
+                        <div className="node-header">
+                          <Tag color="warning">{node.label}</Tag>
+                        </div>
+                        <div className="node-details">
+                          <div>缺失字段:</div>
+                          <div className="missing-fields">
+                            {node.missingFields.map((field) => (
+                              <Tag key={field} color="error">
+                                {field}
+                              </Tag>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                 ) : (<Empty description="数据可追溯性良好" />)}
+              </div>
+            </Collapse.Panel>
+
+            <Collapse.Panel
+              header={
+                <div className="score-panel-header">
+                  <span>数据验证</span>
+                  <span className="score-value" style={{ color: getScoreColor(validation.score) }}>
+                    {validation.score}分
+                  </span>
+                </div>
+              }
+              key="validation"
+            >
+              <div className="score-detail-content">
+                <Progress percent={validation.score} strokeColor={getScoreColor(validation.score)} size="small" />
+                <div className="score-summary">
+                  <Typography.Title level={5}>评分总结</Typography.Title>
+                  <div className="score-item">
+                    <span>已验证节点占比:</span> 
+                    <span>{validation.consistency.toFixed(0)}%</span>
+                  </div>
+                </div>
+                {validation.incompleteNodes.length > 0 ? (
+                  <div className="optimization-nodes">
+                    <Typography.Title level={5}>需要优化的节点 (未验证)</Typography.Title>
+                    {validation.incompleteNodes.map((node) => (
+                      <div
+                        key={node.id}
+                        className="node-item"
+                        onClick={() => {
+                          const targetNode = nodes.find((n) => n.id === node.id);
+                          if (targetNode) {
+                            setSelectedNode(targetNode);
+                          }
+                        }}
+                      >
+                        <div className="node-header">
+                          <Tag color="warning">{node.label}</Tag>
+                        </div>
+                        <div className="node-details">
+                          <div>缺失字段:</div>
+                          <div className="missing-fields">
+                            {node.missingFields.map((field) => (
+                              <Tag key={field} color="error">
+                                {field}
+                              </Tag>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (<Empty description="数据验证状态良好" />)}
+              </div>
+            </Collapse.Panel>
+          </Collapse>
+        </div>
+      )}
     </div>
   );
 };
-
-// 輔助函數
-function calculateModelCompleteness(nodes: NodeData[]) {
-  // 1. 计算模型完整性
-  const lifecycle = ['原材料', '生产制造', '分销和储存', '产品使用', '废弃处置'];
-  const existingStages = new Set(nodes.map((node) => node.lifecycleStage).filter(Boolean));
-  const missingLifecycleStages = lifecycle.filter((stage) => !existingStages.has(stage));
-  const lifecycleCompletenessScore = ((lifecycle.length - missingLifecycleStages.length) / lifecycle.length) * 100;
-
-  let completedFields = 0;
-  let totalFields = 0;
-  const incompleteNodes: IncompleteNode[] = [];
-
-  nodes.forEach((node) => {
-    const missingFields: string[] = [];
-
-    // 根据节点类型检查不同字段
-    switch (node.lifecycleStage) {
-      case '原材料':
-        if (!node.weight || node.weight === 0) {
-          totalFields++;
-          missingFields.push('重量');
-        } else {
-          completedFields++;
-          totalFields++;
-        }
-        if (!node.carbonFactor || node.carbonFactor === 0) {
-          totalFields++;
-          missingFields.push('碳足跡因子');
-        } else {
-          completedFields++;
-          totalFields++;
-        }
-        if (!node.carbonFactordataSource) {
-          totalFields++;
-          missingFields.push('碳足跡因子來源');
-        } else {
-          completedFields++;
-          totalFields++;
-        }
-        break;
-
-      case '生产制造':
-        if (!node.carbonFactor || node.carbonFactor === 0) {
-          totalFields++;
-          missingFields.push('碳足跡因子');
-        } else {
-          completedFields++;
-          totalFields++;
-        }
-        if (!node.energyConsumption || node.energyConsumption === 0) {
-          totalFields++;
-          missingFields.push('能源消耗');
-        } else {
-          completedFields++;
-          totalFields++;
-        }
-        if (!node.energyType) {
-          totalFields++;
-          missingFields.push('能源类型');
-        } else {
-          completedFields++;
-          totalFields++;
-        }
-        break;
-
-      case '分销和储存':
-        if (!node.carbonFactor || node.carbonFactor === 0) {
-          totalFields++;
-          missingFields.push('碳足跡因子');
-        } else {
-          completedFields++;
-          totalFields++;
-        }
-        if (!node.startPoint) {
-          totalFields++;
-          missingFields.push('起点');
-        } else {
-          completedFields++;
-          totalFields++;
-        }
-        if (!node.endPoint) {
-          totalFields++;
-          missingFields.push('终点');
-        } else {
-          completedFields++;
-          totalFields++;
-        }
-        if (!node.transportDistance || node.transportDistance === 0) {
-          totalFields++;
-          missingFields.push('运输距离');
-        } else {
-          completedFields++;
-          totalFields++;
-        }
-        break;
-    }
-
-    // 只有当有缺失字段时才添加到 incompleteNodes
-    if (missingFields.length > 0) {
-      incompleteNodes.push({
-        id: node.id,
-        data: {
-          label: node.label,
-        },
-        missingFields: missingFields,
-      });
-    }
-  });
-
-  // 計算模型完整度
-  const nodeCompletenessScore = totalFields > 0 ? Math.round((completedFields / totalFields) * 100) : 0;
-  const modelCompletenessScore = Math.round(0.25 * nodeCompletenessScore + 0.75 * lifecycleCompletenessScore) / 100;
-
-  return {
-    score: modelCompletenessScore,
-    lifecycleCompleteness: lifecycleCompletenessScore / 100,
-    nodeCompleteness: nodeCompletenessScore / 100,
-    incompleteNodes,
-  };
-}
-
-function calculateMassBalance(nodes: NodeData[]) {
-  // 2. 计算质量平衡, 質量的百分比誤差為分數
-  const incompleteNodes: IncompleteNode[] = [];
-
-  // 遍歷所有節點, 找到原材料節點, 獲取重量, 並且相加
-  let totalInputMass = 0;
-  let totalOutputMass = 0;
-
-  nodes.forEach((node) => {
-    if (node.lifecycleStage === '原材料') {
-      //需要判定重量是否存在
-      if (!node.weight || node.weight === 0) {
-        incompleteNodes.push({
-          id: node.id,
-          data: {
-            label: node.label,
-          },
-          missingFields: ['重量'],
-        });
-      } else {
-        totalInputMass += node.weight || 0;
-      }
-    }
-
-    if (node.lifecycleStage === '最终产品') {
-      //需要判定重量是否存在
-      if (!node.weight || node.weight === 0) {
-        incompleteNodes.push({
-          id: node.id,
-          data: {
-            label: node.label,
-          },
-          missingFields: ['重量'],
-        });
-      } else {
-        totalOutputMass += node.weight || 0;
-      }
-    }
-  });
-
-  // 計算質量平衡分數  算百分比误差
-  const errorPercentage = totalInputMass > 0 ? (Math.abs(totalInputMass - totalOutputMass) / totalInputMass) * 100 : 0;
-
-  // 误差在5%范围内给100分，否则根据误差程度减分
-  let massBalanceScore = 100;
-  if (errorPercentage > 5) {
-    // 误差超过5%时，分数随着误差增加而减少
-    massBalanceScore = Math.max(0, 100 - Math.round(errorPercentage - 5));
-  }
-
-  return {
-    score: massBalanceScore / 100,
-    ratio: totalInputMass > 0 ? totalOutputMass / totalInputMass : 0,
-    incompleteNodes,
-  };
-}
-
-function calculateDataTraceability(nodes: NodeData[]) {
-  // 3. 计算数据可追溯性
-  const incompleteNodes: IncompleteNode[] = [];
-  let totalTraceableNodeNumber = 0;
-  let dataOkTraceableNodeNumber = 0;
-
-  let totalCarbonFootprint = 0;
-  nodes.forEach((node) => {
-    if (!node) return;
-    totalCarbonFootprint += node.carbonFootprint || 0;
-  });
-
-  // 检查每个排放源的数据来源
-  nodes.forEach((node) => {
-    if (!node) return;
-    const nodeCarbonFootprintRatio = totalCarbonFootprint > 0 ? node.carbonFootprint / totalCarbonFootprint : 0;
-
-    if (nodeCarbonFootprintRatio > 0.1) {
-      totalTraceableNodeNumber++;
-
-      // 检查每个排放源的数据来源, 如果dataSources里面有数据库匹配
-      if (node.dataSources?.includes('数据库匹配')) {
-        dataOkTraceableNodeNumber++;
-      } else {
-        incompleteNodes.push({
-          id: node.id,
-          data: {
-            label: node.label,
-          },
-          missingFields: ['数据来源'],
-        });
-      }
-    }
-  });
-
-  const dataTraceabilityScore = totalTraceableNodeNumber > 0 ? dataOkTraceableNodeNumber / totalTraceableNodeNumber : 0;
-
-  return {
-    score: dataTraceabilityScore,
-    coverage: dataTraceabilityScore,
-    incompleteNodes,
-  };
-}
-
-function calculateValidation(nodes: NodeData[]) {
-  // 4. 计算数据准确性
-  const incompleteNodes: IncompleteNode[] = [];
-  let totalValidationNodeNumber = 0;
-  let dataOkValidationNodeNumber = 0;
-
-  nodes.forEach((node) => {
-    if (!node) return;
-    totalValidationNodeNumber++;
-
-    // 检查每个排放源的数据验证程度, 有三种状态 未验证, 内部验证, 第三方验证
-    const verificationStatus = node.verificationStatus;
-
-    if (verificationStatus === '未验证') {
-      incompleteNodes.push({
-        id: node.id,
-        data: {
-          label: node.label,
-        },
-        missingFields: ['验证状态'],
-      });
-    } else {
-      dataOkValidationNodeNumber++;
-    }
-  });
-
-  const validationScore = totalValidationNodeNumber > 0 ? dataOkValidationNodeNumber / totalValidationNodeNumber : 0;
-
-  return {
-    score: validationScore,
-    consistency: validationScore,
-    incompleteNodes,
-  };
-}
-
-function calculateOverallScore(scores: { score: number }[]) {
-  // 把所有值都约束到0～100之间
-  const normalizedScores = scores.map((score) => Math.max(0, Math.min(1, score.score)));
-
-  // 根据权重计算总分
-  const weights = [0.1, 0.3, 0.35, 0.15]; // 生命周期完整性、节点完整性、数据可追溯性、验证状态的权重
-  let weightedSum = 0;
-  let totalWeight = 0;
-
-  normalizedScores.forEach((score, index) => {
-    if (index < weights.length) {
-      weightedSum += score * weights[index];
-      totalWeight += weights[index];
-    }
-  });
-
-  return totalWeight > 0 ? weightedSum / totalWeight : 0;
-}
-
-function findMissingStages(nodes: NodeData[]) {
-  // 实现缺失阶段检查逻辑
-  const lifecycle = ['原材料', '生产制造', '分销和储存', '产品使用', '废弃处置'];
-  const existingStages = new Set(nodes.map((node) => node.lifecycleStage).filter(Boolean));
-  return lifecycle.filter((stage) => !existingStages.has(stage));
-}
-
-function findOptimizableNode(nodes: NodeData[]) {
-  // 实现可优化节点检查逻辑
-  // 查找碳排放量高但数据质量低的节点
-  let maxCarbonFootprint = 0;
-  let optimizableNode: OptimizableNode | null = null;
-
-  nodes.forEach((node) => {
-    if (node.carbonFootprint > maxCarbonFootprint) {
-      maxCarbonFootprint = node.carbonFootprint;
-
-      // 如果碳排放高但数据质量低，标记为可优化
-      if (node.activityScore < 0.7) {
-        optimizableNode = {
-          label: node.label,
-          reason: `碳排放量高 (${node.carbonFootprint.toFixed(2)})，但数据质量低 (${(node.activityScore * 100).toFixed(0)}%)`,
-        };
-      }
-    }
-  });
-
-  return optimizableNode;
-}
-
-function findManualRequiredNodes(nodes: NodeData[]) {
-  // 实现需要手动审查的节点检查逻辑
-  const manualNodes: ManualNode[] = [];
-
-  nodes.forEach((node) => {
-    // 如果节点数据不完整或验证状态为未验证，需要手动审查
-    if (
-      !node.carbonFactor ||
-      node.carbonFactor === 0 ||
-      node.verificationStatus === '未验证' ||
-      node.activityScore < 0.5
-    ) {
-      manualNodes.push({
-        id: node.id,
-        label: node.label,
-      });
-    }
-  });
-
-  return manualNodes;
-}
-
-function findUncertainNodes(nodes: NodeData[]) {
-  // 实现不确定性节点检查逻辑
-  return nodes.filter((node) => node.activityScore < 0.6 || node.verificationStatus === '未验证');
-}

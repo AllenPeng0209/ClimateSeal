@@ -634,7 +634,15 @@ export const NodeProperties: React.FC<NodePropertiesProps> = ({ node, onClose, o
                         }}
                       />
                     </Form.Item>
-              
+          
+              <Form.Item label="数量單位" >
+                      <Input
+                        className="node-properties-input"
+                        value={node?.data.activityUnit}
+                        onChange={(e) => updateNodeData('activityUnit', e.target.value)}
+                      />
+              </Form.Item>
+
               <Form.Item label="碳排放因子" className="form-item">
                 <InputNumber
                   className="node-properties-input"

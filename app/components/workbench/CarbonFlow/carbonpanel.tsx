@@ -1808,7 +1808,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             </Col>
 
             {/* 2.2 File Upload (Moved to middle) - Adjusted span to 14 */}
-            <Col span={14} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
+            <Col span={12} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
                 <Card
                     title="原始数据文件"
                     size="small"
@@ -1832,7 +1832,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             </Col>
 
              {/* 2.3 Model Score (Moved to right) - Adjusted span to 5 */}
-            <Col span={5} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
+            <Col span={7} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
               <Card
                 title="模型评分"
                 size="small"
