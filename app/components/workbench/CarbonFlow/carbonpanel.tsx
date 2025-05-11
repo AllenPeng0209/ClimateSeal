@@ -196,6 +196,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const [aiAutoFillSelectedRowKeys, setAiAutoFillSelectedRowKeys] = useState<React.Key[]>([]);
   const [aiAutoFillConfirmType, setAiAutoFillConfirmType] = useState<'conversion' | 'transport' | null>(null);
   const [aiAutoFillResult, setAiAutoFillResult] = useState<{success: string[], failed: {id: string, reason: string}[]}|null>(null);
+  const [allEmissionSourcesForAIModal, setAllEmissionSourcesForAIModal] = useState<EmissionSource[]>([]); // New state for AI modal data
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
   const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
@@ -280,6 +281,40 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       setEmissionSources(filteredNodes as EmissionSource[]); // Add type assertion
     }
   }, [nodes, selectedStage]);
+
+  // New useEffect to populate allEmissionSourcesForAIModal from all nodes
+  useEffect(() => {
+    if (nodes && nodes.length > 0) {
+      const allSources = nodes.map(node => {
+        const data = node.data as any;
+        const safeParseFloat = (val: any): number | undefined => {
+          if (val === null || val === undefined || String(val).trim() === '') return undefined;
+          const num = parseFloat(String(val));
+          return isNaN(num) ? undefined : num;
+        };
+        return {
+          id: node.id,
+          name: data.label || '未命名节点',
+          category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
+          activityData: safeParseFloat(data.quantity),
+          activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '',
+          conversionFactor: safeParseFloat(data.unitConversion),
+          factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '',
+          factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '',
+          emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '',
+          factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '',
+          updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+          updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
+          factorMatchStatus: data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子',
+          supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '',
+          hasEvidenceFiles: data.hasEvidenceFiles || false,
+          dataRisk: data.dataRisk || undefined,
+          backgroundDataSourceTab: data.backgroundDataSourceTab || 'database',
+        };
+      });
+      setAllEmissionSourcesForAIModal(allSources as EmissionSource[]);
+    }
+  }, [nodes]);
 
 
   // 更新后的背景数据匹配按钮点击处理函数
@@ -1620,8 +1655,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     },
   ];
 
-  // 计算筛选后的数据
-  const filteredAIAutoFillSources = emissionSources.filter(item => {
+  // 计算筛选后的数据 (now uses allEmissionSourcesForAIModal)
+  const filteredAIAutoFillSources = allEmissionSourcesForAIModal.filter(item => {
     // 生命周期阶段筛选
     if (aiFilterStage) {
       const node = nodes.find(n => n.id === item.id);
