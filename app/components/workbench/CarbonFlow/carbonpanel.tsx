@@ -2332,6 +2332,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         footer={null}
         width={1400}
         className="ai-autofill-modal" // Added className
+        style={{ top: 20 }} // Added style to adjust top position
       >
         {/* Consolidated Filter Panel - Placed above the table */}
         <div style={{ marginBottom: 20, padding: 16, borderRadius: 4 }}> {/* Removed border style */}
