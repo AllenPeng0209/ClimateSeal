@@ -1,4 +1,4 @@
-import { openDB, type IDBPDatabase } from 'idb';
+// import { openDB, type IDBPDatabase } from 'idb';
 import type { Node, Edge } from 'reactflow';
 import type { Message } from 'ai';
 import { toast } from 'react-toastify';

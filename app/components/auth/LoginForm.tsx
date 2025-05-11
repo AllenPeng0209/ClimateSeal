@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Alert, Button, Form, Input, Divider, Typography, message } from "antd";
 import { useNavigate, useLocation } from "@remix-run/react";
 import { GoogleOutlined } from "@ant-design/icons";
-import { useAuth } from "./AuthProvider";
+import { useAuthContext } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
 import "../../styles/auth/login-form.css";
 
@@ -16,7 +16,7 @@ const ERROR_MESSAGES: { [key: string]: string } = {
 export const LoginForm: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, authState } = useAuth();
+  const { login, user, loading: authLoading } = useAuthContext();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,8 +24,15 @@ export const LoginForm: React.FC = () => {
   const onFinish = async (values: { email: string; password: string }) => {
     try {
       setLoading(true);
-      await login(values);
-      message.success('登录成功');
+      const result = await login(values.email, values.password);
+      if (result.success) {
+        message.success('登录成功');
+        // 获取重定向路径
+        const redirectTo = location.state?.from || "/dashboard";
+        navigate(redirectTo);
+      } else {
+        message.error(result.error || '登录失败');
+      }
     } catch (error: any) {
       message.error(error.message || '登录失败');
     } finally {
@@ -116,7 +123,7 @@ export const LoginForm: React.FC = () => {
         <Button
           type="primary"
           htmlType="submit"
-          loading={loading}
+          loading={loading || authLoading}
           block
           size="large"
         >

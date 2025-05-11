@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Button,
   Card,
@@ -18,6 +18,9 @@ import {
   Spin,
   Empty,
   List,
+  Tabs, // <-- Import Tabs
+  Divider, // <-- Import Divider
+  Typography, // <-- Import Typography
 } from 'antd';
 import type { FormInstance } from 'antd';
 import {
@@ -63,6 +66,7 @@ interface WorkflowFileRecord {
   file_id: string;
   files: FileRecord;
 }
+import type { CarbonFlowAction } from '~/types/actions';  // 修正导入路径
 
 // Placeholder data types (replace with actual types later)
 type SceneInfoType = {
@@ -89,17 +93,21 @@ type EmissionSource = {
   id: string;
   name: string;
   category: string;
-  activityData: number;
+  activityData: number | undefined; // Allow undefined
   activityUnit: string;
-  conversionFactor: number;
+  conversionFactor: number | undefined; // Allow undefined
   factorName: string;
   factorUnit: string;
+  carbonFactor?: string; // 添加carbonFactor字段
   emissionFactorGeographicalRepresentativeness?: string; // 排放因子地理代表性
   factorSource: string;
   updatedAt: string;
   updatedBy: string;
   factorMatchStatus?: '未配置因子' | 'AI匹配失败' | 'AI匹配成功' | '已手动配置因子'; // 新增因子匹配状态
   supplementaryInfo?: string; // 重新添加：排放源补充信息
+  hasEvidenceFiles: boolean; // 证明材料
+  dataRisk?: string; // 数据风险
+  backgroundDataSourceTab?: 'database' | 'manual'; // 新增：记录背景数据源选择的tab
 };
 
 // New type for Uploaded Files
@@ -133,6 +141,7 @@ const RawFileTypes = [
 ];
 
 const lifecycleStages = [
+  '全部',
   '原材料获取阶段',
   '生产阶段',
   '分销运输阶段',
@@ -171,14 +180,17 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const [modalFileList, setModalFileList] = useState<ModalUploadFile[]>([]); // State for files in the modal upload list
   const [isFactorMatchModalVisible, setIsFactorMatchModalVisible] = useState(false); // 新增：因子匹配弹窗状态
   const [selectedFactorMatchSources, setSelectedFactorMatchSources] = useState<React.Key[]>([]); // 新增：因子匹配弹窗中选中的排放源
-  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [matchResults, setMatchResults] = useState<{success: string[], failed: string[], logs: string[]}>({
+    success: [], failed: [], logs: []
+  }); // 新增：存储匹配结果的状态
+  const [showMatchResultsModal, setShowMatchResultsModal] = useState(false); // 新增：匹配结果弹窗显示状态
+  const [backgroundDataActiveTabKey, setBackgroundDataActiveTabKey] = useState<string>('database'); // Re-add state for active background data tab
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
-  const [uploadModalForm] = Form.useForm();
+  const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
 
   // 从CarbonFlowStore获取数据
-  const { nodes, edges, aiSummary, setNodes: setStoreNodes } = useCarbonFlowStore();
+  const { nodes, aiSummary, setNodes: setStoreNodes } = useCarbonFlowStore();
 
   // 当aiSummary更新时，更新modelScore
   useEffect(() => {
@@ -214,28 +226,32 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         case '寿命终止阶段':
           stageType = 'disposal';
           break;
+        case '全部':
+          stageType = ''; // 空字符串表示不按类型筛选
+          break;
         default:
           stageType = '';
       }
 
       // 筛选节点并转换为排放源格式，使用类型断言避免类型错误
       const filteredNodes = nodes
-        .filter(node => node.type === stageType && node.data)
+        .filter(node => (stageType === '' || node.type === stageType) && node.data)
         .map(node => {
           // 从节点数据中提取排放源信息，使用any类型断言来避免类型检查错误
           const data = node.data as any;
           // Helper to safely parse number from potentially non-numeric string
-          const safeParseFloat = (val: any): number => {
-              const num = parseFloat(val);
-              return isNaN(num) ? 0 : num;
+          const safeParseFloat = (val: any): number | undefined => { // Modified to return undefined for empty/NaN
+              if (val === null || val === undefined || String(val).trim() === '') return undefined;
+              const num = parseFloat(String(val));
+              return isNaN(num) ? undefined : num;
           };
           return {
             id: node.id,
             name: data.label || '未命名节点',
             category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
-            activityData: safeParseFloat(data.quantity), // 读取 quantity 并转为 number
+            activityData: safeParseFloat(data.quantity), // 读取 quantity 并转为 number or undefined
             activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '', // 读取 activityUnit
-            conversionFactor: data.unitConversion ? safeParseFloat(data.unitConversion) : 1, // 修正：从unitConversion读取，默认为1
+            conversionFactor: safeParseFloat(data.unitConversion), // Modified: Read unitConversion, use safeParseFloat
             factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '', // 读取 carbonFactorName
             factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '', // 读取 carbonFactorUnit
             emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '', // 读取 emissionFactorGeographicalRepresentativeness
@@ -244,6 +260,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
             factorMatchStatus: data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子', // 如果carbonFactor非0则认为已配置
             supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', // 添加：从节点数据获取补充信息
+            hasEvidenceFiles: data.hasEvidenceFiles || false, // 证明材料
+            dataRisk: data.dataRisk || undefined, // 数据风险
+            backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
           };
         });
 
@@ -251,11 +270,6 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     }
   }, [nodes, selectedStage]);
 
-  // --- Placeholder functions ---
-  const handleAIComplete = () => {
-    console.log('一键AI补全 clicked');
-    alert('功能待实现');
-  };
 
   // 更新后的背景数据匹配按钮点击处理函数
   const handleCarbonFactorMatch = () => {
@@ -277,12 +291,16 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         conversionFactor: data.unitConversion ? safeParseFloat(data.unitConversion) : 1, // 修正：从unitConversion读取，默认为1
         factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '', 
         factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '',
+        carbonFactor: typeof data.carbonFactor === 'string' ? data.carbonFactor : '', // 读取 carbonFactor
         emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '', 
         factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '',
         updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
         updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
         factorMatchStatus: initialStatus, 
         supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', 
+        hasEvidenceFiles: data.hasEvidenceFiles || false, // 证明材料
+        dataRisk: data.dataRisk || undefined, // 数据风险
+        backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
       };
       return source;
     });
@@ -331,7 +349,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     const node = nodes?.find(n => n.id === record.id);
     const stage = node ? nodeTypeToLifecycleStageMap[node.type || ''] || selectedStage : selectedStage;
     // 确保 supplementaryInfo 传递到 drawerInitialValues
-    setDrawerInitialValues({ ...record, lifecycleStage: stage, supplementaryInfo: record.supplementaryInfo });
+    // 更新：同时设置背景数据源的 active tab key
+    const activeTab = record.backgroundDataSourceTab || 'database';
+    setBackgroundDataActiveTabKey(activeTab);
+    setDrawerInitialValues({ ...record, lifecycleStage: stage, supplementaryInfo: record.supplementaryInfo, backgroundDataSourceTab: activeTab });
     setIsEmissionDrawerVisible(true);
   };
 
@@ -405,6 +426,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 updatedBy: 'User',
                 factorMatchStatus: editingEmissionSource.factorMatchStatus, // 保留原有的因子匹配状态
                 supplementaryInfo: values.supplementaryInfo || '', // 更新补充信息
+                hasEvidenceFiles: editingEmissionSource.hasEvidenceFiles, // 保留证明材料状态
+                dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
+                backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab
              } 
            : item
        ));
@@ -433,6 +457,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
              dataToUpdate.lifecycleStage = selectedStageName;
              dataToUpdate.supplementaryInfo = values.supplementaryInfo || ''; // 保存补充信息到节点数据
              dataToUpdate.unitConversion = String(values.conversionFactor ?? 1); // 新增/修正：正确保存单位转换系数
+             dataToUpdate.hasEvidenceFiles = editingEmissionSource.hasEvidenceFiles; // 保留证明材料状态
+             dataToUpdate.dataRisk = editingEmissionSource.dataRisk; // 保留数据风险
+             dataToUpdate.backgroundDataSourceTab = backgroundDataActiveTabKey as ('database' | 'manual'); // 更新：保存当前选择的tab到节点
              // --- 结束更新通用字段保存逻辑 ---
 
              let finalNodeData = dataToUpdate; // 使用更新后的 dataToUpdate
@@ -458,6 +485,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 排放因子地理代表性
                     unitConversion: String(values.conversionFactor ?? 1), // 正确设置单位转换系数
                     supplementaryInfo: values.supplementaryInfo || '', // 通用数据中加入补充信息
+                    hasEvidenceFiles: editingEmissionSource.hasEvidenceFiles, // 保留证明材料状态
+                    dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
+                    backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab到commonData
                 };
 
                 // 根据新的 selectedNodeType 创建特定数据结构
@@ -512,6 +542,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
          updatedBy: 'User',
          factorMatchStatus: '未配置因子', // 新增因子匹配状态
          supplementaryInfo: values.supplementaryInfo || '', // 新增时保存补充信息
+         hasEvidenceFiles: false, // 新增时默认为 false
+         dataRisk: undefined, // 新增时默认为 undefined
+         backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 新增：保存当前选择的tab
        };
        
        // 更新本地狀態
@@ -549,6 +582,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
              emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 保存排放因子地理代表性
              unitConversion: String(values.conversionFactor ?? 1), // 正确保存单位转换系数
              supplementaryInfo: values.supplementaryInfo || '', // 新节点数据中加入补充信息
+             hasEvidenceFiles: false, // 新增时默认为 false
+             dataRisk: undefined, // 新增时默认为 undefined
+             backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 新增：保存当前选择的tab到nodeData
          };
 
          switch (nodeType) {
@@ -1079,10 +1115,55 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         onFilter: (value, record) =>
           record.name.toString().toLowerCase().includes((value as string).toLowerCase()),
       },
-      { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: (text?: string) => text || '-' },
-      { title: '背景数据集名称', dataIndex: 'factorName', key: 'factorName' }, // 重命名并确保使用 factorName
-      // { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' }, // 移除
-      // { title: '因子匹配状态', dataIndex: 'factorMatchStatus', key: 'factorMatchStatus' }, // 移除
+      {
+        title: '活动水平数据状态',
+        dataIndex: 'activityDataStatus',
+        key: 'activityDataStatus',
+        render: (_: any, record: EmissionSource) => {
+          // "完整，部分AI补充" 状态暂不实现
+          const hasActivityDataValue = typeof record.activityData === 'number' && !isNaN(record.activityData);
+          const hasActivityUnit = record.activityUnit && record.activityUnit.trim() !== '';
+          if (hasActivityDataValue && hasActivityUnit) {
+            return <span className="status-complete">完整</span>;
+          }
+          return <span className="status-missing">缺失</span>;
+        },
+      },
+      {
+        title: '证明材料',
+        dataIndex: 'evidenceMaterialStatus',
+        key: 'evidenceMaterialStatus',
+        render: (_: any, record: EmissionSource) => {
+          // "完整，验证未通过" 状态暂不实现，默认上传即验证通过
+          if (record.hasEvidenceFiles) {
+            return <span className="status-complete">完整</span>;
+          }
+          return <span className="status-missing">缺失</span>;
+        },
+      },
+      {
+        title: '背景数据状态',
+        dataIndex: 'backgroundDataStatus',
+        key: 'backgroundDataStatus',
+        render: (_: any, record: EmissionSource) => {
+          if (record.factorMatchStatus === '已手动配置因子') {
+            return <span className="status-complete">完整，手动选择</span>;
+          }
+          if (record.factorMatchStatus === 'AI匹配成功') {
+            return <span className="status-complete">完整，AI匹配</span>;
+          }
+          if (!record.factorName || record.factorName.trim() === '' || record.factorMatchStatus === '未配置因子' || record.factorMatchStatus === 'AI匹配失败') {
+            return <span className="status-missing">缺失</span>;
+          }
+          return '未知'; // Fallback, though ideally not reached
+        },
+      },
+      {
+        title: '数据风险',
+        dataIndex: 'dataRisk',
+        key: 'dataRisk',
+        render: (text?: string) => text || '无',
+      },
       { 
           title: '操作',
           key: 'action',
@@ -1141,25 +1222,181 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     setSelectedFactorMatchSources([]); // 关闭时清空选项
   };
 
-  const handleFactorMatchAI = () => {
+  // 添加刷新排放源函数，在生命周期阶段变化或匹配后调用
+  const refreshEmissionSourcesForStage = useCallback((stage: string) => {
+    console.log('刷新生命周期阶段的排放源:', stage);
+    
+    if (!stage || !nodes) return;
+    
+    // 根据当前选中的生命周期阶段筛选节点
+    let stageType = '';
+    switch (stage) {
+      case '原材料获取阶段':
+        stageType = 'product';
+        break;
+      case '生产阶段':
+        stageType = 'manufacturing';
+        break;
+      case '分销运输阶段':
+        stageType = 'distribution';
+        break;
+      case '使用阶段':
+        stageType = 'usage';
+        break;
+      case '寿命终止阶段':
+        stageType = 'disposal';
+        break;
+      default:
+        stageType = '';
+    }
+    
+    // 筛选节点并转换为排放源格式
+    const filteredNodes = nodes
+      .filter((node) => node.type === stageType && node.data)
+      .map((node) => {
+        // 从节点数据中提取排放源信息
+        const data = node.data as any;
+        // Helper to safely parse number from potentially non-numeric string
+        const safeParseFloat = (val: any): number => {
+          const num = parseFloat(val);
+          return isNaN(num) ? 0 : num;
+        };
+        
+        return {
+          id: node.id,
+          name: data.label || '未命名节点',
+          category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
+          activityData: safeParseFloat(data.quantity), // 读取 quantity 并转为 number
+          activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '', // 读取 activityUnit
+          conversionFactor: data.unitConversion ? safeParseFloat(data.unitConversion) : 1, // 修正：从unitConversion读取，默认为1
+          factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '', // 读取 carbonFactorName
+          factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '', // 读取 carbonFactorUnit
+          carbonFactor: typeof data.carbonFactor === 'string' ? data.carbonFactor : '', // 读取 carbonFactor
+          emissionFactorGeographicalRepresentativeness: 
+              typeof data.emissionFactorGeographicalRepresentativeness === 'string' 
+                ? data.emissionFactorGeographicalRepresentativeness 
+                : '', // 读取 emissionFactorGeographicalRepresentativeness
+          factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '', // 读取 activitydataSource
+          updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+          updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
+          factorMatchStatus: data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子', // 如果carbonFactor非0则认为已配置
+          supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', // 添加：从节点数据获取补充信息
+        };
+      });
+    
+    setEmissionSources(filteredNodes as EmissionSource[]); // Add type assertion
+  }, [nodes]);
+
+  // 当选中的生命周期阶段变化时，加载对应的排放源
+  useEffect(() => {
+    refreshEmissionSourcesForStage(selectedStage);
+  }, [selectedStage, refreshEmissionSourcesForStage]);
+
+  // 添加事件监听器，接收匹配结果
+  useEffect(() => {
+    const handleMatchResults = (event: CustomEvent) => {
+      if (loadingMessageRef.current) {
+        loadingMessageRef.current();
+        loadingMessageRef.current = null;
+      }
+      console.log('收到匹配结果事件:', event.detail);
+      
+      // 更新匹配结果状态
+      const { success, failed, logs } = event.detail;
+      setMatchResults({
+        success: success || [],
+        failed: failed || [],
+        logs: logs || []
+      });
+      
+      // 显示结果弹窗
+      setShowMatchResultsModal(true);
+      
+      // 更新本地表格状态中的节点匹配状态
+      setEmissionSources(prevSources => {
+        return prevSources.map(source => {
+          if (success?.includes(source.id)) {
+            return { ...source, factorMatchStatus: 'AI匹配成功' };
+          } else if (failed?.includes(source.id)) {
+            return { ...source, factorMatchStatus: 'AI匹配失败' };
+          }
+          return source;
+        });
+      });
+      
+      // 关闭因子匹配选择弹窗
+      setIsFactorMatchModalVisible(false);
+      
+      // 清空选择的排放源
+      setSelectedFactorMatchSources([]);
+      
+      // 如果当前选中的生命周期阶段非空，刷新该阶段的排放源列表
+      if (selectedStage) {
+        refreshEmissionSourcesForStage(selectedStage);
+      }
+      
+      // 在结果处理完成后显示最终提示信息
+      if (success?.length > 0 && failed?.length === 0) {
+        message.success('所有选定排放源均匹配成功！');
+      } else if (success?.length > 0 && failed?.length > 0) {
+        message.warning(`部分排放源匹配成功 (${success.length}个成功, ${failed.length}个失败)，请查看结果详情。`);
+      } else if (success?.length === 0 && failed?.length > 0) {
+        message.error('所有选定排放源均匹配失败，请查看日志和结果详情。');
+      } else {
+        // 如果 success 和 failed 都为空 (例如没有节点需要匹配或出现意外情况)
+        message.info('碳因子匹配处理完成，未发现需要更新的排放源。');
+      }
+    };
+
+    // 注册自定义事件监听器
+    window.addEventListener('carbonflow-match-results', handleMatchResults as EventListener);
+
+    // 清理函数
+    return () => {
+      window.removeEventListener('carbonflow-match-results', handleMatchResults as EventListener);
+    };
+  }, [selectedStage, refreshEmissionSourcesForStage]);
+
+  const handleFactorMatchAI = async () => {
     console.log('AI匹配 invoked for sources:', selectedFactorMatchSources);
-    // TODO: 实现AI匹配逻辑
-    message.info('AI匹配功能待实现');
-    // 示例逻辑 (需要根据实际情况调整 emissionSources state)
-    // const updatedSources = emissionSources.map(source => {
-    //   if (selectedFactorMatchSources.includes(source.id)) {
-    //     const matchSuccess = Math.random() > 0.5;
-    //     const newStatus: 'AI匹配成功' | 'AI匹配失败' = matchSuccess ? 'AI匹配成功' : 'AI匹配失败';
-    //     return {
-    //       ...source,
-    //       factorMatchStatus: newStatus,
-    //       factorName: matchSuccess ? 'AI匹配因子名称' : source.factorName,
-    //       factorUnit: matchSuccess ? 'AI匹配因子单位' : source.factorUnit,
-    //     };
-    //   }
-    //   return source;
-    // });
-    // setEmissionSources(updatedSources);
+    
+    if (!selectedFactorMatchSources || selectedFactorMatchSources.length === 0) {
+      message.warning('请选择至少一个排放源进行匹配');
+      return;
+    }
+
+    if (loadingMessageRef.current) {
+      loadingMessageRef.current();
+      loadingMessageRef.current = null;
+    }
+    
+    try {
+      loadingMessageRef.current = message.loading('正在进行碳因子匹配，请稍候...', 0);
+      const action: CarbonFlowAction = {
+        type: 'carbonflow',
+        operation: 'carbon_factor_match',
+        content: '使用Climatiq和Climateseal API进行碳因子匹配',
+        nodeId: selectedFactorMatchSources.map(id => String(id)).join(',')
+      };
+      
+      window.dispatchEvent(new CustomEvent('carbonflow-action', {
+        detail: { action }
+      }));
+      
+      // 请求已发送，等待 handleMatchResults 中的最终提示
+      console.log("碳因子匹配请求已发送，等待事件回调...");
+      
+      // 加载消息会在 handleMatchResults 中处理结果后，或在下面的catch块中关闭
+      // 这里不再需要 setTimeout 来关闭 loadingMessage
+
+    } catch (error) {
+      if (loadingMessageRef.current) {
+        loadingMessageRef.current();
+        loadingMessageRef.current = null;
+      }
+      console.error('执行碳因子匹配请求派发时出错:', error);
+      message.error('发送碳因子匹配请求失败，请查看控制台');
+    }
   };
 
   // 用于因子匹配弹窗的列定义 - 确保在组件作用域内定义
@@ -1172,6 +1409,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData' },
     { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit' },
     { title: '因子名称', dataIndex: 'factorName', key: 'factorName' }, // PRD: 因子名称
+    { title: '因子数值', dataIndex: 'carbonFactor', key: 'carbonFactor' }, // PRD: 因子数值
     { title: '因子单位', dataIndex: 'factorUnit', key: 'factorUnit' }, // PRD: 因子单位
     { title: '地理代表性', dataIndex: 'emissionFactorGeographicalRepresentativeness', key: 'emissionFactorGeographicalRepresentativeness', render: (text?: string) => text || '-' }, // PRD: 地理代表性
     { title: '单位转换系数', dataIndex: 'conversionFactor', key: 'conversionFactor', render: (val?: number) => (typeof val === 'number' ? val : '-') },
@@ -1389,9 +1627,15 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
              <Col span={5} className="flex flex-col h-full">
                <Card title="生命周期阶段" size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor">
                     <div className="flex-grow overflow-y-auto">
-                     <Space direction="vertical" className="w-full">
+                     <Space direction="vertical" className="w-full lifecycle-nav-bar">
                         {lifecycleStages.map(stage => (
-                          <Button key={stage} type={selectedStage === stage ? 'primary' : 'text'} onClick={() => handleStageSelect(stage)} block className="text-left">
+                          <Button 
+                            key={stage} 
+                            type={selectedStage === stage ? 'primary' : 'text'} 
+                            onClick={() => handleStageSelect(stage)} 
+                            block 
+                            className={`text-left ${stage === '全部' ? 'lifecycle-all-button' : ''}`}
+                          >
                             {stage}
                           </Button>
                         ))}
@@ -1402,11 +1646,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
              {/* 3.2 Emission Source List (Bottom Right) - Adjusted span to 19 */}
              <Col span={19} className="flex flex-col h-full">
-               <Card title={`排放源清单 - ${selectedStage}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
+               <Card title={`排放源清单${selectedStage === '全部' ? '' : ` - ${selectedStage}`}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space> {/* Buttons for the left side */}
-                            <Button icon={<AimOutlined />} onClick={handleAIComplete}>AI一键补全</Button>
-                            <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>背景数据匹配</Button>
+                            <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>批量操作</Button>
                         </Space>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
                     </div>
@@ -1435,19 +1678,20 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       >
             <Form layout="vertical" onFinish={handleSaveSettings} initialValues={sceneInfo}>
                 <Form.Item name="verificationLevel" label="预期核验等级" rules={[{ required: true, message: '请选择核验等级' }]}>
-                    <Select placeholder="选择核验等级">
+                    <Select placeholder="选择核验等级" className="custom-modal-select-small">
                         <Select.Option value="准核验级别">准核验级别</Select.Option>
                         <Select.Option value="披露级别">披露级别</Select.Option>
                     </Select>
                 </Form.Item>
                  <Form.Item name="standard" label="满足标准" rules={[{ required: true, message: '请选择满足标准' }]}>
-                    <Select placeholder="选择满足标准">
+                    <Select placeholder="选择满足标准" className="custom-modal-select-small">
                         <Select.Option value="ISO14067">ISO14067</Select.Option>
                         <Select.Option value="欧盟电池法">欧盟电池法</Select.Option>
                     </Select>
+
                 </Form.Item>
                  <Form.Item name="productName" label="核算产品" rules={[{ required: true, message: '请输入核算产品名称' }]}>
-                    <Input placeholder="输入产品名称" />
+                    <Input placeholder="输入产品名称" className="custom-modal-input-small" />
                 </Form.Item>
                  <Form.Item className="text-right">
                      <Space>
@@ -1460,7 +1704,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
        <Drawer
         title={editingEmissionSource ? "编辑排放源" : "新增排放源"}
-        width={500}
+        width={1000} // <-- Increased width
         onClose={handleCloseEmissionDrawer}
         open={isEmissionDrawerVisible}
         bodyStyle={{ paddingBottom: 80 }}
@@ -1468,45 +1712,279 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         destroyOnClose // Ensure form state is reset each time
       >
         <Form layout="vertical" onFinish={handleSaveEmissionSource} initialValues={drawerInitialValues} key={editingEmissionSource?.id || 'new'}>
-            <Form.Item name="lifecycleStage" label="生命周期阶段" rules={[{ required: true, message: '请选择生命周期阶段' }]}>
-              <Select placeholder="请选择生命周期阶段">
-                 {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
-              </Select>
-           </Form.Item>
-           <Form.Item name="name" label="排放源名称" rules={[{ required: true, message: '请输入排放源名称' }]}>
-              <Input placeholder="请输入排放源名称" />
-           </Form.Item>
-            <Form.Item name="category" label="排放源类别" rules={[{ required: true, message: '请选择排放源类别' }]}>
-              <Select placeholder="请选择排放源类别">
-                 {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
-              </Select>
-           </Form.Item>
-           <Form.Item name="activityData" label="活动数据" rules={[{ required: true, message: '请输入活动数据' }]}>
-              <Input type="number" step="0.0000000001" placeholder="请输入活动数据" />
-           </Form.Item>
-            <Form.Item name="activityUnit" label="活动数据单位" rules={[{ required: true, message: '请输入活动数据单位' }]}>
-              <Input placeholder="请输入活动数据单位" />
-           </Form.Item>
-           <Form.Item name="conversionFactor" label="单位转换系数" rules={[{ required: true, message: '请输入单位转换系数' }]}>
-              <Input type="number" step="0.0000000001" placeholder="请输入单位转换系数" />
-           </Form.Item>
-           <Form.Item name="factorName" label="排放因子名称" rules={[{ required: true, message: '请输入排放因子名称' }]}>
-              <Input placeholder="请输入排放因子名称" />
-           </Form.Item>
-            <Form.Item name="factorUnit" label="排放因子单位" rules={[{ required: true, message: '请输入排放因子单位' }]}>
-              <Input placeholder="请输入排放因子单位" />
-           </Form.Item>
-           <Form.Item name="emissionFactorGeographicalRepresentativeness" label="排放因子地理代表性" rules={[{ required: true, message: '请输入排放因子地理代表性' }]}>
-              <Input placeholder="请输入排放因子地理代表性" />
-           </Form.Item>
-           <Form.Item name="factorSource" label="数据库名称" rules={[{ required: true, message: '请输入数据库名称' }]}>
-              <Input placeholder="请输入数据库名称" />
-           </Form.Item>
-           {/* 添加排放源补充信息表单项 */}
-           <Form.Item name="supplementaryInfo" label="排放源补充信息">
-              <Input.TextArea placeholder="请输入排放源补充信息" rows={2} />
-           </Form.Item>
-           <Form.Item className="text-right">
+            {/* 基本信息 */}
+            <Typography.Title level={5} style={{ paddingLeft: '8px' }}>基本信息</Typography.Title>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="lifecycleStage" label="生命周期阶段" rules={[{ required: true, message: '请选择生命周期阶段' }]}>
+                  <Select placeholder="请选择生命周期阶段" className="panel-sider-select">
+                     {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
+                  </Select>
+               </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="category" label="排放源类别" rules={[{ required: true, message: '请选择排放源类别' }]}>
+                  <Select placeholder="请选择排放源类别" className="panel-sider-select">
+                     {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
+                  </Select>
+               </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="name" label="排放源名称" rules={[{ required: true, message: '请输入排放源名称' }]}>
+                  <Input placeholder="请输入排放源名称" className="panel-sider-input" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="supplementaryInfo" label="排放源补充信息">
+              <Input.TextArea placeholder="请输入排放源补充信息" rows={3} className="panel-sider-textarea" />
+            </Form.Item>
+
+            {/* 活动水平数据 */}
+            <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px', paddingLeft: '8px' }}>活动水平数据</Typography.Title>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item 
+                  name="activityData" 
+                  label="活动数据数值" 
+                  rules={[
+                    // { required: true, message: '请输入活动数据数值' }, // Already not required
+                    { 
+                      transform: value => {
+                        const trimmedValue = String(value).trim();
+                        if (trimmedValue === '' || value === null || value === undefined) return undefined;
+                        return Number(trimmedValue);
+                      },
+                      type: 'number',
+                      message: '活动数据数值必须为有效的数字' 
+                    }, 
+                    { 
+                      validator: (_, value) => { // Corrected: validator is a property of this rule object
+                        if (value === undefined || value === null || String(value).trim() === '') return Promise.resolve();
+                        return Number(value) > 0 ? Promise.resolve() : Promise.reject(new Error('活动数据数值必须为正数')); 
+                      }
+                    }
+                  ]}
+                >
+                  <Input type="number" step="0.0000000001" placeholder="请输入活动数据数值，保留小数点后10位" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item 
+                  name="activityUnit" 
+                  label="活动数据单位" 
+                  rules={[
+                    // { required: true, message: '请输入活动数据单位' } // Changed to not required
+                  ]}
+                >
+                  <Input placeholder="请输入活动数据单位，例如：kg" className="panel-sider-input" />
+                </Form.Item>
+              </Col>
+            </Row>
+              <Form.Item label="关联证据文件">
+              <Upload
+                name="evidenceFiles"
+                listType="text"
+                maxCount={5}
+              >
+                <Button icon={<UploadOutlined />} className="panel-sider-upload">上传</Button>
+              </Upload>
+              <div style={{marginTop: 4, fontSize: 12, color: '#888'}}>最多可上传5个证据文件</div>
+            </Form.Item>
+
+            {/* 背景数据 */}
+            <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px', paddingLeft: '8px' }}>背景数据</Typography.Title>
+            <Tabs activeKey={backgroundDataActiveTabKey} onChange={setBackgroundDataActiveTabKey}> {/* Re-add onChange to update state, and set activeKey */}
+              <Tabs.TabPane tab="数据库" key="database">
+                <Row gutter={16} align="bottom">
+                    <Col span={18}>
+                        <Form.Item label="排放因子名称">
+                            <Input placeholder="请点击右侧按钮选择排放因子" disabled className="panel-sider-input" />
+                        </Form.Item>
+                    </Col>
+                    <Col span={6}>
+                        <Form.Item label=" "> {/* Empty label for alignment */}
+                            <Button type="primary" onClick={() => message.info('数据库检索功能待实现')} block className="panel-sider">选择排放因子</Button>
+                        </Form.Item>
+                    </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item label="排放因子数值 (kgCO2e)">
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item label="排放因子分母单位">
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item label="地理代表性">
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}> 
+                    <Form.Item label="发布时间">
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item label="数据库名称">
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item label="因子UUID">
+                      <Input placeholder="从数据库选择" disabled className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </Tabs.TabPane>
+              <Tabs.TabPane tab="手动填写" key="manual">
+                <Form.Item 
+                  name="factorNameManual" 
+                  label="排放因子名称" 
+                  rules={[{ 
+                    required: backgroundDataActiveTabKey === 'manual', 
+                    message: '请输入排放因子名称' 
+                  }]}
+                >
+                  <Input placeholder="请输入排放因子名称，例如：水" className="panel-sider-input" />
+                </Form.Item>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item 
+                      name="backgroundData_factorValueManual" 
+                      label="排放因子数值 (kgCO2e)" 
+                      rules={[
+                        { 
+                          required: backgroundDataActiveTabKey === 'manual', 
+                          message: '请输入排放因子数值' 
+                        }, 
+                        { 
+                          type: 'number', 
+                          transform: value => String(value).trim() === '' ? undefined : Number(value), 
+                          message: '请输入有效的数字' 
+                        } 
+                      ]}
+                    >
+                      <Input type="number" step="0.0000000001" placeholder="请输入排放因子数值，保留小数点后10位，可正可负" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item 
+                      name="factorUnitManual" 
+                      label="排放因子分母单位" 
+                      rules={[{ 
+                        required: backgroundDataActiveTabKey === 'manual', 
+                        message: '请输入排放因子分母单位' 
+                      }]}
+                    >
+                      <Input placeholder="请输入排放因子分母单位，例如：kg" className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item 
+                      name="emissionFactorGeographicalRepresentativenessManual" 
+                      label="地理代表性" 
+                      rules={[{ 
+                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        message: '请输入地理代表性' 
+                      }]}
+                    >
+                      <Input placeholder="请输入地理代表性，例如：GLO" className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item 
+                      name="factorPublicationDateManual" 
+                      label="发布时间" 
+                      rules={[{ 
+                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        message: '请输入发布时间' 
+                      }]}
+                    >
+                      <Input placeholder="请输入发布时间，例如：2022" className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item 
+                      name="factorSourceManual" 
+                      label="数据库名称" 
+                      rules={[{ 
+                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        message: '请输入数据库名称' 
+                      }]}
+                    >
+                      <Input placeholder="请输入数据库名称，例如：Ecoinvent" className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item 
+                      name="factorUUIDManual" 
+                      label="因子UUID" 
+                      rules={[{ 
+                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        message: '请输入因子UUID' 
+                      }]}
+                    >
+                      <Input placeholder="请输入因子UUID" className="panel-sider-input" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </Tabs.TabPane>
+            </Tabs>
+
+            {/* 单位转换 */}
+            <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px', paddingLeft: '8px' }}>单位转换</Typography.Title>
+            <Form.Item 
+              label={<Typography.Text>将活动水平数据单位与排放因子单位进行转换：</Typography.Text>}
+              labelCol={{ span: 24 }} // Ensure label takes full width if needed
+              wrapperCol={{ span: 24 }}
+            >
+              <Space align="baseline" wrap>
+                <Typography.Text>
+                  1
+                  {/* TODO: Replace with dynamic values from form using Form.useWatch or similar */}
+                  <span style={{ fontWeight: 'bold', marginLeft: 4, marginRight: 4 }}>kg 水溶液</span>
+                  对应
+                </Typography.Text>
+                <Form.Item
+                  name="conversionFactor"
+                  rules={[
+                    // No required rule here, it's already not required
+                    {
+                      transform: value => {
+                        const trimmedValue = String(value).trim();
+                        if (trimmedValue === '' || value === null || value === undefined) return undefined;
+                        return Number(trimmedValue);
+                      },
+                      type: 'number', 
+                      message: '单位转换系数必须为有效的数字'
+                    }
+                  ]} 
+                  noStyle
+                >
+                  <Input type="number" step="0.0000000001" placeholder="系数" style={{width: 120, textAlign: 'center', marginLeft: 8, marginRight: 8}} className="panel-sider"/>
+                </Form.Item>
+                <Typography.Text>
+                  {/* TODO: Replace with dynamic values from form */}
+                  <span style={{ fontWeight: 'bold' }}>kg 水</span>
+                </Typography.Text>
+              </Space>
+            </Form.Item>
+
+           <Form.Item className="text-right" style={{marginTop: 24, paddingTop: 10, borderTop: '1px solid var(--bolt-elements-borderColor, #333)'}}>
              <Space>
                  <Button onClick={handleCloseEmissionDrawer}>取消</Button>
                  <Button type="primary" htmlType="submit">保存</Button>
@@ -1608,30 +2086,31 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         onCancel={handleCloseFactorMatchModal}
         width="80%"
         footer={[
+          
+          <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}>
+          AI匹配
+          </Button>, // 按钮移到筛选行
           <Button key="cancel" onClick={handleCloseFactorMatchModal}>取消</Button>,
-          // <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}>
-          // AI匹配
-          // </Button>, // 按钮移到筛选行
+
         ]}
       >
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space>
-            <Select placeholder="生命周期阶段 (全部)" style={{ width: 200 }} allowClear>
+            <Input placeholder="排放源名称" style={{ width: 200 }} className="background-data-match-input" />
+            <Select placeholder="生命周期阶段 (全部)" style={{ width: 150 }} allowClear className="background-data-match-select">
               {lifecycleStages.map(stage => <Select.Option key={stage} value={stage}>{stage}</Select.Option>)}
             </Select>
-            <Input placeholder="排放源名称" style={{ width: 200 }} />
-            <Select placeholder="排放源类别 (全部)" style={{ width: 200 }} allowClear>
+            
+            <Select placeholder="排放源类别 (全部)" style={{ width: 200 }} allowClear className="background-data-match-select">
               {emissionCategories.map(cat => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
             </Select>
             {/* 新增：因子匹配状态筛选框 */}
-            <Select placeholder="因子匹配状态 (全部)" style={{ width: 200 }} allowClear>
+            <Select placeholder="因子匹配状态 (全部)" style={{ width: 200 }} allowClear className="background-data-match-select">
               {(['未配置因子', 'AI匹配失败', 'AI匹配成功', '已手动配置因子'] as const).map(status => <Select.Option key={status} value={status}>{status}</Select.Option>)}
             </Select>
             {/* TODO: 实现筛选逻辑 */}
           </Space>
-          <Button key="aiMatch" type="primary" onClick={handleFactorMatchAI} disabled={selectedFactorMatchSources.length === 0}>
-            执行AI匹配
-          </Button>
+ 
         </div>
         <Table
           rowSelection={{
@@ -1647,7 +2126,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 ...col,
                 render: (text: any, record: EmissionSource) => {
                     const node = nodes.find(n => n.id === record.id);
-                    return nodeTypeToLifecycleStageMap[node?.type || ''] || '未知';
+                    const stageType = node?.type || '';
+                    return nodeTypeToLifecycleStageMap[stageType] || '未知';
                 }
               };
             }
@@ -1659,6 +2139,83 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           pagination={{ pageSize: 10 }}
           scroll={{ y: 'calc(60vh - 150px)' }}
         />
+      </Modal>
+      
+      {/* 匹配结果弹窗 */}
+      <Modal
+        title="碳因子匹配结果"
+        open={showMatchResultsModal}
+        onCancel={() => setShowMatchResultsModal(false)}
+        width={700}
+        footer={[
+          <Button key="close" onClick={() => setShowMatchResultsModal(false)}>
+            关闭
+          </Button>
+        ]}
+      >
+        <div className="mb-4"> {/* Parent of "匹配结果摘要" */}
+          <div className="font-bold text-lg mb-2 text-gray-900">匹配结果摘要</div> {/* 修改在这里 */}
+          <div className="flex space-x-4">
+            <div className="border p-3 rounded flex-1 bg-green-40 text-center">
+              <div className="text-2xl text-gray-900">{matchResults.success.length}</div>
+              <div className="text-gray-900">匹配成功</div>
+            </div>
+            <div className="border p-3 rounded flex-1 bg-red-40 text-center">
+              <div className="text-2xl text-gray-900">{matchResults.failed.length}</div>
+              <div className="text-gray-900">匹配失败</div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="mb-4"> {/* Parent of "API匹配日志" */}
+          <div className="font-bold text-lg mb-2 text-gray-900">API匹配日志</div> {/* 修改在这里 */}
+          <div className="border rounded p-2 bg-gray-30 h-40 overflow-auto">
+            {matchResults.logs.length > 0 ? (
+              <ul className="list-disc pl-5">
+                {matchResults.logs.map((log, index) => (
+                  <li key={index} className="text-sm text-gray-900 mb-1">{log}</li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-center text-gray-900 py-4">无匹配日志信息</div>
+            )}
+          </div>
+        </div>
+        
+        <div>
+          <div className="font-bold text-lg mb-2">详细匹配结果</div>
+          <Tabs defaultActiveKey="success">
+            <Tabs.TabPane tab="成功匹配" key="success">
+              {matchResults.success.length > 0 ? (
+                <ul className="list-disc pl-5">
+                  {matchResults.success.map(id => {
+                    const source = emissionSources.find(s => s.id === id);
+                    return (
+                      <li key={id} className="mb-1 text-gray-900">
+                        <span className="font-semibold">{source?.name || id}</span>: 
+                        {source ? ` 碳因子值=${source.carbonFactor || '未知'}` : ' 匹配成功'}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="text-center text-gray-500 py-4">无成功匹配的排放源</div>
+              )}
+            </Tabs.TabPane>
+            <Tabs.TabPane tab="失败匹配" key="failed">
+              {matchResults.failed.length > 0 ? (
+                <ul className="list-disc pl-5">
+                  {matchResults.failed.map(id => {
+                    const source = emissionSources.find(s => s.id === id);
+                    return <li key={id} className="mb-1 text-gray-900">{source?.name || id}</li>;
+                  })}
+                </ul>
+              ) : (
+                <div className="text-center text-gray-500 py-4">无失败匹配的排放源</div>
+              )}
+            </Tabs.TabPane>
+          </Tabs>
+        </div>
       </Modal>
     </div>
   );
@@ -1876,8 +2433,24 @@ const customStyles = `
 }
 
 /* Style form elements within the drawer */
-.ant-drawer-body .ant-form-item-label > label {
+.ant-drawer-body .ant-form-item-l abel > label,
+.ant-drawer-body .ant-form-item-label {
     color: var(--bolt-elements-textSecondary, #ccc) !important; /* Lighter label color */
+    border-bottom: none !important; /* Attempt to remove any bottom border on the label container */
+    padding-bottom: 2px !important; /* Further reduced padding, was 4px */
+    line-height: 1.2em !important; /* Adjust line-height if label text itself has large internal spacing, use em for relative sizing */
+}
+
+/* Reduce margin below the entire form item to tighten up rows */
+.ant-drawer-body .ant-form-item {
+  margin-bottom:15px !important; /* Further reduced from 12px, adjust as needed */
+}
+
+/* Target the control wrapper to see if it has top padding creating a gap */
+.ant-drawer-body .ant-form-item-control {
+  padding-top: 0px !important; /* Attempt to remove any top padding on the control wrapper */
+  /* Adding min-height to ensure control itself doesn't collapse if it was relying on padding */
+  min-height: auto !important; /* Or set to a specific value like 32px if inputs have fixed height */ 
 }
 
 /* Force styling on ALL relevant input/select elements within the drawer's form items */
@@ -1909,7 +2482,7 @@ const customStyles = `
     background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Match drawer body */
     margin-top: 24px; /* Add some space above buttons */
     padding-top: 10px; /* Padding like a footer */
-    border-top: 1px solid var(--bolt-elements-borderColor, #333) !important; /* Separator line */
+    /* border-top: 1px solid var(--bolt-elements-borderColor, #333) !important; */ /* Separator line REMOVED */
 }
 
 .ant-drawer-body .ant-btn {
@@ -2134,6 +2707,166 @@ const customStyles = `
 .upload-modal-file-table .ant-select-selection-placeholder {
   line-height: 28px !important; /* Adjust line height for vertical centering */
 }
+
+/* Ensure Tabs component in Drawer has no bottom border for the nav/header part */
+.ant-drawer-body .ant-tabs-nav {
+    border-bottom: none !important;
+    margin-bottom: 8px !important; /* Slightly reduced from 12px */
+}
+.ant-drawer-body .ant-tabs-tab {
+    padding-top: 2px !important; /* Further reduced from 4px */
+    padding-bottom: 6px !important; /* Further reduced from 8px */
+}
+
+/* Status color classes */
+.status-complete {
+  color: #00ff7f !important;
+  background-color: rgba(0, 255, 127, 0.15) !important;
+  padding: 2px 10px !important;
+  border-radius: 12px !important;
+  font-size: 12px !important;
+  display: inline-block !important;
+  border: 1px solid rgba(0, 255, 127, 0.3) !important;
+  box-shadow: 0 0 6px rgba(0, 255, 127, 0.4) !important;
+  text-shadow: 0 0 5px rgba(0, 255, 127, 0.5) !important;
+}
+.status-missing {
+  color: #ff4d4f !important;
+  background-color: rgba(255, 77, 79, 0.15) !important;
+  padding: 2px 10px !important;
+  border-radius: 12px !important;
+  font-size: 12px !important;
+  display: inline-block !important;
+  border: 1px solid rgba(255, 77, 79, 0.3) !important;
+  box-shadow: 0 0 6px rgba(255, 77, 79, 0.4) !important;
+  text-shadow: 0 0 5px rgba(255, 77, 79, 0.5) !important;
+}
+
+/* Lifecycle 'All' button styles */
+.lifecycle-all-button {
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.1) !important; /* Subtle primary background when not selected */
+  border-left: 3px solid transparent !important; /* Space for accent border */
+  transition: all 0.3s ease !important;
+}
+
+.lifecycle-all-button:hover {
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.2) !important;
+  border-left-color: var(--bolt-primary, #5165f9) !important;
+}
+
+.lifecycle-all-button.ant-btn-primary { /* When selected */
+  background: linear-gradient(90deg, var(--bolt-primary, #5165f9) 0%, rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.7) 100%) !important;
+  color: #fff !important;
+  border-left: 3px solid var(--bolt-primary-glow, #8da0ff) !important;
+  box-shadow: 0 0 10px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5), inset 0 0 5px rgba(255,255,255,0.2) !important;
+  font-weight: bold !important;
+}
+
+/* Common styles for all lifecycle navigation buttons */
+.lifecycle-nav-bar .ant-btn {
+  border-left: 3px solid transparent !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important;
+  padding-left: 13px !important; /* Adjust padding to maintain text alignment with border */
+  text-align: left !important;
+  display: block !important; 
+  border-radius: 4px !important; /* Slightly rounded corners for all */
+}
+
+/* Default state for non-'All', non-selected text buttons */
+.lifecycle-nav-bar .ant-btn-text:not(.lifecycle-all-button):not(.ant-btn-primary) {
+    color: var(--bolt-elements-textSecondary) !important; /* Dimmer text for inactive tabs */
+    background-color: transparent !important;
+}
+
+/* Hover style for non-selected, non-'All' lifecycle buttons (text buttons) */
+.lifecycle-nav-bar .ant-btn-text:not(.lifecycle-all-button):not(.ant-btn-primary):hover {
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.1) !important; /* Use primary color based hover */
+  border-left-color: var(--bolt-primary, #5165f9) !important;
+  color: var(--bolt-primary) !important; /* Text brightens to primary color */
+}
+
+/* Selected style for non-'All' lifecycle buttons */
+.lifecycle-nav-bar .ant-btn-primary:not(.lifecycle-all-button) {
+  background-color: var(--bolt-primary, #5165f9) !important;
+  color: var(--bolt-primary-contrast-text, #fff) !important;
+  border-left-color: var(--bolt-primary-glow, #8da0ff) !important; /* Brighter left border */
+  font-weight: 500 !important; /* Semi-bold */
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05) !important; /* Very subtle inner shadow */
+}
+
+/* Readjust 'All' button styles to ensure they integrate and override correctly */
+.lifecycle-all-button { /* This is for non-selected state of 'All' button */
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.15) !important; /* More prominent base */
+  color: var(--bolt-elements-textPrimary) !important;
+  /* border-left and transition are handled by common .lifecycle-nav-bar .ant-btn */
+}
+
+.lifecycle-all-button:hover:not(.ant-btn-primary) { /* Hover for 'All' button when NOT selected */
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.25) !important;
+  border-left-color: var(--bolt-primary, #5165f9) !important;
+  color: var(--bolt-primary) !important;
+}
+
+/* .lifecycle-all-button.ant-btn-primary (selected 'All' button) styles remain as they are, they are specific enough */
+
+/* Custom class to make modal select smaller */
+.custom-modal-select-small .ant-select-selector {
+  height: 40px !important;
+  padding: 10px 8px !important;
+
+  margin-left: 2px !important;
+  display: flex !important; /* For vertical alignment */
+  align-items: center !important; /* For vertical alignment */
+}
+
+.custom-modal-input-small .ant-input {
+  height: 40px !important;
+  padding: 10px 0px !important;
+  margin-left: 2px !important;
+}
+
+
+.background-data-match-select .ant-select-selector {
+  height: 40px !important;
+  padding: 10px 8px !important;
+  margin-left: 2px !important;
+  display: flex !important; /* For vertical alignment */
+  align-items: center !important; /* For vertical alignment */
+}
+
+.background-data-match-input {
+  height: 40px !important;
+  width: 350px !important;
+  padding: 10px 8px !important;
+  margin-top: 8px !important;
+  margin-left: 2px !important;
+}
+
+
+.panel-sider-select {
+  height: 40px !important;
+  padding: 30px 8px !important;
+  margin-left: 14px !important;
+  display: flex !important; /* For vertical alignment */
+  align-items: center !important; /* For vertical alignment */
+}
+
+.panel-sider-input {
+  height: 40px !important;
+  padding: 10px 8px !important;
+  
+  margin-top: 8px !important;
+  margin-left: 2px !important;
+
+}
+
+.panel-sider-textarea {
+  height: 40px !important;
+  padding: 10px 8px !important;
+  margin-left: 2px !important;
+  margin-top: 8px !important;
+}
+
 
 
 `;

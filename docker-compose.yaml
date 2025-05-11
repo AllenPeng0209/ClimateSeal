@@ -1,7 +1,10 @@
 services:
   app-prod:
-    image: crpi-bvovg2g7y33dn86o.cn-shanghai.personal.cr.aliyuncs.com/climateseal/bolt-ai:your-new-tag
-
+    image: bolt-ai:production
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bolt-ai-production  
     ports:
       - '5173:5173'
     env_file: '.env'

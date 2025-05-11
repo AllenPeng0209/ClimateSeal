@@ -1,6 +1,7 @@
 import type { MetaFunction } from "@remix-run/node";
 import { Typography } from "antd";
 import { RegisterForm } from "../components/auth/RegisterForm";
+import { AuthProvider } from "../contexts/AuthContext";
 
 const { Title, Paragraph } = Typography;
 
@@ -41,7 +42,9 @@ export default function RegisterPage() {
             />
           </div>
           
-          <RegisterForm />
+          <AuthProvider>
+            <RegisterForm />
+          </AuthProvider>
         </div>
       </div>
 

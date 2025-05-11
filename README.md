@@ -1,18 +1,12 @@
-# bolt.diy
+# ClimateSeals AI-Powered Product Carbon Footprint Platform
 
-[![bolt.diy: AI-Powered Full-Stack Web Development in the Browser](./public/social_preview_index.jpg)](https://bolt.diy)
 
-Welcome to bolt.diy, the official open source version of Bolt.new, which allows you to choose the LLM that you use for each prompt! Currently, you can use OpenAI, Anthropic, Ollama, OpenRouter, Gemini, LMStudio, Mistral, xAI, HuggingFace, DeepSeek, or Groq models - and it is easily extended to use any other model supported by the Vercel AI SDK! See the instructions below for running this locally and extending it to include more models.
 
------
-Check the [bolt.diy Docs](https://stackblitz-labs.github.io/bolt.diy/) for more offical installation instructions and more informations.
+Welcome to the AI-Powered Product Carbon Footprint (PCF) Platform, a solution designed to simplify and automate how businesses calculate, manage, and report their products' carbon footprints. This platform leverages Artificial Intelligence, with a core **AI Carbon Consultant**, to guide users through the complex PCF process, enhance data quality, and provide actionable insights for decarbonization.
 
------
-Also [this pinned post in our community](https://thinktank.ottomator.ai/t/videos-tutorial-helpful-content/3243) has a bunch of incredible resources for running and deploying bolt.diy yourself!
+This project is inspired by the need for more efficient, accurate, and scalable PCF solutions in the face of growing climate concerns and regulatory pressures (e.g., CBAM, CSRD). Our goal is to empower businesses to understand and reduce their environmental impact effectively.
 
-We have also launched an experimental agent called the "bolt.diy Expert" that can answer common questions about bolt.diy. Find it here on the [oTTomator Live Agent Studio](https://studio.ottomator.ai/).
-
-bolt.diy was originally started by [Cole Medin](https://www.youtube.com/@ColeMedin) but has quickly grown into a massive community effort to build the BEST open source AI coding assistant!
+Check the [Project Docs](https://your-doc-link-here.com/) for more official installation instructions and information.
 
 ## Table of Contents
 
@@ -26,95 +20,156 @@ bolt.diy was originally started by [Cole Medin](https://www.youtube.com/@ColeMed
 - [Roadmap](#roadmap)
 - [FAQ](#faq)
 
-## Join the community
-
-[Join the bolt.diy community here, in the oTTomator Think Tank!](https://thinktank.ottomator.ai)
 
 ## Project management
 
-Bolt.diy is a community effort! Still, the core team of contributors aims at organizing the project in way that allows
+This project is a community effort! Still, the core team of contributors aims at organizing the project in way that allows
 you to understand where the current areas of focus are.
 
 If you want to know what we are working on, what we are planning to work on, or if you want to contribute to the
-project, please check the [project management guide](./PROJECT.md) to get started easily.
+project, please check the [project management guide](./PROJECT.md) to get started easily. (Ensure PROJECT.md is updated for this new project)
 
 ## Requested Additions
 
-- ✅ OpenRouter Integration (@coleam00)
-- ✅ Gemini Integration (@jonathands)
-- ✅ Autogenerate Ollama models from what is downloaded (@yunatamos)
-- ✅ Filter models by provider (@jasonm23)
-- ✅ Download project as ZIP (@fabwaseem)
-- ✅ Improvements to the main bolt.new prompt in `app\lib\.server\llm\prompts.ts` (@kofi-bhr)
-- ✅ DeepSeek API Integration (@zenith110)
-- ✅ Mistral API Integration (@ArulGandhi)
-- ✅ "Open AI Like" API Integration (@ZerxZ)
-- ✅ Ability to sync files (one way sync) to local folder (@muzafferkadir)
-- ✅ Containerize the application with Docker for easy installation (@aaronbolton)
-- ✅ Publish projects directly to GitHub (@goncaloalves)
-- ✅ Ability to enter API keys in the UI (@ali00209)
-- ✅ xAI Grok Beta Integration (@milutinke)
-- ✅ LM Studio Integration (@karrot0)
-- ✅ HuggingFace Integration (@ahsan3219)
-- ✅ Bolt terminal to see the output of LLM run commands (@thecodacus)
-- ✅ Streaming of code output (@thecodacus)
-- ✅ Ability to revert code to earlier version (@wonderwhy-er)
-- ✅ Chat history backup and restore functionality (@sidbetatester)
-- ✅ Cohere Integration (@hasanraiyan)
-- ✅ Dynamic model max token length (@hasanraiyan)
-- ✅ Better prompt enhancing (@SujalXplores)
-- ✅ Prompt caching (@SujalXplores)
-- ✅ Load local projects into the app (@wonderwhy-er)
-- ✅ Together Integration (@mouimet-infinisoft)
-- ✅ Mobile friendly (@qwikode)
-- ✅ Better prompt enhancing (@SujalXplores)
-- ✅ Attach images to prompts (@atrokhym)(@stijnus)
-- ✅ Added Git Clone button (@thecodacus)
-- ✅ Git Import from url (@thecodacus)
-- ✅ PromptLibrary to have different variations of prompts for different use cases (@thecodacus)
-- ✅ Detect package.json and commands to auto install & run preview for folder and git import (@wonderwhy-er)
-- ✅ Selection tool to target changes visually (@emcconnell)
-- ✅ Detect terminal Errors and ask bolt to fix it (@thecodacus)
-- ✅ Detect preview Errors and ask bolt to fix it (@wonderwhy-er)
-- ✅ Add Starter Template Options (@thecodacus)
-- ✅ Perplexity Integration (@meetpateltech)
-- ✅ AWS Bedrock Integration (@kunjabijukchhe)
-- ✅ Add a "Diff View" to see the changes (@toddyclipsgg)
-- ⬜ **HIGH PRIORITY** - Prevent bolt from rewriting files as often (file locking and diffs)
-- ⬜ **HIGH PRIORITY** - Better prompting for smaller LLMs (code window sometimes doesn't start)
-- ⬜ **HIGH PRIORITY** - Run agents in the backend as opposed to a single model call
-- ✅ Deploy directly to Netlify (@xKevIsDev)
-- ⬜ Supabase Integration
-- ⬜ Have LLM plan the project in a MD file for better results/transparency
-- ⬜ VSCode Integration with git-like confirmations
-- ⬜ Upload documents for knowledge - UI design templates, a code base to reference coding style, etc.
-- ⬜ Voice prompting
-- ⬜ Azure Open AI API Integration
+
+Agent
+general 
 - ⬜ Vertex AI Integration
-- ⬜ Granite Integration
-- ✅ Popout Window for Web Container(@stijnus)
-- ✅ Ability to change Popout window size (@stijnus)
+- ⬜ Gemini 2.5 pro Integration
+- ⬜ Orchestration engine for multi-agent workflows (e.g., data agent feeds consultant agent).
+
+data 
+- ⬜ file parse and carbon node generation(pdf, csv, xlxs, docs, txt)
+- ⬜ Supplier information management and carbon data tracking.
+- ⬜ Intelligent data validation & cleansing beyond basic checks (e.g., outlier detection, unit normalization).
+- ⬜ Automated data extraction from diverse enterprise systems (ERP, SCM, MES).
+- ⬜ AI-powered data imputation for missing supplier/activity data.
+- ⬜ Continuous data quality monitoring and alert system.
+
+consultant 
+- ⬜ carbon factor match 
+- ⬜ Data quality validation (use gemini 2.5 pro)
+- ⬜ Advanced analytics: hotspot analysis, sensitivity analysis, trend analysis, scenario modeling.
+- ⬜ Powerful search and AI-assisted knowledge response(consultant)
+- ⬜ Recommendation engine for low-carbon material alternatives.
+- ⬜ Guidance on setting science-based targets (SBTs).
+
+
+audit 
+- ⬜ Automated generation of pre-audit documentation & evidence packages.
+- ⬜ AI-powered identification of potential compliance risks & non-conformities based on submitted data.
+- ⬜ Interactive simulation of audit queries and guidance on response formulation.
+- ⬜ Powerful law search and AI-assisted response (audit)
+- ⬜ Verification support for carbon offsetting and renewable energy claims.
+- ⬜ Tracking and management of corrective actions post-audit.
+
+
+
+Saas
+general
+- ⬜ front-end theme 
+- ⬜ Report Generation & Visilization 
+- ⬜ User roles and permissions management (fine-grained access control).
+- ⬜ Comprehensive system-wide audit trail logging for security and compliance (includes data backup and recovery).
+- ⬜ Customizable dashboard and reporting templates.
+- ⬜ User-configurable workflow management for PCF processes.
+
+carbon factor 
+- ⬜ carbon factor database 
+- ⬜ ai wrapper for match api
+- ⬜ Management of factor validity periods and regional applicability.
+- ⬜ User-defined emission factor creation with approval workflow.
+
+knowledge
+- ⬜ carbon knowledge base(enterprise)
+- ⬜ carbon knowledge base(industry)
+- ⬜ carbon knowledge base(laws)
+- ⬜ Version control and collaborative editing for enterprise knowledge base articles.
+- ⬜ Integration with external regulatory update services for law knowledge base.
+
+Report Generation & Visualization
+- ⬜ Generation of PCF reports compliant with multiple standards (e.g., ISO 14067, GHG Protocol, CBAM).
+- ⬜ Interactive data visualization tools for hotspot analysis, trend identification, and scenario comparison.
+- ⬜ Export reports in various formats (PDF, Excel, CSV).
+
+
+
+
 
 ## Features
 
-- **AI-powered full-stack web development** for **NodeJS based applications** directly in your browser.
-- **Support for multiple LLMs** with an extensible architecture to integrate additional models.
-- **Attach images to prompts** for better contextual understanding.
-- **Integrated terminal** to view output of LLM-run commands.
-- **Revert code to earlier versions** for easier debugging and quicker changes.
-- **Download projects as ZIP** for easy portability Sync to a folder on the host.
-- **Integration-ready Docker support** for a hassle-free setup.
-- **Deploy** directly to **Netlify**
+This platform aims to provide a comprehensive suite for product carbon footprint management:
+
+For Agents 
+
+- **AI Carbon Consultant**:
+    - Natural language interaction to guide users through PCF calculations and management.
+    - Assists in data collection, identifying necessary data points based on product type and industry.
+    - Intelligently matches materials/activities with appropriate emission factors from a vast database.
+    - Assesses data quality and provides actionable improvement suggestions.
+    - Offers guidance on regulatory compliance (e.g., ISO 14067, GHG Protocol).
+    - Delivers tailored decarbonization strategies based on PCF results.
+- **Supplier Data Collection Agent**:
+    - Automates and streamlines the process of collecting carbon-related data from suppliers.
+    - Provides suppliers with clear guidance and templates for data submission.
+    - Tracks data collection progress and flags missing or incomplete information.
+- **Audit Advisor Agent**:
+    - Guides users through internal and external PCF audit processes.
+    - Helps prepare necessary documentation and evidence for auditors.
+    - Provides insights on compliance with standards (e.g., ISO 14067, GHG Protocol) from an audit perspective.
+
+    
+For SaaS
+- **Product & Material Management**:
+    - Centralized product library with version control.
+    - Multi-level Bill of Materials (BOM) management with versioning and visualization.
+    - Master database for materials, including common raw materials, semi-finished goods, and packaging.
+    - Supplier information management and carbon performance tracking.
+- **Data Collection & Management**:
+    - Support for various data import methods (manual, templates, API).
+    - Standardized data collection templates.
+    - Data quality validation engine with an audit workflow.
+    - Comprehensive emission factor database (standard and custom).
+    - Activity data management for energy, transport, waste, etc.
+- **Carbon Factor Management**:
+    - Manages and maintains a comprehensive database of emission factors.
+    - Allows users to add, edit, and manage custom or company-specific emission factors.
+    - Supports version control and tracking updates for emission factors to ensure data accuracy and traceability.
+    - Provides robust search, filtering, and categorization capabilities for easy factor retrieval.
+    - Potentially integrates with external and industry-standard emission factor databases.
+- **Calculation Engine**:
+    - Compliant with ISO 14067 & GHG Protocol product standards.
+    - Covers full product lifecycle stages (Cradle-to-Gate, Cradle-to-Grave).
+    - Supports various allocation methods.
+    - Uncertainty analysis and AI-powered data gap filling.
+- **Reporting & Analytics**:
+    - Generation of standardized PCF reports (ISO 14067, GHG Protocol).
+    - Customizable reports and dashboards.
+    - Advanced analytics: hotspot analysis, sensitivity analysis, trend analysis, scenario modeling.
+    - Rich data visualization tools.
+- **Knowledge Base**:
+    - Access to enterprise-specific, industry-specific, academic, and regulatory knowledge.
+    - Powerful search and AI-assisted knowledge interpretation.
+- **User Management & Collaboration**:
+    - Role-based access control.
+    - Workflow and task management for PCF processes.
+    - Notification and commenting features.
+- **System Administration**:
+    - Global system configuration.
+    - Audit logs, data backup, and recovery.
+    - Bulk data import/export capabilities.
+
+
 
 ## Setup
 
 If you're new to installing software from GitHub, don't worry! If you encounter any issues, feel free to submit an "issue" using the provided links or improve this documentation by forking the repository, editing the instructions, and submitting a pull request. The following instruction will help you get the stable branch up and running on your local machine in no time.
 
-Let's get you up and running with the stable version of Bolt.DIY!
+Let's get you up and running with the stable version of climateseals.DIY!
 
 ## Quick Download
 
-[![Download Latest Release](https://img.shields.io/github/v/release/stackblitz-labs/bolt.diy?label=Download%20Bolt&sort=semver)](https://github.com/stackblitz-labs/bolt.diy/releases/latest) ← Click here to go the the latest release version!
+[![Download Latest Release](https://img.shields.io/github/v/release/stackblitz-labs/climateseals.diy?label=Download%20climateseals&sort=semver)](https://github.com/stackblitz-labs/climateseals.diy/releases/latest) ← Click here to go the the latest release version!
 
 - Next **click source.zip**
 
@@ -145,7 +200,6 @@ Node.js is required to run the application.
 
 ## Running the Application
 
-You have two options for running Bolt.DIY: directly on your machine or using Docker.
 
 ### Option 1: Direct Installation (Recommended for Beginners)
 
@@ -184,7 +238,7 @@ This option requires some familiarity with Docker but provides a more isolated e
    npm run dockerbuild
 
    # OR using direct Docker command:
-   docker build . --target bolt-ai-development
+   docker build . --target climateseals-ai-development
    ```
 
 2. **Run the Container**:
@@ -196,7 +250,7 @@ This option requires some familiarity with Docker but provides a more isolated e
 
 ### Adding Your API Keys
 
-Setting up your API keys in Bolt.DIY is straightforward:
+Setting up your API keys in climateseals.DIY is straightforward:
 
 1. Open the home page (main interface)
 2. Select your desired provider from the dropdown menu
@@ -210,7 +264,7 @@ Setting up your API keys in Bolt.DIY is straightforward:
 For providers that support custom base URLs (such as Ollama or LM Studio), follow these steps:
 
 1. Click the settings icon in the sidebar to open the settings menu
-   ![Settings Button Location](./docs/images/bolt-settings-button.png)
+   ![Settings Button Location](./docs/images/climateseals-settings-button.png)
 
 2. Navigate to the "Providers" tab
 3. Search for your provider using the search bar
@@ -243,13 +297,13 @@ This method is recommended for developers who want to:
 1. **Clone the Repository**:
 
    ```bash
-   git clone -b stable https://github.com/stackblitz-labs/bolt.diy.git
+   git clone -b stable https://github.com/stackblitz-labs/climateseals.diy.git
    ```
 
 2. **Navigate to Project Directory**:
 
    ```bash
-   cd bolt.diy
+   cd climateseals.diy
    ```
 
 3. **Install Dependencies**:
@@ -274,7 +328,7 @@ This method is recommended for developers who want to:
 >**Open the WebUI to test (Default: http://localhost:5173)**
 >   - Beginngers: 
 >     - Try to use a sophisticated Provider/Model like Anthropic with Claude Sonnet 3.x Models to get best results
->     - Explanation: The System Prompt currently implemented in bolt.diy cant cover the best performance for all providers and models out there. So it works better with some models, then other, even if the models itself are perfect for >programming
+>     - Explanation: The System Prompt currently implemented in climateseals.diy cant cover the best performance for all providers and models out there. So it works better with some models, then other, even if the models itself are perfect for >programming
 >     - Future: Planned is a Plugin/Extentions-Library so there can be different System Prompts for different Models, which will help to get better results
 
 #### Staying Updated
@@ -353,16 +407,76 @@ We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to
 
 ## Roadmap
 
-Explore upcoming features and priorities on our [Roadmap](https://roadmap.sh/r/ottodev-roadmap-2ovzo).
+Our development is planned in phases. Here's a high-level overview:
+
+### Phase 1: MVP 
+-   **Core Functionality:**
+    -   Basic user management and authentication.
+    -   Manual carbon data input.
+    -   Simple calculation engine (for small-scale products).
+    -   AI Carbon Consultant: Initial conversational interface for guiding report modeling.
+    -   Basic report generation & simple data visualization.
+    -   Fundamental emission factor management (search & match).
+-   Data import/export (basic).
+
+### Phase 2: Standard Edition
+-   **Enhanced Core:**
+    -   Complete user management and permission system.
+    -   More comprehensive calculation engine.
+    -   Standardized reporting outputs (ISO 14067, GHG Protocol).
+    -   Data quality validation rules.
+    -   Product BOM Management.
+    -   Initial API integration capabilities.
+-   **Knowledge & AI:**
+    -   Full knowledge base search.
+    -   AI-powered summarization for knowledge base content.
+
+### Phase 3: Advanced Edition
+-   Advanced analytical reports.
+-   Hotspot analysis.
+-   Data quality management workflows.
+-   API integration framework.
+
+### Phase 4: Enterprise Edition 
+-   **Enterprise Features:**
+    -   Carbon reduction target setting & tracking.
+    -   Advanced data visualization.
+    -   Partial supply chain data integration.
+    -   Limited third-party system integration (ERP, PLM).
+    -   Workflow management.
+    -   AI-assisted analysis and recommendations.
+    -   Supply chain carbon footprint (initial).
+
+### Long-term Vision (2028 onwards)
+-   Full API platform for developers.
+-   Mobile application.
+-   Advanced AI predictive analytics & simulation capabilities.
+-   Broader system integrations (MES, Energy Management).
+-   Multi-language support.
+-   Scenario simulation analysis.
+-   Comprehensive Knowledge Base system.
+-   Carbon trading market connectivity (exploratory).
+-   Blockchain for traceability (exploratory).
+
+*This roadmap is subject to change based on development progress and user feedback.*
 
 ---
 
 ## FAQ
 
-For answers to common questions, issues, and to see a list of recommended models, visit our [FAQ Page](FAQ.md).
 
+
+For answers to common questions, issues, and to see a list of recommended models, visit our [FAQ Page](FAQ.md). (Ensure FAQ.md is updated for this new project)
 
 # Licensing
 **Who needs a commercial WebContainer API license?**
 
-bolt.diy source code is distributed as MIT, but it uses WebContainers API that [requires licensing](https://webcontainers.io/enterprise) for production usage in a commercial, for-profit setting. (Prototypes or POCs do not require a commercial license.) If you're using the API to meet the needs of your customers, prospective customers, and/or employees, you need a license to ensure compliance with our Terms of Service. Usage of the API in violation of these terms may result in your access being revoked.
+(Note: Review if WebContainer API is still a core part of this new platform. If not, this section should be removed or updated.)
+
+climateseals.diy source code is distributed as MIT, but it uses WebContainers API that [requires licensing](https://webcontainers.io/enterprise) for production usage in a commercial, for-profit setting. (Prototypes or POCs do not require a commercial license.) If you're using the API to meet the needs of your customers, prospective customers, and/or employees, you need a license to ensure compliance with our Terms of Service. Usage of the API in violation of these terms may result in your access being revoked.
+
+
+
+
+#Acknowledge 
+this project is base on bolt.diy, thanks for bolt community for great code base

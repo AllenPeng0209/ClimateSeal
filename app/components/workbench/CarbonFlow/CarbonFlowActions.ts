@@ -1263,39 +1263,112 @@ export class CarbonFlowActionHandler {
     
     const nodesToUpdate: NodeUpdateInfo[] = [];
     
+    // 记录匹配结果和日志
+    const matchResults = {
+      success: [] as string[],
+      failed: [] as string[],
+      logs: [] as string[]
+    };
+    
     // 首先获取所有需要更新的节点和对应的碳因子信息
     for (const node of this._nodes) {
       const currentFactor = node.data.carbonFactor;
       
-      // 匹配因子为空或为0的节点
-      if (currentFactor === undefined || currentFactor === 0) {
-        // 从API获取碳因子替代模拟查询
-        const factorResult = await this._fetchCarbonFactorFromAPI(node);
-        
-        if (factorResult !== null) {
-          console.log(`节点 ${node.id} (${node.data.label}): 匹配到碳因子 ${factorResult.factor}, 名称: ${factorResult.activityName}, 单位: ${factorResult.unit}`);
-          nodesToUpdate.push({node, ...factorResult}); // 直接使用返回的对象
-        } else {
-          console.log(`节点 ${node.id} (${node.data.label}): 未找到匹配的碳因子`);
+      // 如果action中指定了特定的节点ID，则只处理这些节点
+      if (action.nodeId) {
+        const nodeIds = action.nodeId.split(',');
+        if (!nodeIds.includes(node.id)) {
+          continue;  // 跳过未被选中的节点
         }
+      }
+      
+      // 匹配因子为空或为0的节点
+      if (currentFactor === undefined || currentFactor === 0 || currentFactor === '0') {
+        // 记录日志：开始匹配
+        matchResults.logs.push(`开始为节点 "${node.data.label || node.id}" 尝试匹配碳因子...`);
+        
+        try {
+          // 尝试通过Climatiq API获取碳因子
+          const climatiqResult = await this._fetchCarbonFactorFromClimatiqAPI(node);
+          
+          if (climatiqResult) {
+            // Climatiq匹配成功
+            nodesToUpdate.push({
+              node,
+              factor: climatiqResult.factor,
+              activityName: climatiqResult.activityName,
+              unit: climatiqResult.unit
+            });
+            
+            // 记录成功匹配
+            matchResults.success.push(node.id);
+            matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climatiq API匹配成功，碳因子: ${climatiqResult.factor}`);
+            
+            updated = true;
+            continue;  // 跳过Climateseal API调用
+          } else {
+            // Climatiq匹配失败，使用Climateseal API
+            matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climatiq API匹配失败，尝试使用Climateseal API...`);
+          }
+        } catch (error) {
+          // Climatiq API出错，记录日志
+          matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climatiq API匹配出错: ${error.message || '未知错误'}`);
+        }
+        
+        try {
+          // 尝试通过Climateseal API获取碳因子
+          const climatesealResult = await this._fetchCarbonFactorFromClimatesealAPI(node);
+          
+          if (climatesealResult) {
+            // Climateseal匹配成功
+            nodesToUpdate.push({
+              node,
+              factor: climatesealResult.factor,
+              activityName: climatesealResult.activityName,
+              unit: climatesealResult.unit
+            });
+            
+            // 记录成功匹配
+            matchResults.success.push(node.id);
+            matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climateseal API匹配成功，碳因子: ${climatesealResult.factor}`);
+            
+            updated = true;
+          } else {
+            // 两个API都匹配失败
+            matchResults.failed.push(node.id);
+            matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过两个API都匹配失败`);
+          }
+        } catch (error) {
+          // Climateseal API出错，记录日志
+          matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climateseal API匹配出错: ${error.message || '未知错误'}`);
+          
+          // 如果两个API都失败，记录为匹配失败
+          if (!matchResults.success.includes(node.id)) {
+            matchResults.failed.push(node.id);
+          }
+        }
+      } else if (action.nodeId) {
+        // 如果节点已有碳因子但被明确选择进行匹配，添加到日志
+        matchResults.logs.push(`跳过节点 "${node.data.label || node.id}"，因为它已经有碳因子: ${currentFactor}`);
       }
     }
     
     // 如果有节点需要更新，进行批量更新
     if (nodesToUpdate.length > 0) {
+      // 恢复使用原始的_setNodes方法进行更新
       this._setNodes(currentNodes => {
         const updatedNodes = currentNodes.map(node => {
           const updateInfo = nodesToUpdate.find(u => u.node.id === node.id);
           if (updateInfo) {
             updated = true;
-            // 更新 label, unit 和 carbonFactor
+            // 更新 carbonFactor, carbonFactorName, carbonFactorUnit
             return {
               ...node,
               data: {
                 ...node.data,
-                carbonFactor: updateInfo.factor,
-                carbonFactorName: updateInfo.activityName, // 使用activityName更新名称
-                unit: updateInfo.unit, // 更新单位
+                carbonFactor: String(updateInfo.factor),
+                carbonFactorName: updateInfo.activityName,
+                carbonFactorUnit: updateInfo.unit,
                 activitydataSource: '数据库匹配',
                 verificationStatus: 'verified',
               },
@@ -1313,9 +1386,18 @@ export class CarbonFlowActionHandler {
     } else {
       console.log('碳因子匹配完成，没有需要更新的节点');
     }
+    
+    // 发送匹配结果事件，即便是没有更新也发送
+    window.dispatchEvent(new CustomEvent('carbonflow-match-results', {
+      detail: matchResults
+    }));
+    
+    console.log('Carbon factor match operation completed, updated:', updated);
+    console.log('Match results:', matchResults);
   }
 
-  private async _fetchCarbonFactorFromAPI(node: Node<NodeData>): Promise<CarbonFactorResult | null> {
+  // 重命名为Climateseal API
+  private async _fetchCarbonFactorFromClimatesealAPI(node: Node<NodeData>): Promise<CarbonFactorResult | null> {
     try {
       // 获取节点标签作为查询参数
       const label = node.data.label || '';
@@ -1324,7 +1406,7 @@ export class CarbonFlowActionHandler {
         return null;
       }
 
-      console.log(`尝试为节点 ${node.id} (${label}) 从API获取碳因子`);
+      console.log(`尝试为节点 ${node.id} (${label}) 从Climateseal API获取碳因子`);
         
       // 构建请求体
       const requestBody = {
@@ -1335,9 +1417,7 @@ export class CarbonFlowActionHandler {
         search_method: 'script_score' // 使用默认的搜索方法
       };
 
-
-      //log requestBody
-      console.log('requestBody', requestBody);
+      console.log('Climateseal requestBody', requestBody);
       // 调用后端API
       const response = await fetch('https://api.climateseals.com/match', {
         method: 'POST',
@@ -1348,7 +1428,7 @@ export class CarbonFlowActionHandler {
       });
 
       if (!response.ok) {
-        throw new Error(`API返回错误状态: ${response.status}`);
+        throw new Error(`Climateseal API返回错误状态: ${response.status}`);
       }
 
       const data = await response.json() as {
@@ -1364,7 +1444,7 @@ export class CarbonFlowActionHandler {
           error: string | null;
         }>;
       };
-      console.log('碳因子API响应:', data);
+      console.log('Climateseal 碳因子API响应:', data);
 
       // 正确解析API返回的嵌套结构
       if (data.results && 
@@ -1380,13 +1460,98 @@ export class CarbonFlowActionHandler {
         };
       } else {
         // API没有返回匹配结果，直接返回null
-        console.warn('API没有返回匹配结果');
+        console.warn('Climateseal API没有返回匹配结果');
         return null;
       }
     } catch (error) {
-      console.error(`获取碳因子时出错:`, error);
+      console.error(`从Climateseal获取碳因子时出错:`, error);
       // API调用失败，返回null
-      console.log(`API调用失败，不使用默认碳因子`);
+      console.log(`Climateseal API调用失败，不使用默认碳因子`);
+      return null;
+    }
+  }
+
+  // 新增 Climatiq API
+  private async _fetchCarbonFactorFromClimatiqAPI(node: Node<NodeData>): Promise<CarbonFactorResult | null> {
+    try {
+      // 获取节点相关信息作为查询参数
+      const label = node.data.label || '';
+      if (!label || label.trim() === '') {
+        console.warn(`节点 ${node.id} 没有有效的标签用于碳因子查询`);
+        return null;
+      }
+
+      console.log(`尝试为节点 ${node.id} (${label}) 从Climatiq API获取碳因子`);
+      
+      // 根据节点类型确定使用什么activity_id
+      // 这里简化处理，实际应用中可能需要更复杂的映射逻辑
+      let activityId = 'electricity-supply_grid-source_residual_mix';
+      let energy = 1000; // 默认值
+      
+      // 根据节点类型和属性调整参数
+      switch (node.type as NodeType) {
+        case 'product':
+          // 这里可以根据产品特性选择不同的活动ID
+          activityId = 'material-production_average-steel-primary';
+          energy = (node.data as ProductNodeData).weight || 1000;
+          break;
+        case 'distribution':
+          activityId = 'freight_vehicle-type_truck-size_heavy-fuel_source_diesel-distance_long';
+          energy = (node.data as DistributionNodeData).transportationDistance || 1000;
+          break;
+        case 'manufacturing':
+          activityId = 'electricity-supply_grid-source_residual_mix';
+          energy = (node.data as ManufacturingNodeData).energyConsumption || 1000;
+          break;
+        // 可继续添加其他类型的处理
+      }
+
+      // 构建请求体
+      const requestBody = {
+        emission_factor: {
+          activity_id: activityId,
+          data_version: "^21"
+        },
+        parameters: {
+          energy: energy,
+          energy_unit: "kWh"
+        }
+      };
+
+      console.log('Climatiq requestBody', requestBody);
+      
+      // 调用Climatiq API
+      const API_KEY = 'KSBRPY3WYN3HZ5XBCKD0FYD80R'; // 使用提供的API密钥
+      const response = await fetch('https://api.climatiq.io/data/v1/estimate', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Climatiq API返回错误状态: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Climatiq 碳因子API响应:', data);
+
+      // 解析响应
+      if (data && data.co2e !== undefined) {
+        return {
+          factor: data.co2e / energy, // 计算单位碳因子
+          activityName: data.emission_factor?.name || activityId,
+          unit: data.co2e_unit || 'kg'
+        };
+      } else {
+        console.warn('Climatiq API响应格式不符合预期');
+        return null;
+      }
+    } catch (error) {
+      console.error(`从Climatiq获取碳因子时出错:`, error);
+      console.log(`Climatiq API调用失败`);
       return null;
     }
   }
