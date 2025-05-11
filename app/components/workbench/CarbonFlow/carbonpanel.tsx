@@ -15,6 +15,9 @@ import {
   Popconfirm,
   Upload,
   Tooltip,
+  Spin,
+  Empty,
+  List,
   Tabs, // <-- Import Tabs
   Divider, // <-- Import Divider
   Typography, // <-- Import Typography
@@ -34,14 +37,35 @@ import {
   ClearOutlined,
   AimOutlined,
   DatabaseOutlined,
+  FileOutlined,
 } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 import { useCarbonFlowStore } from './CarbonFlowBridge';
-import type { Node } from 'reactflow';
+import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '~/types/nodes';
 import type { TableProps, ColumnType } from 'antd/es/table';
 import type { FilterDropdownProps } from 'antd/es/table/interface';
+import { useLoaderData } from '@remix-run/react';
+import type { CarbonFlowAction } from '~/types/actions';
+import type { UploadFileResponse } from '~/types/file';
+import { CarbonFlowActionHandler } from './CarbonFlowActions';
+import { supabase } from '~/lib/supabase';
+
+interface FileRecord {
+  id: string;
+  name: string;
+  path: string;
+  type: string;
+  size: number;
+  mime_type: string;
+  created_at: string;
+}
+
+interface WorkflowFileRecord {
+  file_id: string;
+  files: FileRecord;
+}
 import type { CarbonFlowAction } from '~/types/actions';  // 修正导入路径
 
 // Placeholder data types (replace with actual types later)
@@ -94,6 +118,9 @@ type UploadedFile = {
   uploadTime: string;
   url?: string; // Optional URL for preview/download
   status: 'pending' | 'parsing' | 'completed' | 'failed'; // Added status field based on PRD
+  size?: number;
+  mimeType?: string;
+  content?: string; // 添加content字段用于缓存文件内容
 };
 
 // Extend antd's UploadFile type to include our custom selectedType
@@ -138,7 +165,8 @@ const nodeTypeToLifecycleStageMap: Record<string, string> = Object.fromEntries(
 );
 // --- 结束映射关系 ---
 
-export function CarbonCalculatorPanel() {
+// Add workflowId to props
+export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const [sceneInfo, setSceneInfo] = useState<SceneInfoType>({}); // Placeholder state
   const [modelScore, setModelScore] = useState<ModelScoreType>({}); // Placeholder state
   const [selectedStage, setSelectedStage] = useState<string>(lifecycleStages[0]);
@@ -147,7 +175,7 @@ export function CarbonCalculatorPanel() {
   const [isEmissionDrawerVisible, setIsEmissionDrawerVisible] = useState(false);
   const [editingEmissionSource, setEditingEmissionSource] = useState<EmissionSource | null>(null);
   const [drawerInitialValues, setDrawerInitialValues] = useState<Partial<EmissionSource & { lifecycleStage: string }>>({}); // 用于传递初始值
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]); // State for main file list
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploadModalVisible, setIsUploadModalVisible] = useState(false); // State for the upload modal visibility
   const [modalFileList, setModalFileList] = useState<ModalUploadFile[]>([]); // State for files in the modal upload list
   const [isFactorMatchModalVisible, setIsFactorMatchModalVisible] = useState(false); // 新增：因子匹配弹窗状态
@@ -734,28 +762,265 @@ export function CarbonCalculatorPanel() {
     // You might want to handle 'uploading' status too
    };
 
-   const handlePreviewFile = (file: UploadedFile) => {
-     console.log('Previewing file:', file);
-     if (file.url) {
-       window.open(file.url, '_blank');
-     } else {
-       message.info('此文件没有可用的预览链接');
-     }
-   };
+  // 修改文件删除函数
+  const handleDeleteFile = async (id: string) => {
+    try {
+      // 获取文件信息
+      const { data: workflowFile, error: fetchError } = await supabase
+        .from('workflow_files')
+        .select(`
+          file_id,
+          files (
+            id,
+            path
+          )
+        `)
+        .eq('file_id', id)
+        .single();
 
-   const handleDeleteFile = (id: string) => {
-     console.log('Deleting file:', id);
-     // TODO: API call to delete file on server
-     setUploadedFiles(prev => prev.filter(item => item.id !== id));
-     message.success('文件已删除');
-   };
+      if (fetchError) {
+        throw new Error(`Failed to fetch file info: ${fetchError.message}`);
+      }
 
-   // Placeholder handlers for new file actions
-   const handleParseFile = (file: UploadedFile) => {
-       console.log('Parsing file:', file);
-       // TODO: Implement parsing logic trigger
-       message.info('解析功能待实现');
-   };
+      if (!workflowFile?.files?.path) {
+        throw new Error('File path not found');
+      }
+
+      // 从 Storage 中删除文件
+      const { error: storageError } = await supabase.storage
+        .from('files')
+        .remove([workflowFile.files.path]);
+
+      if (storageError) {
+        throw storageError;
+      }
+
+      // 删除 workflow_files 表中的记录
+      const { error: workflowFileError } = await supabase
+        .from('workflow_files')
+        .delete()
+        .eq('file_id', id);
+
+      if (workflowFileError) {
+        throw new Error(`Failed to delete workflow file record: ${workflowFileError.message}`);
+      }
+
+      // 删除 files 表中的记录
+      const { error: fileError } = await supabase
+        .from('files')
+        .delete()
+        .eq('id', id);
+
+      if (fileError) {
+        throw new Error(`Failed to delete file record: ${fileError.message}`);
+      }
+
+      // 更新本地状态
+      setUploadedFiles(prev => prev.filter(f => f.id !== id));
+      message.success('文件删除成功');
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      message.error(`删除文件失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
+
+  // 修改文件上传函数
+  const handleUploadModalOk = async () => {
+    try {
+      if (!modalFileList.length) {
+        message.error('请选择要上传的文件');
+        return;
+      }
+
+      const formData = await uploadModalFormRef.current?.validateFields();
+      if (!formData) return;
+
+      setIsUploading(true);
+
+      for (const file of modalFileList) {
+        const fileObj = file.originFileObj;
+        if (!fileObj) continue;
+
+        // 读取文件内容
+        const content = await fileObj.text();
+
+        // 上传到 Storage
+        const filePath = `${workflowId}/${Date.now()}_${fileObj.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('files')
+          .upload(filePath, fileObj);
+
+        if (uploadError) {
+          throw new Error(`Failed to upload file: ${uploadError.message}`);
+        }
+
+        // 创建文件记录
+        const { data: fileData, error: fileError } = await supabase
+          .from('files')
+          .insert({
+            name: fileObj.name,
+            path: filePath,
+            type: formData.fileType,
+            size: fileObj.size,
+            mime_type: fileObj.type
+          })
+          .select()
+          .single();
+
+        if (fileError) {
+          throw new Error(`Failed to create file record: ${fileError.message}`);
+        }
+
+        // 创建工作流文件关联
+        const { error: workflowFileError } = await supabase
+          .from('workflow_files')
+          .insert({
+            workflow_id: workflowId,
+            file_id: fileData.id
+          });
+
+        if (workflowFileError) {
+          throw new Error(`Failed to create workflow file association: ${workflowFileError.message}`);
+        }
+
+        // 添加到已上传文件列表，包含文件内容
+        setUploadedFiles(prev => [...prev, {
+          id: fileData.id,
+          name: fileObj.name,
+          type: formData.fileType,
+          uploadTime: new Date().toLocaleString(),
+          url: filePath,
+          status: 'completed',
+          size: fileObj.size,
+          mimeType: fileObj.type,
+          content: content // 缓存文件内容
+        }]);
+      }
+
+      message.success('文件上传成功');
+      setIsUploadModalVisible(false);
+      setModalFileList([]);
+      uploadModalFormRef.current?.resetFields();
+    } catch (error) {
+      console.error('Upload error:', error);
+      message.error(`上传失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // 修改文件预览函数
+  const handlePreviewFile = async (file: UploadedFile) => {
+    if (!file.url) {
+      message.error('文件路径不存在');
+      return;
+    }
+
+    try {
+      // 获取文件的公开访问URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('files')  // 修改为正确的 bucket 名称
+        .getPublicUrl(file.url);
+
+      // 在新窗口打开文件
+      window.open(publicUrl, '_blank');
+    } catch (error) {
+      console.error('Error previewing file:', error);
+      message.error('预览文件失败');
+    }
+  };
+
+   const handleParseFile = async (file: UploadedFile) => {
+    console.log('Parsing file:', file);
+    
+    // 更新文件状态为解析中
+    setUploadedFiles((prev: UploadedFile[]) =>
+      prev.map(f =>
+        f.id === file.id
+          ? { ...f, status: 'parsing' }
+          : f
+      )
+    );
+
+    try {
+      let fileContent = file.content;
+      
+      // 如果没有缓存的内容，从 Supabase 存储中获取
+      if (!fileContent && file.url) {
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('files')
+          .download(file.url);
+          
+        if (downloadError) {
+          throw new Error(`Failed to download file: ${downloadError.message}`);
+        }
+        
+        if (!fileData) {
+          throw new Error('No file data received from storage');
+        }
+        
+        // 将文件数据转换为文本
+        fileContent = await fileData.text();
+      }
+
+      if (!fileContent) {
+        throw new Error('No file content available');
+      }
+
+      // 创建解析动作
+      const parseAction: CarbonFlowAction = {
+        type: 'carbonflow',
+        operation: 'file_parser',
+        nodeId: `file-${file.id}`,
+        nodeType: 'file',
+        content: `解析文件: ${file.name}`,
+        data: JSON.stringify({
+          content: fileContent,
+          fileName: file.name,
+          fileType: file.type
+        })
+      };
+
+      // 执行解析动作
+      const actionHandler = new CarbonFlowActionHandler({
+        nodes,
+        edges,
+        setNodes: (newNodes) => {
+          if (Array.isArray(newNodes)) {
+            setStoreNodes(newNodes);
+          } else {
+            setStoreNodes((prev: Node<NodeData>[]) => newNodes(prev));
+          }
+        },
+        setEdges: () => {}
+      });
+
+      await actionHandler.handleAction(parseAction);
+
+      // 更新文件状态为已完成
+      setUploadedFiles((prev: UploadedFile[]) =>
+        prev.map(f =>
+          f.id === file.id
+            ? { ...f, status: 'completed' }
+            : f
+        )
+      );
+
+      message.success('文件解析成功');
+    } catch (error) {
+      console.error('Failed to parse file:', error);
+      message.error(`文件解析失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      
+      // 更新文件状态为失败
+      setUploadedFiles((prev: UploadedFile[]) =>
+        prev.map(f =>
+          f.id === file.id
+            ? { ...f, status: 'failed' }
+            : f
+        )
+      );
+    }
+  };
 
    const handleEditFile = (file: UploadedFile) => {
        console.log('Editing file metadata:', file);
@@ -773,34 +1038,6 @@ export function CarbonCalculatorPanel() {
        setIsUploadModalVisible(false);
        setModalFileList([]); // Clear file list on cancel
        uploadModalFormRef.current?.resetFields(); // Reset form fields
-   };
-
-   // Handler for clicking OK in the upload modal
-   const handleUploadModalOk = () => {
-     console.log('Upload Modal OK');
-     if (modalFileList.length === 0) {
-         message.error('请上传文件');
-         return;
-     }
-
-     const filesWithoutType = modalFileList.filter(file => !file.selectedType);
-     if (filesWithoutType.length > 0) {
-         message.error(`请为所有文件选择文件类型: ${filesWithoutType.map(f => f.name).join(', ')}`);
-         return;
-     }
-
-     const filesToAdd = modalFileList.map((file) => ({
-         id: file.uid,
-         name: file.name,
-         type: file.selectedType!, // Use individual file's selected type
-         uploadTime: new Date().toISOString(),
-         status: 'pending' as const, 
-         url: file.response?.url || file.thumbUrl 
-     }));
-
-     setUploadedFiles(prev => [...filesToAdd, ...prev]); 
-     message.success(`${filesToAdd.length} 个文件已添加到列表`);
-     handleCloseUploadModal(); 
    };
 
    // Handler for Upload component changes in the modal
@@ -1198,6 +1435,115 @@ export function CarbonCalculatorPanel() {
       ),
     },
   ];
+
+  // 添加获取文件列表的函数
+  const fetchWorkflowFiles = async () => {
+    try {
+      setIsLoadingFiles(true);
+      const { data, error } = await supabase
+        .from('workflow_files')
+        .select(`
+          file_id,
+          files (
+            id,
+            name,
+            path,
+            type,
+            size,
+            mime_type,
+            created_at
+          )
+        `)
+        .eq('workflow_id', workflowId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      // 转换数据格式
+      const formattedFiles: UploadedFile[] = (data as unknown as WorkflowFileRecord[]).map(item => ({
+        id: item.file_id,
+        name: item.files.name,
+        type: item.files.type,
+        uploadTime: new Date(item.files.created_at).toLocaleString(),
+        url: item.files.path,
+        status: 'completed' as const,
+        size: item.files.size,
+        mimeType: item.files.mime_type
+      }));
+
+      setUploadedFiles(formattedFiles);
+    } catch (error) {
+      console.error('Error fetching files:', error);
+      message.error('获取文件列表失败');
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  };
+
+  // 在组件加载时获取文件列表
+  useEffect(() => {
+    fetchWorkflowFiles();
+  }, [workflowId]);
+
+  // 修改文件列表渲染部分
+  const renderFileList = () => {
+    if (isLoadingFiles) {
+      return <Spin tip="加载文件中..." />;
+    }
+
+    if (uploadedFiles.length === 0) {
+      return <Empty description="暂无文件" />;
+    }
+
+    return (
+      <List
+        itemLayout="horizontal"
+        dataSource={uploadedFiles}
+        renderItem={(file) => (
+          <List.Item
+            actions={[
+              <Button
+                key="preview"
+                type="link"
+                onClick={() => handlePreviewFile(file)}
+                disabled={!file.url}
+              >
+                预览
+              </Button>,
+              <Button
+                key="delete"
+                type="link"
+                danger
+                onClick={() => handleDeleteFile(file.id)}
+              >
+                删除
+              </Button>
+            ]}
+          >
+            <List.Item.Meta
+              avatar={<FileOutlined />}
+              title={
+                <Tooltip title={file.name}>
+                  <span style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {file.name}
+                  </span>
+                </Tooltip>
+              }
+              description={
+                <>
+                  <div>类型: {file.type}</div>
+                  <div>上传时间: {file.uploadTime}</div>
+                  <div>状态: {file.status}</div>
+                </>
+              }
+            />
+          </List.Item>
+        )}
+      />
+    );
+  };
 
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
@@ -2533,8 +2879,11 @@ if (typeof window !== 'undefined') {
 }
 
 // 添加 ClientOnly 包装器，如果需要确保此组件仅在客户端渲染
-export const CarbonCalculatorPanelClient = () => (
-  <ClientOnly fallback={<div>Loading Panel...</div>}>
-    {() => <CarbonCalculatorPanel />}
-  </ClientOnly>
-); 
+export const CarbonCalculatorPanelClient = () => {
+  const { workflow } = useLoaderData() as any;
+  return (
+    <ClientOnly>
+      {() => <CarbonCalculatorPanel workflowId={workflow.id} />}
+    </ClientOnly>
+  );
+};

@@ -4,4 +4,13 @@ export interface FileMap {
     content: string;
     isBinary: boolean;
   };
+}
+
+export interface UploadFileResponse {
+  success: boolean;
+  error?: string;
+  fileMetadata: {
+    id: string;
+    path: string;
+  };
 } 
