@@ -185,6 +185,16 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   }); // 新增：存储匹配结果的状态
   const [showMatchResultsModal, setShowMatchResultsModal] = useState(false); // 新增：匹配结果弹窗显示状态
   const [backgroundDataActiveTabKey, setBackgroundDataActiveTabKey] = useState<string>('database'); // Re-add state for active background data tab
+  const [isAIAutoFillModalVisible, setIsAIAutoFillModalVisible] = useState(false); // AI补全弹窗状态
+  const [aiFilterStage, setAiFilterStage] = useState<string | undefined>();
+  const [aiFilterName, setAiFilterName] = useState<string>('');
+  const [aiFilterCategory, setAiFilterCategory] = useState<string | undefined>();
+  const [aiFilterMissingActivity, setAiFilterMissingActivity] = useState(false);
+  const [aiFilterMissingConversion, setAiFilterMissingConversion] = useState(false);
+  const [aiFilterShowType, setAiFilterShowType] = useState<'all' | 'ai' | 'manual'>('all');
+  const [aiAutoFillSelectedRowKeys, setAiAutoFillSelectedRowKeys] = useState<React.Key[]>([]);
+  const [aiAutoFillConfirmType, setAiAutoFillConfirmType] = useState<'conversion' | 'transport' | null>(null);
+  const [aiAutoFillResult, setAiAutoFillResult] = useState<{success: string[], failed: {id: string, reason: string}[]}|null>(null);
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
   const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
@@ -1545,6 +1555,100 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     );
   };
 
+  // AI补全弹窗表格columns提取为columnsAIAutoFill
+  const columnsAIAutoFill = [
+    {
+      title: '序号',
+      dataIndex: 'index',
+      width: 60,
+      fixed: 'left',
+      align: 'center',
+    },
+    // 基本信息
+    {
+      title: <div>基本信息</div>,
+      children: [
+        { title: '生命周期阶段', dataIndex: 'lifecycleStage', width: 110, align: 'center', render: (_: any, record: any) => {
+          const node = nodes.find(n => n.id === record.id);
+          const stageType = node?.type || '';
+          return nodeTypeToLifecycleStageMap[stageType] || '未知';
+        } },
+        { title: '排放源名称', dataIndex: 'name', width: 120, align: 'center' },
+        { title: '排放源类别', dataIndex: 'category', width: 100, align: 'center' },
+        { title: '排放源补充信息', dataIndex: 'supplementaryInfo', width: 120, align: 'center', render: (text: any) => text || '-' },
+      ]
+    },
+    // 活动水平数据
+    {
+      title: <div>活动水平数据</div>,
+      children: [
+        { title: '数值', dataIndex: 'activityData', width: 90, align: 'center', render: (v: any, r: any) => v !== undefined && v !== null ? <span>{v}{r.activityData_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
+        { title: '单位', dataIndex: 'activityUnit', width: 80, align: 'center', render: (v: any, r: any) => v ? <span>{v}{r.activityUnit_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
+        { title: '运输-起点地址', dataIndex: 'transportStart', width: 120, align: 'center', render: () => '-' },
+        { title: '运输-终点地址', dataIndex: 'transportEnd', width: 120, align: 'center', render: () => '-' },
+        { title: '运输方式', dataIndex: 'transportType', width: 90, align: 'center', render: () => '-' },
+        { title: '证据文件', dataIndex: 'evidenceFiles', width: 90, align: 'center', render: (_: any, r: any) => r.hasEvidenceFiles ? '有' : '无' },
+      ]
+    },
+    // 背景数据
+    {
+      title: <div>背景数据</div>,
+      children: [
+        { title: '名称', dataIndex: 'factorName', width: 120, align: 'center', render: (v: any) => v || '-' },
+        { title: '数值(kgCO2e)', dataIndex: 'carbonFactor', width: 110, align: 'center', render: (v: any) => v || '-' },
+        { title: '单位', dataIndex: 'factorUnit', width: 80, align: 'center', render: (v: any) => v || '-' },
+        { title: '地理代表性', dataIndex: 'emissionFactorGeographicalRepresentativeness', width: 100, align: 'center', render: (v: any) => v || '-' },
+        { title: '时间代表性', dataIndex: 'factorTime', width: 90, align: 'center', render: () => '-' },
+        { title: '数据库名称', dataIndex: 'factorSource', width: 110, align: 'center', render: (v: any) => v || '-' },
+        { title: 'UUID', dataIndex: 'factorUUID', width: 120, align: 'center', render: () => '-' },
+      ]
+    },
+    // 单位转换
+    {
+      title: <div>单位转换</div>,
+      children: [
+        { title: '系数', dataIndex: 'conversionFactor', width: 80, align: 'center', render: (v: any, r: any) => v !== undefined && v !== null ? <span>{v}{r.conversionFactor_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
+      ]
+    },
+    // 排放结果
+    {
+      title: <div>排放结果</div>,
+      children: [
+        { title: '排放量(kgCO2e)', dataIndex: 'emissionResult', width: 120, align: 'center', render: () => '-' },
+      ]
+    },
+  ];
+
+  // 计算筛选后的数据
+  const filteredAIAutoFillSources = emissionSources.filter(item => {
+    // 生命周期阶段筛选
+    if (aiFilterStage) {
+      const node = nodes.find(n => n.id === item.id);
+      const stageType = node?.type || '';
+      if ((nodeTypeToLifecycleStageMap[stageType] || '未知') !== aiFilterStage) return false;
+    }
+    // 名称筛选
+    if (aiFilterName && !item.name.includes(aiFilterName)) return false;
+    // 类别筛选
+    if (aiFilterCategory && item.category !== aiFilterCategory) return false;
+    // 缺失数据筛选
+    if (aiFilterMissingActivity) {
+      if (!(!item.activityData || !item.activityUnit)) return false;
+    }
+    if (aiFilterMissingConversion) {
+      if (!(item.conversionFactor === undefined || item.conversionFactor === null || item.conversionFactor === '')) return false;
+    }
+    // 数据展示范围
+    if (aiFilterShowType === 'ai') {
+      // 假设有aiGenerated标记，后续完善
+      if (!(item.activityData_aiGenerated || item.activityUnit_aiGenerated || item.conversionFactor_aiGenerated)) return false;
+    }
+    if (aiFilterShowType === 'manual') {
+      if (item.activityData_aiGenerated || item.activityUnit_aiGenerated || item.conversionFactor_aiGenerated) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
       {/* Wrapper for Card Rows to manage height distribution */}
@@ -1650,6 +1754,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space> {/* Buttons for the left side */}
                             <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>批量操作</Button>
+                            <Button icon={<ExperimentOutlined />} onClick={() => setIsAIAutoFillModalVisible(true)} type="default">AI补全数据</Button>
                         </Space>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
                     </div>
@@ -2216,6 +2321,188 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             </Tabs.TabPane>
           </Tabs>
         </div>
+      </Modal>
+
+      {/* AI一键补全数据弹窗 */}
+      <Modal
+        title="AI一键补全数据"
+        open={isAIAutoFillModalVisible}
+        onCancel={() => setIsAIAutoFillModalVisible(false)}
+        footer={null}
+        width={1400}
+      >
+        {/* 筛选区和缺失数据筛选按钮 */}
+        <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16 }}>
+          {/* 生命周期阶段筛选 */}
+          <Select
+            placeholder="生命周期阶段 (全部)"
+            style={{ width: 150 }}
+            allowClear
+            value={aiFilterStage}
+            onChange={setAiFilterStage}
+          >
+            {lifecycleStages.filter(s => s !== '全部').map(stage => (
+              <Select.Option key={stage} value={stage}>{stage}</Select.Option>
+            ))}
+          </Select>
+          {/* 排放源名称筛选 */}
+          <Input
+            placeholder="排放源名称"
+            style={{ width: 180 }}
+            allowClear
+            value={aiFilterName}
+            onChange={e => setAiFilterName(e.target.value)}
+          />
+          {/* 排放源类别筛选 */}
+          <Select
+            placeholder="排放源类别 (全部)"
+            style={{ width: 150 }}
+            allowClear
+            value={aiFilterCategory}
+            onChange={setAiFilterCategory}
+          >
+            {emissionCategories.map(cat => (
+              <Select.Option key={cat} value={cat}>{cat}</Select.Option>
+            ))}
+          </Select>
+          {/* 缺失数据筛选按钮 */}
+          <Button
+            type={aiFilterMissingActivity ? 'primary' : 'default'}
+            onClick={() => setAiFilterMissingActivity(v => !v)}
+          >
+            活动数据数值及单位缺失
+          </Button>
+          <Button
+            type={aiFilterMissingConversion ? 'primary' : 'default'}
+            onClick={() => setAiFilterMissingConversion(v => !v)}
+          >
+            单位转换系数缺失
+          </Button>
+          {/* 数据展示范围单选 */}
+          <Select
+            value={aiFilterShowType}
+            style={{ width: 140 }}
+            onChange={setAiFilterShowType}
+          >
+            <Select.Option value="all">全部</Select.Option>
+            <Select.Option value="ai">含AI生成数据</Select.Option>
+            <Select.Option value="manual">不含AI生成数据</Select.Option>
+          </Select>
+        </div>
+        <Table
+          rowSelection={{
+            type: 'checkbox',
+            selectedRowKeys: aiAutoFillSelectedRowKeys,
+            onChange: setAiAutoFillSelectedRowKeys,
+          }}
+          bordered
+          dataSource={filteredAIAutoFillSources.map((item, idx) => ({ ...item, key: item.id, index: idx + 1 }))}
+          pagination={false}
+          scroll={{ x: 'max-content', y: 400 }}
+          size="small"
+          columns={columnsAIAutoFill}
+        />
+        {/* 底部操作按钮 */}
+        <div style={{marginTop: 16, textAlign: 'right'}}>
+          <Button
+            type="primary"
+            disabled={aiAutoFillSelectedRowKeys.length === 0}
+            style={{marginRight: 12}}
+            onClick={() => setAiAutoFillConfirmType('conversion')}
+          >
+            一键补全单位转换系数
+          </Button>
+          <Button
+            type="primary"
+            disabled={aiAutoFillSelectedRowKeys.length === 0}
+            onClick={() => setAiAutoFillConfirmType('transport')}
+          >
+            一键补全运输数据
+          </Button>
+        </div>
+        {/* 二次确认弹窗 */}
+        <Modal
+          open={!!aiAutoFillConfirmType}
+          title={aiAutoFillConfirmType === 'conversion' ? '确认补全单位转换系数' : '确认补全运输数据'}
+          onCancel={() => setAiAutoFillConfirmType(null)}
+          onOk={() => {
+            // 模拟AI补全逻辑
+            const selected = filteredAIAutoFillSources.filter(item => aiAutoFillSelectedRowKeys.includes(item.id));
+            let success: string[] = [];
+            let failed: {id: string, reason: string}[] = [];
+            if (aiAutoFillConfirmType === 'conversion') {
+              selected.forEach(item => {
+                // 检查是否缺少必要前置数据
+                if (!item.name || !item.activityUnit || !item.factorName || !item.factorUnit) {
+                  failed.push({id: item.id, reason: '缺少必要的前置数据'});
+                } else if (item.conversionFactor !== undefined && item.conversionFactor !== null && item.conversionFactor !== '') {
+                  failed.push({id: item.id, reason: '已填写单位转换系数'});
+                } else {
+                  // 模拟AI算出
+                  success.push(item.id);
+                }
+              });
+            } else if (aiAutoFillConfirmType === 'transport') {
+              selected.forEach(item => {
+                // 检查是否运输类型
+                if (item.category !== '运输') {
+                  failed.push({id: item.id, reason: '排放源类型非运输类型'});
+                } else if (!item.transportStart || !item.transportEnd || !item.transportType) {
+                  failed.push({id: item.id, reason: '缺少必要的前置数据'});
+                } else if (item.activityData !== undefined && item.activityData !== null && item.activityData !== '') {
+                  failed.push({id: item.id, reason: '已填写活动数据数值'});
+                } else {
+                  // 模拟AI算出
+                  success.push(item.id);
+                }
+              });
+            }
+            setAiAutoFillResult({success, failed});
+            setAiAutoFillConfirmType(null);
+          }}
+          okText="确认"
+          cancelText="取消"
+          width={1400}
+        >
+          {(() => {
+            const selected = filteredAIAutoFillSources.filter(item => aiAutoFillSelectedRowKeys.includes(item.id));
+            if (aiAutoFillConfirmType === 'conversion') {
+              const hasFilled = selected.some(item => item.conversionFactor !== undefined && item.conversionFactor !== null && item.conversionFactor !== '');
+              return hasFilled ? '检测到已填写单位转换系数数据，AI补全将覆盖原有数据，是否继续？' : '是否对所选排放源进行AI补全单位转换系数？';
+            } else if (aiAutoFillConfirmType === 'transport') {
+              const hasFilled = selected.some(item => item.activityData !== undefined && item.activityData !== null && item.activityData !== '');
+              return hasFilled ? '检测到已填写活动数据数值的数据，AI补全将覆盖原有数据，是否继续？' : '是否对所选排放源进行AI补全运输数据？';
+            }
+            return null;
+          })()}
+        </Modal>
+        {/* 补全结果弹窗 */}
+        <Modal
+          open={!!aiAutoFillResult}
+          title="AI补全结果"
+          onCancel={() => setAiAutoFillResult(null)}
+          footer={<Button type="primary" onClick={() => setAiAutoFillResult(null)}>关闭</Button>}
+          width={1400}
+        >
+          <div style={{marginBottom: 16}}>
+            <b>补全成功：</b> {aiAutoFillResult?.success.length || 0} 条
+            <ul style={{marginTop: 8}}>
+              {aiAutoFillResult?.success.map(id => {
+                const item = filteredAIAutoFillSources.find(i => i.id === id);
+                return <li key={id}>{item?.name || id}</li>;
+              })}
+            </ul>
+          </div>
+          <div>
+            <b>补全失败：</b> {aiAutoFillResult?.failed.length || 0} 条
+            <ul style={{marginTop: 8}}>
+              {aiAutoFillResult?.failed.map(({id, reason}) => {
+                const item = filteredAIAutoFillSources.find(i => i.id === id);
+                return <li key={id}>{item?.name || id}（{reason}）</li>;
+              })}
+            </ul>
+          </div>
+        </Modal>
       </Modal>
     </div>
   );
