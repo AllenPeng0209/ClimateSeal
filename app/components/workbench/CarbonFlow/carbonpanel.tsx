@@ -284,8 +284,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
       // 筛选节点并转换为排放源格式，使用类型断言避免类型错误
       const filteredNodes = nodes
-        .filter(node => (stageType === '' || node.type === stageType) && node.data)
-        .map(node => {
+        .filter((node) => (stageType === '' || node.type === stageType) && node.data)
+        .map((node) => {
           // 从节点数据中提取排放源信息，使用any类型断言来避免类型检查错误
           const data = node.data as any;
           // Helper to safely parse number from potentially non-numeric string
@@ -1384,7 +1384,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     
     // 筛选节点并转换为排放源格式
     const filteredNodes = nodes
-      .filter((node) => node.type === stageType && node.data)
+      .filter((node) => (stageType === '' || node.type === stageType) && node.data)
       .map((node) => {
         // 从节点数据中提取排放源信息
         const data = node.data as any;
