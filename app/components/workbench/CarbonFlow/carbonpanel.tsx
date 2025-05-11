@@ -3291,6 +3291,7 @@ const customStyles = `
 .ai-autofill-modal .ant-table-tbody > tr > td {
   font-size: 12px !important;
   padding: 6px 8px !important; /* Reduce padding in table cells */
+  text-align: center !important; /* Center align text in table cells */
 }
 
 /* Specifically for the grouped table headers */
@@ -3298,6 +3299,11 @@ const customStyles = `
   font-size: 12px !important;
   font-weight: bold !important; /* Keep headers bold */
   padding: 2px 0 !important; /* Reduce padding inside the div wrapper of group titles */
+  text-align: center !important; /* Center align group headers */
+}
+/* Ensure individual column headers are also centered if not part of a group */
+.ai-autofill-modal .ant-table-thead > tr > th {
+    text-align: center !important;
 }
 
 /* Bottom Action Buttons in AI Modal */
