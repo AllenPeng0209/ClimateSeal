@@ -13,6 +13,8 @@ import VendorDataSection from "~/components/dashboard/sections/VendorDataSection
 import CarbonFactorSearchSection from "~/components/dashboard/sections/CarbonFactorSearchSection";
 import EnterpriseKnowledgeSection from "~/components/dashboard/sections/EnterpriseKnowledgeSection";
 import IndustryKnowledgeSection from "~/components/dashboard/sections/IndustryKnowledgeSection";
+import VendorManagement from "~/components/dashboard/sections/VendorManagement";
+import VendorPurchaseGoods from "~/components/dashboard/sections/VendorPurchaseGoods";
 import "~/styles/dashboard.css";
 import { useAuthContext } from '../contexts/AuthContext';
 import { PrivateRoute } from '../components/auth/PrivateRoute';
@@ -32,6 +34,7 @@ import {
   BulbOutlined,
   ToolOutlined,
   BookOutlined,
+  TruckOutlined
 } from "@ant-design/icons";
 
 const { Title, Paragraph, Text } = Typography;
@@ -133,7 +136,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function Dashboard() {
   const { user, loading } = useAuthContext();
-  const { 
+  const {
     workflows,
     products,
     vendorTasks,
@@ -143,7 +146,7 @@ export default function Dashboard() {
     searchQuery,
     industryFilter
   } = useLoaderData<typeof loader>();
-  
+
   const navigate = useNavigate();
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [workflowToDelete, setWorkflowToDelete] = useState<Workflow | null>(null);
@@ -168,7 +171,7 @@ export default function Dashboard() {
       message.error("无效的工作流ID格式");
       return;
     }
-    
+
     navigate(`/${route}/${formattedId}`);
   };
 
@@ -206,7 +209,7 @@ export default function Dashboard() {
       setSelectedKey(section);
       return;
     }
-    
+
     // 处理主菜单项
     setSelectedKey(key);
   };
@@ -234,6 +237,22 @@ export default function Dashboard() {
           key: 'dashboard:carbon-factor-search',
           label: '碳排因子搜索',
         }
+      ]
+    },
+    {
+      key: "vendor",
+      icon: <TruckOutlined />,
+      label: '供应商管理',
+      children: [
+        {
+          key: 'dashboard:vendor-information',
+          label: '供应商信息管理',
+        },
+        {
+          key: 'dashboard:vendor-purchase-goods',
+          label: '采购商品管理',
+        },
+
       ]
     },
     {
@@ -287,7 +306,7 @@ export default function Dashboard() {
     switch (selectedKey) {
       case "dashboard":
         return (
-          <DashboardSection 
+          <DashboardSection
             products={products}
             workflowTasks={workflowTasks}
             vendorDataTasks={vendorTasks}
@@ -335,6 +354,10 @@ export default function Dashboard() {
         return <PolicyKnowledgeSection />;
       case "settings":
         return <SettingsSection />;
+      case "vendor-information":
+        return <VendorManagement />;
+      case "vendor-purchase-goods":
+        return <VendorPurchaseGoods />;
       default:
         return <div>功能开发中...</div>;
     }
@@ -343,9 +366,9 @@ export default function Dashboard() {
   return (
     <PrivateRoute>
       <Layout style={{ minHeight: '100vh' }}>
-        <Layout.Sider 
-          trigger={null} 
-          collapsible 
+        <Layout.Sider
+          trigger={null}
+          collapsible
           collapsed={collapsed}
           style={{
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
@@ -358,10 +381,10 @@ export default function Dashboard() {
             bottom: 0,
           }}
         >
-          <div style={{ 
-            height: '64px', 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            height: '64px',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             padding: '0',
             margin: '16px 0',
@@ -376,15 +399,15 @@ export default function Dashboard() {
             theme="dark"
             mode="inline"
             selectedKeys={[`dashboard:${selectedKey}`]}
-            defaultOpenKeys={['workbench', 'knowledge']}
+            defaultOpenKeys={['workbench', 'knowledge', 'vendor']}
             items={menuItems}
             onClick={handleMenuClick}
           />
         </Layout.Sider>
         <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'all 0.2s' }}>
-          <Layout.Header style={{ 
-            padding: '0 16px', 
-            background: '#fff', 
+          <Layout.Header style={{
+            padding: '0 16px',
+            background: '#fff',
             boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
             display: 'flex',
             justifyContent: 'space-between',
@@ -406,9 +429,9 @@ export default function Dashboard() {
               </Dropdown>
             </Space>
           </Layout.Header>
-          <Layout.Content style={{ 
-            margin: '24px 16px', 
-            padding: 24, 
+          <Layout.Content style={{
+            margin: '24px 16px',
+            padding: 24,
             background: '#fff',
             minHeight: 280,
             borderRadius: '4px',
@@ -417,7 +440,7 @@ export default function Dashboard() {
             {renderContent()}
           </Layout.Content>
         </Layout>
-        
+
         <Modal
           title="确认删除"
           open={deleteModalVisible}
