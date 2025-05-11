@@ -1,5 +1,4 @@
-import { type LanguageModelV1, streamText, type CoreMessage } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
+import OpenAI from "openai";
 
 /**
  * Defines the structure for each item parsed by the CsvParsingAgent.
@@ -14,9 +13,8 @@ export interface CsvParseResultItem {
  * Interface defining the options required to initialize the CsvParsingAgent.
  */
 interface CsvParsingAgentOptions {
-  llmInstance?: LanguageModelV1; // The specific, configured AI model instance (optional with new API)
   csvContent: string; // The CSV text content to parse
-  llmProviderName: string; // Name of the LLM provider (for logging)
+  llmProviderName: string; // Name of the LLM provider (for logging, less relevant now)
   apiKey?: string; // API Key for the LLM provider
   baseURL?: string; // Base URL for the LLM provider API
   model?: string; // Model name to use
@@ -28,7 +26,7 @@ interface CsvParsingAgentOptions {
  * Responsible for calling an LLM to parse CSV content, determine the nodeType
  * for each row, and return a validated array of structured node data.
  *
- * @param options - Configuration including the LLM instance, CSV content, and provider name.
+ * @param options - Configuration including the CSV content, API key, baseURL, and model.
  * @returns A Promise resolving to an array of CsvParseResultItem objects.
  * @throws {Error} If the LLM API call fails, or if the response is empty,
  *                 invalid JSON, not an array, or contains no valid items
@@ -36,18 +34,13 @@ interface CsvParsingAgentOptions {
  */
 export async function parseCsvWithLlmAgent({
   csvContent,
-  llmProviderName: _llmProviderName,
   apiKey = process.env.DASHSCOPE_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL,
+  baseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1", // Default baseURL from example
   model = 'qwen-plus',
 }: CsvParsingAgentOptions): Promise<CsvParseResultItem[]> {
-  console.log(`[CsvParsingAgent] Starting CSV parsing using OpenAI SDK compatible API...`);
+  console.log(`[CsvParsingAgent] Starting CSV parsing using official OpenAI SDK compatible API...`);
 
-  // --- 1. Construct the Prompt (Reverted to LLM determining nodeType) ---
-  /*
-   * IMPORTANT: This prompt instructs the LLM to determine the nodeType for each row
-   * and extract relevant data based on that determination.
-   */
+  // --- 1. Construct the Prompt (Remains the same) ---
   const prompt = `
 You are an expert data extraction assistant specializing in carbon footprint lifecycle analysis.
 Your task is to meticulously parse the following CSV data. Each row likely represents a material, component, or process step in a product's lifecycle.
@@ -139,54 +132,82 @@ Follow these instructions precisely:
 
 7.  **严格JSON数组:** 不要在JSON数组之前或之后包含*任何*文本。没有介绍、解释、道歉或markdown格式。只有JSON数组本身。
 
-        
-
 CSV Data:
 \`\`\`
 ${csvContent}
 \`\`\`
 `;
 
-  // --- 2. Call LLM API ---
-  let llmResponseText: string;
+  // --- 2. Call LLM API using official OpenAI SDK ---
+  let llmResponseText: string | null = null; // Initialize to null
+
+  const openai = new OpenAI({
+    apiKey,
+    baseURL,
+  });
 
   try {
-    console.log(`[CsvParsingAgent] Sending prompt using AI SDK for model ${model}...`);
+    console.log(`[CsvParsingAgent] About to call openai.chat.completions.create for model ${model} at ${new Date().toISOString()}`);
 
-    const openaiLlm = createOpenAI({
-      apiKey,
-      baseURL,
+    // Define messages with types compatible with OpenAI SDK
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: "system", content: "You are an expert data extraction assistant." },
+      { role: "user", content: prompt },
+    ];
+
+    const completion = await openai.chat.completions.create({
+      model,
+      messages,
+      max_tokens: 8192, // Ensure this parameter is appropriate and supported
+      // temperature: 0, // Optional: for deterministic output, if needed
     });
 
-    const { text } = await streamText({
-      model: openaiLlm(model),
-      messages: [
-        { role: 'system', content: 'You are an expert data extraction assistant.' },
-        { role: 'user', content: prompt },
-      ] as CoreMessage[],
-      maxTokens: 8192,
-    });
+    console.log(`[CsvParsingAgent] openai.chat.completions.create call completed at ${new Date().toISOString()}`);
 
-    llmResponseText = await text;
-    console.log(`[CsvParsingAgent] Received raw response.`);
+    if (completion && completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content) {
+      llmResponseText = completion.choices[0].message.content;
+      console.log(`[CsvParsingAgent] Received response content. Length: ${llmResponseText.length}`);
+      // console.log("[CsvParsingAgent] Raw LLM Response content:", llmResponseText); // Uncomment for full response
+    } else {
+      console.error('[CsvParsingAgent] Error: Could not extract content from LLM response. Response structure:', JSON.stringify(completion, null, 2));
+      throw new Error('Could not extract content from LLM response.');
+    }
+    // Log usage if available and needed
+    if (completion.usage) {
+        console.log(`[CsvParsingAgent] Token usage: ${JSON.stringify(completion.usage)}`);
+    }
 
-    // console.log("Raw LLM Response:", llmResponseText); // Uncomment for debugging
-  } catch (error) {
-    console.error(`[CsvParsingAgent] LLM API call failed:`, error);
-    throw new Error(`LLM API call failed: ${error instanceof Error ? error.message : String(error)}`);
+
+  } catch (error: any) {
+    console.error(`[CsvParsingAgent] Error during OpenAI API call or processing:`);
+    console.error("Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    if (error.status) {
+      console.error("Error status:", error.status);
+    }
+    if (error.message) {
+      console.error("Error message:", error.message);
+    }
+    if (error.response && error.response.data) {
+      console.error("Error response data:", JSON.stringify(error.response.data, null, 2));
+    }
+    if (error.error) {
+        console.error("Nested error details:", JSON.stringify(error.error, null, 2));
+    }
+    // It's important to also log the state of llmResponseText if an error occurs after it might have been (or not been) set.
+    console.error(`[CsvParsingAgent] State at error: llmResponseText="${llmResponseText}"`);
+    throw error;
   }
 
   if (!llmResponseText || llmResponseText.trim() === '') {
-    console.error('[CsvParsingAgent] Error: LLM response was empty.');
-    throw new Error('LLM response was empty.');
+    console.error('[CsvParsingAgent] Error: LLM response content was empty or null after API call.');
+    throw new Error('LLM response content was empty or null after API call.');
   }
 
-  // --- 3. Parse and Validate Response ---
+  // --- 3. Parse and Validate Response (Remains largely the same) ---
   let parsedJson: any;
 
   try {
-    // Attempt to clean potential markdown fences if present
-    const cleanedResponse = llmResponseText.trim().replace(/^```json\s*|\s*```$/g, '');
+    const cleanedResponse = llmResponseText.trim().replace(/^```json\\s*|\\s*```$/g, '');
     parsedJson = JSON.parse(cleanedResponse);
     console.log('[CsvParsingAgent] Successfully parsed JSON response.');
   } catch (error) {
@@ -200,24 +221,19 @@ ${csvContent}
     throw new Error('Parsed JSON response is not an array.');
   }
 
-  // --- 4. Validate Individual Items and Filter ---
+  // --- 4. Validate Individual Items and Filter (Remains the same) ---
   const validItems: CsvParseResultItem[] = [];
 
   for (const item of parsedJson) {
-    // Check if the item has the correct structure { nodeType: string, data: { label: string, ... } }
     if (
       item &&
       typeof item === 'object' &&
-      typeof item.nodeType === 'string' && // nodeType must be a string
+      typeof item.nodeType === 'string' &&
       item.data &&
       typeof item.data === 'object' &&
-      typeof item.data.label === 'string' && // data must have a label string
-      item.data.label.trim() !== '' // Ensure label is not empty
+      typeof item.data.label === 'string' &&
+      item.data.label.trim() !== ''
     ) {
-      /*
-       * Basic structure is valid, add it.
-       * More specific validation per nodeType could be added here if needed.
-       */
       validItems.push(item as CsvParseResultItem);
     } else {
       console.warn('[CsvParsingAgent] Skipping invalid item in LLM response:', item);
