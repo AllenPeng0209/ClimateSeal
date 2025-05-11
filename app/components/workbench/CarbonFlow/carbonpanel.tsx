@@ -21,6 +21,7 @@ import {
   Tabs, // <-- Import Tabs
   Divider, // <-- Import Divider
   Typography, // <-- Import Typography
+  Radio, // <-- Import Radio
 } from 'antd';
 import type { FormInstance } from 'antd';
 import {
@@ -210,6 +211,17 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const [selectedParsedSourceKeys, setSelectedParsedSourceKeys] = useState<React.Key[]>([]);
   const [parsingStatus, setParsingStatus] = useState<'未开始' | '解析中' | '解析成功' | '解析失败'>('未开始');
   const [parseResultSummary, setParseResultSummary] = useState<string>('无概览信息。');
+  const [isAIAutoFillModalVisible, setIsAIAutoFillModalVisible] = useState(false); // AI补全弹窗状态
+  const [aiFilterStage, setAiFilterStage] = useState<string | undefined>();
+  const [aiFilterName, setAiFilterName] = useState<string>('');
+  const [aiFilterCategory, setAiFilterCategory] = useState<string | undefined>();
+  const [aiFilterMissingActivity, setAiFilterMissingActivity] = useState(false);
+  const [aiFilterMissingConversion, setAiFilterMissingConversion] = useState(false);
+  const [aiFilterShowType, setAiFilterShowType] = useState<'all' | 'ai' | 'manual'>('all');
+  const [aiAutoFillSelectedRowKeys, setAiAutoFillSelectedRowKeys] = useState<React.Key[]>([]);
+  const [aiAutoFillConfirmType, setAiAutoFillConfirmType] = useState<'conversion' | 'transport' | null>(null);
+  const [aiAutoFillResult, setAiAutoFillResult] = useState<{success: string[], failed: {id: string, reason: string}[]}|null>(null);
+  const [allEmissionSourcesForAIModal, setAllEmissionSourcesForAIModal] = useState<EmissionSource[]>([]); // New state for AI modal data
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
   const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
@@ -294,6 +306,40 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       setEmissionSources(filteredNodes as EmissionSource[]); // Add type assertion
     }
   }, [nodes, selectedStage]);
+
+  // New useEffect to populate allEmissionSourcesForAIModal from all nodes
+  useEffect(() => {
+    if (nodes && nodes.length > 0) {
+      const allSources = nodes.map(node => {
+        const data = node.data as any;
+        const safeParseFloat = (val: any): number | undefined => {
+          if (val === null || val === undefined || String(val).trim() === '') return undefined;
+          const num = parseFloat(String(val));
+          return isNaN(num) ? undefined : num;
+        };
+        return {
+          id: node.id,
+          name: data.label || '未命名节点',
+          category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
+          activityData: safeParseFloat(data.quantity),
+          activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '',
+          conversionFactor: safeParseFloat(data.unitConversion),
+          factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '',
+          factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '',
+          emissionFactorGeographicalRepresentativeness: typeof data.emissionFactorGeographicalRepresentativeness === 'string' ? data.emissionFactorGeographicalRepresentativeness : '',
+          factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '',
+          updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+          updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
+          factorMatchStatus: data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子',
+          supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '',
+          hasEvidenceFiles: data.hasEvidenceFiles || false,
+          dataRisk: data.dataRisk || undefined,
+          backgroundDataSourceTab: data.backgroundDataSourceTab || 'database',
+        };
+      });
+      setAllEmissionSourcesForAIModal(allSources as EmissionSource[]);
+    }
+  }, [nodes]);
 
 
   // 更新后的背景数据匹配按钮点击处理函数
@@ -1664,6 +1710,100 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     );
   };
 
+  // AI补全弹窗表格columns提取为columnsAIAutoFill
+  const columnsAIAutoFill = [
+    {
+      title: '序号',
+      dataIndex: 'index',
+      width: 60,
+      fixed: 'left',
+      align: 'center',
+    },
+    // 基本信息
+    {
+      title: <div>基本信息</div>,
+      children: [
+        { title: '生命周期阶段', dataIndex: 'lifecycleStage', width: 110, align: 'center', render: (_: any, record: any) => {
+          const node = nodes.find(n => n.id === record.id);
+          const stageType = node?.type || '';
+          return nodeTypeToLifecycleStageMap[stageType] || '未知';
+        } },
+        { title: '排放源名称', dataIndex: 'name', width: 120, align: 'center' },
+        { title: '排放源类别', dataIndex: 'category', width: 100, align: 'center' },
+        { title: '排放源补充信息', dataIndex: 'supplementaryInfo', width: 120, align: 'center', render: (text: any) => text || '-' },
+      ]
+    },
+    // 活动水平数据
+    {
+      title: <div>活动水平数据</div>,
+      children: [
+        { title: '数值', dataIndex: 'activityData', width: 90, align: 'center', render: (v: any, r: any) => v !== undefined && v !== null ? <span>{v}{r.activityData_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
+        { title: '单位', dataIndex: 'activityUnit', width: 80, align: 'center', render: (v: any, r: any) => v ? <span>{v}{r.activityUnit_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
+        { title: '运输-起点地址', dataIndex: 'transportStart', width: 120, align: 'center', render: () => '-' },
+        { title: '运输-终点地址', dataIndex: 'transportEnd', width: 120, align: 'center', render: () => '-' },
+        { title: '运输方式', dataIndex: 'transportType', width: 90, align: 'center', render: () => '-' },
+        { title: '证据文件', dataIndex: 'evidenceFiles', width: 90, align: 'center', render: (_: any, r: any) => r.hasEvidenceFiles ? '有' : '无' },
+      ]
+    },
+    // 背景数据
+    {
+      title: <div>背景数据</div>,
+      children: [
+        { title: '名称', dataIndex: 'factorName', width: 120, align: 'center', render: (v: any) => v || '-' },
+        { title: '数值(kgCO2e)', dataIndex: 'carbonFactor', width: 110, align: 'center', render: (v: any) => v || '-' },
+        { title: '单位', dataIndex: 'factorUnit', width: 80, align: 'center', render: (v: any) => v || '-' },
+        { title: '地理代表性', dataIndex: 'emissionFactorGeographicalRepresentativeness', width: 100, align: 'center', render: (v: any) => v || '-' },
+        { title: '时间代表性', dataIndex: 'factorTime', width: 90, align: 'center', render: () => '-' },
+        { title: '数据库名称', dataIndex: 'factorSource', width: 110, align: 'center', render: (v: any) => v || '-' },
+        { title: 'UUID', dataIndex: 'factorUUID', width: 120, align: 'center', render: () => '-' },
+      ]
+    },
+    // 单位转换
+    {
+      title: <div>单位转换</div>,
+      children: [
+        { title: '系数', dataIndex: 'conversionFactor', width: 80, align: 'center', render: (v: any, r: any) => v !== undefined && v !== null ? <span>{v}{r.conversionFactor_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
+      ]
+    },
+    // 排放结果
+    {
+      title: <div>排放结果</div>,
+      children: [
+        { title: '排放量(kgCO2e)', dataIndex: 'emissionResult', width: 120, align: 'center', render: () => '-' },
+      ]
+    },
+  ];
+
+  // 计算筛选后的数据 (now uses allEmissionSourcesForAIModal)
+  const filteredAIAutoFillSources = allEmissionSourcesForAIModal.filter(item => {
+    // 生命周期阶段筛选
+    if (aiFilterStage) {
+      const node = nodes.find(n => n.id === item.id);
+      const stageType = node?.type || '';
+      if ((nodeTypeToLifecycleStageMap[stageType] || '未知') !== aiFilterStage) return false;
+    }
+    // 名称筛选
+    if (aiFilterName && !item.name.includes(aiFilterName)) return false;
+    // 类别筛选
+    if (aiFilterCategory && item.category !== aiFilterCategory) return false;
+    // 缺失数据筛选
+    if (aiFilterMissingActivity) {
+      if (!(!item.activityData || !item.activityUnit)) return false;
+    }
+    if (aiFilterMissingConversion) {
+      if (!(item.conversionFactor === undefined || item.conversionFactor === null || item.conversionFactor === '')) return false;
+    }
+    // 数据展示范围
+    if (aiFilterShowType === 'ai') {
+      // 假设有aiGenerated标记，后续完善
+      if (!(item.activityData_aiGenerated || item.activityUnit_aiGenerated || item.conversionFactor_aiGenerated)) return false;
+    }
+    if (aiFilterShowType === 'manual') {
+      if (item.activityData_aiGenerated || item.activityUnit_aiGenerated || item.conversionFactor_aiGenerated) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
       {/* Wrapper for Card Rows to manage height distribution */}
@@ -1769,6 +1909,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space> {/* Buttons for the left side */}
                             <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>批量操作</Button>
+                            <Button icon={<ExperimentOutlined />} onClick={() => setIsAIAutoFillModalVisible(true)} type="default">AI补全数据</Button>
                         </Space>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
                     </div>
@@ -2338,100 +2479,238 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         </div>
       </Modal>
 
-      {/* 原始数据文件解析模态框 */}
+      {/* AI一键补全数据弹窗 */}
       <Modal
-        title="原始数据文件解析"
-        open={isParseFileModalVisible}
-        onCancel={handleCloseParseFileModal}
-        width="85%" // Wider modal
-        style={{ top: 20 }} // Position closer to the top
-        footer={[
-          <Button key="close" onClick={handleCloseParseFileModal}>
-            返回
-          </Button>,
-          <Button
-            key="startParse"
-            type="primary"
-            onClick={handleStartParsing}
-            disabled={parsingStatus === '解析中' || parsingStatus === '解析成功'}
-            loading={parsingStatus === '解析中'}
-          >
-            {parsingStatus === '解析中' ? '正在解析...' : '开始解析'}
-          </Button>,
-          <Button key="batchEffective" onClick={() => handleBatchSetStatus('已生效')} disabled={selectedParsedSourceKeys.length === 0}>
-            批量生效
-          </Button>,
-          <Button key="batchIneffective" onClick={() => handleBatchSetStatus('未生效')} disabled={selectedParsedSourceKeys.length === 0}>
-            批量失效
-          </Button>,
-          // "批量删除" might be needed based on PRD ("已删除" state)
-          // <Button key="batchDelete" danger onClick={() => handleBatchSetStatus('已删除')} disabled={selectedParsedSourceKeys.length === 0}>
-          //  批量删除
-          // </Button>,
-        ]}
+        title="AI一键补全数据"
+        open={isAIAutoFillModalVisible}
+        onCancel={() => setIsAIAutoFillModalVisible(false)}
+        footer={null}
+        width={1400}
+        className="ai-autofill-modal" // Added className
+        style={{ top: 20 }} // Added style to adjust top position
       >
-        {currentParsingFile && (
-          <div style={{ marginBottom: 24 }}>
-            <Typography.Title level={5}>文件信息</Typography.Title>
-            <Row gutter={16}>
-              <Col span={8}><strong>文件名称:</strong> {currentParsingFile.name}</Col>
-              <Col span={8}><strong>上传时间:</strong> {new Date(currentParsingFile.uploadTime).toLocaleString()}</Col>
-              <Col span={8}>
-                <strong>文件路径:</strong>{' '}
-                {currentParsingFile.url ? (
-                  <a href={currentParsingFile.url} target="_blank" rel="noopener noreferrer">
-                    点击预览
-                  </a>
-                ) : (
-                  '无可用链接'
-                )}
-              </Col>
-            </Row>
-            <Divider />
-            <Typography.Title level={5} style={{ marginTop: 16 }}>解析结果</Typography.Title>
-            <Row gutter={16}>
-                <Col span={8}><strong>解析状态:</strong> {getChineseFileStatusMessage(parsingStatus)}</Col>
-                <Col span={16}><strong>解析结果概览:</strong> {parseResultSummary}</Col>
-            </Row>
-          </div>
-        )}
-        <Typography.Title level={5} style={{ marginTop: 16, marginBottom: 16 }}>解析结果数据</Typography.Title>
+        {/* Consolidated Filter Panel - Placed above the table */}
+        <div style={{ marginBottom: 20, padding: 16, borderRadius: 4 }}> {/* Removed border style */}
+          <Row gutter={[12, 8]}> {/* Vertical gutter between filter items, changed from [16,16] */}
+            {/* Row 1: 生命周期阶段 */}
+            <Col span={24}>
+              <Row align="middle" gutter={[8, 0]}> {/* gutter between title and control */}
+                <Col flex="0 0 140px"><Typography.Text strong>生命周期阶段:</Typography.Text></Col>
+                <Col flex="auto">
+                  <Radio.Group
+                    value={aiFilterStage}
+                    onChange={(e) => setAiFilterStage(e.target.value)}
+                    optionType="button"
+                    buttonStyle="solid"
+                    style={{ flexWrap: 'nowrap' }}
+                  >
+                    <Radio value={undefined}>全部</Radio>
+                    {lifecycleStages.filter(s => s !== '全部').map(stage => (
+                      <Radio key={stage} value={stage}>{stage}</Radio>
+                    ))}
+                  </Radio.Group>
+                </Col>
+              </Row>
+            </Col>
+
+            {/* Row 2: 排放源名称 */}
+            <Col span={24}>
+              <Row align="middle" gutter={[8, 0]}>
+                <Col flex="0 0 140px"><Typography.Text strong>排放源名称:</Typography.Text></Col>
+                <Col flex="auto">
+                  <Input
+                    placeholder="请输入排放源名称"
+                    style={{ maxWidth: 300 }} // Use maxWidth to prevent overly wide input
+                    allowClear
+                    value={aiFilterName}
+                    onChange={e => setAiFilterName(e.target.value)}
+                  />
+                </Col>
+              </Row>
+            </Col>
+
+            {/* Row 3: 排放源类别 */}
+            <Col span={24}>
+              <Row align="middle" gutter={[8, 0]}>
+                <Col flex="0 0 140px"><Typography.Text strong>排放源类别:</Typography.Text></Col>
+                <Col flex="auto">
+                  <Radio.Group
+                    value={aiFilterCategory}
+                    onChange={(e) => setAiFilterCategory(e.target.value)}
+                    optionType="button"
+                    buttonStyle="solid"
+                    style={{ flexWrap: 'nowrap' }}
+                  >
+                    <Radio value={undefined}>全部</Radio>
+                    {emissionCategories.map(cat => (
+                      <Radio key={cat} value={cat}>{cat}</Radio>
+                    ))}
+                  </Radio.Group>
+                </Col>
+              </Row>
+            </Col>
+
+            {/* Row 4: 缺失数据 */}
+            <Col span={24}>
+              <Row align="middle" gutter={[8, 0]}>
+                <Col flex="0 0 140px"><Typography.Text strong>缺失数据:</Typography.Text></Col>
+                <Col flex="auto">
+                  <Space wrap>
+                    <Button
+                      type={aiFilterMissingActivity ? 'primary' : 'default'}
+                      onClick={() => setAiFilterMissingActivity(v => !v)}
+                    >
+                      活动数据数值及单位
+                    </Button>
+                    <Button
+                      type={aiFilterMissingConversion ? 'primary' : 'default'}
+                      onClick={() => setAiFilterMissingConversion(v => !v)}
+                    >
+                      单位转换系数
+                    </Button>
+                  </Space>
+                </Col>
+              </Row>
+            </Col>
+
+            {/* Row 5: 是否含AI数据 */}
+            <Col span={24}>
+              <Row align="middle" gutter={[8, 0]}>
+                <Col flex="0 0 140px"><Typography.Text strong>是否含AI数据:</Typography.Text></Col>
+                <Col flex="auto">
+                  <Radio.Group
+                    options={[
+                      { label: '全部', value: 'all' },
+                      { label: '含AI生成数据', value: 'ai' },
+                      { label: '不含AI生成数据', value: 'manual' },
+                    ]}
+                    onChange={(e) => setAiFilterShowType(e.target.value)}
+                    value={aiFilterShowType}
+                    optionType="button"
+                    buttonStyle="solid"
+                    style={{ flexWrap: 'nowrap' }}
+                  />
+                </Col>
+              </Row>
+            </Col>
+          </Row>
+        </div>
+
         <Table
           rowSelection={{
             type: 'checkbox',
-            selectedRowKeys: selectedParsedSourceKeys,
-            onChange: (keys: React.Key[]) => {
-              setSelectedParsedSourceKeys(keys);
-            },
+            selectedRowKeys: aiAutoFillSelectedRowKeys,
+            onChange: setAiAutoFillSelectedRowKeys,
           }}
-          columns={[
-            { title: '序号', dataIndex: 'index', key: 'index', render: (text: any, record: ParsedEmissionSource, index: number) => index + 1, width: 60 },
-            { title: '生命周期阶段', dataIndex: 'lifecycleStage', key: 'lifecycleStage' },
-            { title: '排放源名称', dataIndex: 'name', key: 'name' },
-            { title: '排放源类别', dataIndex: 'category', key: 'category' },
-            { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: (text?: string) => text || '-' },
-            { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData', render: (val?: number) => (typeof val === 'number' ? val : '-') },
-            { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit', render: (text?: string) => text || '-' },
-            {
-              title: '数据状态',
-              dataIndex: 'dataStatus',
-              key: 'dataStatus',
-              render: (status: ParsedEmissionSource['dataStatus']) => {
-                let color = 'grey';
-                if (status === '已生效') color = 'green';
-                else if (status === '已删除') color = 'red';
-                return <span style={{ color }}>{status}</span>;
-              },
-            },
-          ]}
-          dataSource={parsedEmissionSources}
-          rowKey="key"
+          bordered
+          dataSource={filteredAIAutoFillSources.map((item, idx) => ({ ...item, key: item.id, index: idx + 1 }))}
+          pagination={false}
+          scroll={{ x: 'max-content', y: 550 }} // Increased scroll height from 400
           size="small"
-          pagination={{ pageSize: 10 }}
-          scroll={{ y: 'calc(60vh - 250px)' }} // Adjust scroll height as needed
+          columns={columnsAIAutoFill}
         />
+        {/* 底部操作按钮 */}
+        <div style={{marginTop: 16, textAlign: 'right'}}>
+          <Button
+            type="primary"
+            disabled={aiAutoFillSelectedRowKeys.length === 0}
+            style={{marginRight: 12}}
+            onClick={() => setAiAutoFillConfirmType('conversion')}
+          >
+            一键补全单位转换系数
+          </Button>
+          <Button
+            type="primary"
+            disabled={aiAutoFillSelectedRowKeys.length === 0}
+            onClick={() => setAiAutoFillConfirmType('transport')}
+          >
+            一键补全运输数据
+          </Button>
+        </div>
+        {/* 二次确认弹窗 */}
+        <Modal
+          open={!!aiAutoFillConfirmType}
+          title={aiAutoFillConfirmType === 'conversion' ? '确认补全单位转换系数' : '确认补全运输数据'}
+          onCancel={() => setAiAutoFillConfirmType(null)}
+          onOk={() => {
+            // 模拟AI补全逻辑
+            const selected = filteredAIAutoFillSources.filter(item => aiAutoFillSelectedRowKeys.includes(item.id));
+            let success: string[] = [];
+            let failed: {id: string, reason: string}[] = [];
+            if (aiAutoFillConfirmType === 'conversion') {
+              selected.forEach(item => {
+                // 检查是否缺少必要前置数据
+                if (!item.name || !item.activityUnit || !item.factorName || !item.factorUnit) {
+                  failed.push({id: item.id, reason: '缺少必要的前置数据'});
+                } else if (item.conversionFactor !== undefined && item.conversionFactor !== null && item.conversionFactor !== '') {
+                  failed.push({id: item.id, reason: '已填写单位转换系数'});
+                } else {
+                  // 模拟AI算出
+                  success.push(item.id);
+                }
+              });
+            } else if (aiAutoFillConfirmType === 'transport') {
+              selected.forEach(item => {
+                // 检查是否运输类型
+                if (item.category !== '运输') {
+                  failed.push({id: item.id, reason: '排放源类型非运输类型'});
+                } else if (!item.transportStart || !item.transportEnd || !item.transportType) {
+                  failed.push({id: item.id, reason: '缺少必要的前置数据'});
+                } else if (item.activityData !== undefined && item.activityData !== null && item.activityData !== '') {
+                  failed.push({id: item.id, reason: '已填写活动数据数值'});
+                } else {
+                  // 模拟AI算出
+                  success.push(item.id);
+                }
+              });
+            }
+            setAiAutoFillResult({success, failed});
+            setAiAutoFillConfirmType(null);
+          }}
+          okText="确认"
+          cancelText="取消"
+          width={1400}
+        >
+          {(() => {
+            const selected = filteredAIAutoFillSources.filter(item => aiAutoFillSelectedRowKeys.includes(item.id));
+            if (aiAutoFillConfirmType === 'conversion') {
+              const hasFilled = selected.some(item => item.conversionFactor !== undefined && item.conversionFactor !== null && item.conversionFactor !== '');
+              return hasFilled ? '检测到已填写单位转换系数数据，AI补全将覆盖原有数据，是否继续？' : '是否对所选排放源进行AI补全单位转换系数？';
+            } else if (aiAutoFillConfirmType === 'transport') {
+              const hasFilled = selected.some(item => item.activityData !== undefined && item.activityData !== null && item.activityData !== '');
+              return hasFilled ? '检测到已填写活动数据数值的数据，AI补全将覆盖原有数据，是否继续？' : '是否对所选排放源进行AI补全运输数据？';
+            }
+            return null;
+          })()}
+        </Modal>
+        {/* 补全结果弹窗 */}
+        <Modal
+          open={!!aiAutoFillResult}
+          title="AI补全结果"
+          onCancel={() => setAiAutoFillResult(null)}
+          footer={<Button type="primary" onClick={() => setAiAutoFillResult(null)}>关闭</Button>}
+          width={1400}
+        >
+          <div style={{marginBottom: 16}}>
+            <b>补全成功：</b> {aiAutoFillResult?.success.length || 0} 条
+            <ul style={{marginTop: 8}}>
+              {aiAutoFillResult?.success.map(id => {
+                const item = filteredAIAutoFillSources.find(i => i.id === id);
+                return <li key={id}>{item?.name || id}</li>;
+              })}
+            </ul>
+          </div>
+          <div>
+            <b>补全失败：</b> {aiAutoFillResult?.failed.length || 0} 条
+            <ul style={{marginTop: 8}}>
+              {aiAutoFillResult?.failed.map(({id, reason}) => {
+                const item = filteredAIAutoFillSources.find(i => i.id === id);
+                return <li key={id}>{item?.name || id}（{reason}）</li>;
+              })}
+            </ul>
+          </div>
+        </Modal>
       </Modal>
-
     </div>
   );
 }
@@ -3082,7 +3361,153 @@ const customStyles = `
   margin-top: 8px !important;
 }
 
+/* AI Auto Fill Modal Specific Styles */
+.ai-autofill-modal .ant-modal-body {
+  padding-top: 12px !important; /* Reduce top padding of modal body */
+}
 
+/* Filter Panel Compacting */
+.ai-autofill-modal .ant-modal-body > div:first-child { /* The filter panel wrapper */
+  padding: 8px !important; /* Further reduce padding from 10px */
+  margin-bottom: 8px !important; /* Further reduce bottom margin from 10px */
+}
+
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-row {
+  margin-bottom: 2px !important; /* Reduce space between filter rows from 4px */
+}
+/* Ensure filter rows themselves are more compact if they have default large margins */
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-row.ant-form-item {
+    margin-bottom: 2px !important; /* Reduce from 4px */
+}
+
+
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-col {
+  padding-top: 2px !important; /* Reduce vertical padding for cols */
+  padding-bottom: 2px !important;
+}
+
+/* Filter Labels and Controls Font and Size */
+.ai-autofill-modal .ant-typography,
+.ai-autofill-modal .ant-form-item-label > label {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  margin-bottom: 2px !important; /* Reduce space below label */
+}
+
+.ai-autofill-modal .ant-radio-wrapper,
+.ai-autofill-modal .ant-radio-button-wrapper {
+  font-size: 12px !important;
+  padding: 0 8px !important; /* Adjust padding for radio buttons */
+  height: 28px !important; /* Adjust height */
+  line-height: 26px !important; /* Adjust line-height */
+}
+.ai-autofill-modal .ant-radio-group {
+  margin-top: 2px; /* Align radio group better with label */
+}
+
+
+.ai-autofill-modal .ant-input,
+.ai-autofill-modal .ant-input-affix-wrapper {
+  font-size: 12px !important;
+  height: 28px !important; /* Adjust height */
+  padding-top: 0px !important; /* Corrected padding for input field text */
+  padding-bottom: 0px !important;
+}
+.ai-autofill-modal .ant-input-affix-wrapper input.ant-input {
+    height: auto !important; /* Allow inner input to not conflict */
+}
+
+
+.ai-autofill-modal .ant-btn {
+  font-size: 12px !important;
+  padding: 0px 10px !important; /* Adjust padding for buttons */
+  height: 28px !important; /* Adjust height */
+  line-height: 26px !important; /* Needs to be slightly less than height for text centering */
+}
+.ai-autofill-modal .ant-btn .anticon {
+  font-size: 14px !important; /* Keep icons readable */
+  vertical-align: middle !important; /* Better icon alignment in button */
+}
+
+
+/* Filter Row Alignment and Label Width */
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-row.ant-row-middle {
+  margin-bottom: 2px !important; /* Tighter rows, was 4px */
+}
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-row.ant-row-middle .ant-col[flex*="px"] { /* Target label column */
+  flex-basis: 110px !important; /* Reduce label column width */
+  max-width: 110px !important;
+  margin-right: 8px; /* Add some space between label and control */
+}
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-row.ant-row-middle .ant-col[flex="auto"] {
+  padding-left: 0 !important; /* Remove potential padding from auto col */
+}
+
+
+/* Table Font and Padding */
+.ai-autofill-modal .ant-table-thead > tr > th,
+.ai-autofill-modal .ant-table-tbody > tr > td {
+  font-size: 12px !important;
+  padding: 6px 8px !important; /* Reduce padding in table cells */
+  text-align: center !important; /* Center align text in table cells */
+}
+
+/* Specifically for the grouped table headers */
+.ai-autofill-modal .ant-table-thead > tr > th > div {
+  font-size: 12px !important;
+  font-weight: bold !important; /* Keep headers bold */
+  padding: 2px 0 !important; /* Reduce padding inside the div wrapper of group titles */
+  text-align: center !important; /* Center align group headers */
+}
+/* Ensure individual column headers are also centered if not part of a group */
+.ai-autofill-modal .ant-table-thead > tr > th {
+    text-align: center !important;
+}
+
+/* Bottom Action Buttons in AI Modal */
+.ai-autofill-modal .ant-modal-body > div:last-child { /* The bottom button container */
+  margin-top: 12px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--bolt-elements-borderColor, #333);
+}
+
+/* AI Autofill Modal specific scrollbar for its table */
+.ai-autofill-modal .ant-table-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.ai-autofill-modal .ant-table-body::-webkit-scrollbar-thumb {
+  background-color: var(--bolt-elements-textDisabled, #555);
+  border-radius: 3px;
+}
+.ai-autofill-modal .ant-table-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a);
+}
+
+/* 强制所有 Radio.Group 单行展示 */
+.ai-autofill-modal .ant-radio-group {
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  font-size: 11px !important;
+}
+.ai-autofill-modal .ant-radio-group .ant-radio-button-wrapper,
+.ai-autofill-modal .ant-radio-group .ant-radio-wrapper {
+  flex-shrink: 0 !important;
+  min-width: 110px !important;
+  max-width: 110px !important;
+  width: 110px !important;
+  padding: 0 4px !important;
+  text-align: center !important;
+  justify-content: center !important;
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  font-size: 11px !important;
+  box-sizing: border-box !important;
+}
 
 `;
 
