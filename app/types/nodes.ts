@@ -11,6 +11,7 @@ export interface BaseNodeData {
   activityScore: number;
   activityScorelevel?: string;
   verificationStatus?: string;
+
   // carbon footprint
   carbonFootprint: string;
   quantity: string;

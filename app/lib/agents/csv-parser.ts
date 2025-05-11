@@ -125,8 +125,8 @@ Follow these instructions precisely:
         "nodeName": "必需的标签(同label)",
         "lifecycleStage": "生命周期阶段",
         "emissionType": "排放类型",  //原材料、原材料运输、生产能耗、辅材&添加剂、水资源、包装材料、生产过程-温室气体直接排放、废气、固体废弃物、废水、燃料消耗、成品运输、耗材、使用阶段排放、填埋活焚烧排放、回收材料、不可回收材料
-        "quantity": "数量",  //数量後面要加单位（重量、体积、计数、包装、能源）, example: 1000kg, 100本（册子）、57吨、 2.5m³ (立方米)、3加仑 (gallon)、1000kWh (千瓦时)、24箱 (cartons)
-        "activityUnit": "数量单位", //数量单位
+        "quantity": "数量",  //数量後面不要加单位
+        "activityUnit": "数量单位", // 把數量後面的單位加上（重量、体积、计数、包装、能源）, example: 1000kg, 100本（册子）、57吨、 2.5m³ (立方米)、3加仑 (gallon)、1000kWh (千瓦时)、24箱 (cartons)
         其他所有必要字段
       }
     }
@@ -148,12 +148,14 @@ ${csvContent}
   });
 
   try {
-    console.log(`[CsvParsingAgent] About to call openai.chat.completions.create for model ${model} at ${new Date().toISOString()}`);
+    console.log(
+      `[CsvParsingAgent] About to call openai.chat.completions.create for model ${model} at ${new Date().toISOString()}`,
+    );
 
     // Define messages with types compatible with OpenAI SDK
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: "system", content: "You are an expert data extraction assistant." },
-      { role: "user", content: prompt },
+      { role: 'system', content: 'You are an expert data extraction assistant.' },
+      { role: 'user', content: prompt },
     ];
 
     const completion = await openai.chat.completions.create({
@@ -165,35 +167,49 @@ ${csvContent}
 
     console.log(`[CsvParsingAgent] openai.chat.completions.create call completed at ${new Date().toISOString()}`);
 
-    if (completion && completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content) {
+    if (
+      completion &&
+      completion.choices &&
+      completion.choices[0] &&
+      completion.choices[0].message &&
+      completion.choices[0].message.content
+    ) {
       llmResponseText = completion.choices[0].message.content;
       console.log(`[CsvParsingAgent] Received response content. Length: ${llmResponseText.length}`);
+
       // console.log("[CsvParsingAgent] Raw LLM Response content:", llmResponseText); // Uncomment for full response
     } else {
-      console.error('[CsvParsingAgent] Error: Could not extract content from LLM response. Response structure:', JSON.stringify(completion, null, 2));
+      console.error(
+        '[CsvParsingAgent] Error: Could not extract content from LLM response. Response structure:',
+        JSON.stringify(completion, null, 2),
+      );
       throw new Error('Could not extract content from LLM response.');
     }
+
     // Log usage if available and needed
     if (completion.usage) {
-        console.log(`[CsvParsingAgent] Token usage: ${JSON.stringify(completion.usage)}`);
+      console.log(`[CsvParsingAgent] Token usage: ${JSON.stringify(completion.usage)}`);
     }
-
-
   } catch (error: any) {
     console.error(`[CsvParsingAgent] Error during OpenAI API call or processing:`);
-    console.error("Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+
     if (error.status) {
-      console.error("Error status:", error.status);
+      console.error('Error status:', error.status);
     }
+
     if (error.message) {
-      console.error("Error message:", error.message);
+      console.error('Error message:', error.message);
     }
+
     if (error.response && error.response.data) {
-      console.error("Error response data:", JSON.stringify(error.response.data, null, 2));
+      console.error('Error response data:', JSON.stringify(error.response.data, null, 2));
     }
+
     if (error.error) {
-        console.error("Nested error details:", JSON.stringify(error.error, null, 2));
+      console.error('Nested error details:', JSON.stringify(error.error, null, 2));
     }
+
     // It's important to also log the state of llmResponseText if an error occurs after it might have been (or not been) set.
     console.error(`[CsvParsingAgent] State at error: llmResponseText="${llmResponseText}"`);
     throw error;

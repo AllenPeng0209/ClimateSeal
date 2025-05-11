@@ -16,7 +16,7 @@ type CarbonFactorResult = {
   factor: number;
   activityName: string;
   unit: string;
-}
+};
 
 type NodeType = 'product' | 'manufacturing' | 'distribution' | 'usage' | 'disposal' | 'finalProduct';
 
@@ -32,7 +32,8 @@ function safeGet<T extends object, K extends keyof T>(
   if (!obj || typeof obj !== 'object') {
     return defaultValue;
   }
-  /*
+
+  /**
    * We check if the key is in the object to satisfy TypeScript
    * even though Record<string, any> complicates direct K indexing.
    * The `as T[K]` assertion is used because Record<string, any> accepts any string key.
@@ -40,6 +41,7 @@ function safeGet<T extends object, K extends keyof T>(
   if (key in obj) {
     return (obj as any)[key] ?? defaultValue;
   }
+
   return defaultValue;
 }
 
@@ -85,7 +87,7 @@ export class CarbonFlowActionHandler {
       source: action.source,
       target: action.target,
       position: action.position,
-      data: (action.operation === 'file_parser' || !action.data) ? '<data handled separately or missing>' : '<data provided>',
+      data: action.operation === 'file_parser' || !action.data ? '<data handled separately or missing>' : '<data provided>',
       description: action.description,
     });
 
@@ -99,8 +101,8 @@ export class CarbonFlowActionHandler {
       try {
         const contentObj = JSON.parse(action.data);
         console.log(`[CARBONFLOW_CONTENT]`, contentObj);
-      } catch (error) { // Use the error variable
-        console.warn(`Could not parse action.data as JSON for logging: ${action.data?.substring(0,100)}...`, error);
+      } catch (error) {
+        console.warn(`Could not parse action.data as JSON for logging: ${action.data?.substring(0, 100)}...`, error);
 
         if (!action.description) {
           // Log truncated data if it's too long and not file content
@@ -174,24 +176,22 @@ export class CarbonFlowActionHandler {
 
   // Removed _mapCsvRowToNodeData function
 
-  // Renamed from _handleBomParser and refactored to call the API and then _handleCreateNode
-  // Make this async as it now calls fetch
+  /**
+   * Renamed from _handleBomParser and refactored to call the API and then _handleCreateNode
+   * Make this async as it now calls fetch
+   */
   private async _handleFileParseAndCreateNodes(action: CarbonFlowAction): Promise<void> {
     console.log('Handling File Parse action (Calling API)...');
+
     if (!action.data) {
       console.error('File Parse 操作缺少 data (file content) 字段');
-      // TODO: Add user feedback (e.g., show an error message)
       return;
     }
-    // ---- IMPORTANT: Get nodeTypeForFile ----
-    // This assumes 'nodeTypeForFile' is now part of the action payload for 'file_parser'
-
-    // ---- End Get nodeTypeForFile ----
 
     const fileContent = action.data;
     console.log('[File Content Provided]:', fileContent.substring(0, 100) + '...');
 
-    let aiResult: CsvParseResultItem[] = []; // Initialize with correct type
+    let aiResult: CsvParseResultItem[] = [];
 
     try {
       const response = await fetch('/api/parse-csv', {
@@ -199,31 +199,41 @@ export class CarbonFlowActionHandler {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ csvContent: fileContent }), // Send required data
+        body: JSON.stringify({ csvContent: fileContent }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' })); // Try to get error details
-        throw new Error(`API Error (${response.status}): ${errorData?.error || response.statusText}`);
+        const errorBody = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+        const errorMessage = 
+          typeof errorBody === 'object' && 
+          errorBody !== null && 
+          'error' in errorBody && 
+          typeof errorBody.error === 'string' 
+            ? errorBody.error 
+            : typeof errorBody === 'object' && 
+              errorBody !== null && 
+              'message' in errorBody && 
+              typeof errorBody.message === 'string' 
+            ? errorBody.message 
+            : response.statusText;
+        throw new Error(`API Error (${response.status}): ${errorMessage}`);
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as { success?: boolean; data?: CsvParseResultItem[] };
 
       if (!result.success || !Array.isArray(result.data)) {
         throw new Error(`API returned unsuccessful or invalid data: ${JSON.stringify(result)}`);
       }
 
-      // Assign the successfully parsed data from the API
-      aiResult = result.data as CsvParseResultItem[];
+      aiResult = result.data;
       console.log(`[API Response] Received ${aiResult.length} parsed items from backend.`);
-
     } catch (error) {
       console.error('调用 /api/parse-csv 失败:', error);
       // TODO: Add user feedback (e.g., show an error message to the user)
       return; // Stop processing if API call fails
     }
     console.log('aiResult', aiResult);
-    // --- Process the results from the real API call --- //
+    // --- Process the results from the real API call ---
     if (aiResult.length === 0) {
       console.warn('AI parsing (via API) resulted in no nodes.');
       // TODO: Add user feedback
@@ -293,13 +303,12 @@ export class CarbonFlowActionHandler {
     const nodeType = action.nodeType as NodeType;
     const nodeId = action.nodeId || `${nodeType}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 
-    let inputData: Record<string, any> = {}; // Use Record<string, any> for flexibility
+    let inputData: Record<string, any> = {};
     if (action.data) {
       try {
         inputData = JSON.parse(action.data);
       } catch (e) {
-        console.error(`解析节
-          .点数据失败 for ${nodeType} (${action.data?.substring(0, 50)}...):`, e);
+        console.error(`解析节点数据失败 for ${nodeType} (${action.data?.substring(0, 50)}...):`, e);
         // Create a node with minimal default data on parsing failure
         inputData = { label: `无效数据 - ${nodeType}` };
       }
@@ -315,25 +324,24 @@ export class CarbonFlowActionHandler {
       case 'product':
         data = {
           label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
-          nodeName: String(safeGet(inputData, 'nodeName', nodeId)), // Default nodeName to nodeId
+          nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'product',
           emissionType: String(safeGet(inputData, 'emissionType', 'unknown')),
           quantity: String(safeGet(inputData, 'quantity', '')),
-          unit: String(safeGet(inputData, 'unit', '')),
-          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          activityUnit: String(safeGet(inputData, 'activityUnit', '')),
+          carbonFactor: String(safeGet(inputData, 'carbonFactor', '0')), // String as per BaseNodeData
           carbonFactorName: String(safeGet(inputData, 'carbonFactorName', '')),
-          unitConversion: Number(safeGet(inputData, 'unitConversion', 0)),
+          unitConversion: String(safeGet(inputData, 'unitConversion', '0')), // String as per BaseNodeData
           carbonFactordataSource: String(safeGet(inputData, 'carbonFactordataSource', '')),
           activitydataSource: String(safeGet(inputData, 'activitydataSource', 'unknown')),
-          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
-          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)), // Number as per BaseNodeData
+          carbonFootprint: String(safeGet(inputData, 'carbonFootprint', '0')), // String as per BaseNodeData
           verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
-          // Product specific, ensuring types
           material: String(safeGet(inputData, 'material', '')),
           weight_per_unit: String(safeGet(inputData, 'weight_per_unit', '')),
           isRecycled: Boolean(safeGet(inputData, 'isRecycled', false)),
           recycledContent: String(safeGet(inputData, 'recycledContent', '')),
-          recycledContentPercentage: Number(safeGet(inputData, 'recycledContentPercentage', 0)),
+          recycledContentPercentage: Number(safeGet(inputData, 'recycledContentPercentage', 0)), // Number as per ProductNodeData
           sourcingRegion: String(safeGet(inputData, 'sourcingRegion', '')),
           SourceLocation: String(safeGet(inputData, 'SourceLocation', '')),
           Destination: String(safeGet(inputData, 'Destination', '')),
@@ -341,12 +349,11 @@ export class CarbonFlowActionHandler {
           SupplierAddress: String(safeGet(inputData, 'SupplierAddress', '')),
           ProcessingPlantAddress: String(safeGet(inputData, 'ProcessingPlantAddress', '')),
           RefrigeratedTransport: Boolean(safeGet(inputData, 'RefrigeratedTransport', false)),
-          weight: Number(safeGet(inputData, 'weight', 0)), // Expecting number
+          weight: Number(safeGet(inputData, 'weight', 0)), // Number as per ProductNodeData
           supplier: String(safeGet(inputData, 'supplier', '')),
-          certaintyPercentage: Number(safeGet(inputData, 'certaintyPercentage', 0)),
+          certaintyPercentage: Number(safeGet(inputData, 'certaintyPercentage', 0)), // Number as per ProductNodeData
           dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
-          // REMOVED quantity and unit as they are not defined in ProductNodeData
-        } as ProductNodeData; // Cast to specific type
+        } as ProductNodeData;
         break;
       case 'manufacturing':
         data = {
@@ -354,35 +361,36 @@ export class CarbonFlowActionHandler {
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'manufacturing',
           emissionType: String(safeGet(inputData, 'emissionType', 'unknown')),
-          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          quantity: String(safeGet(inputData, 'quantity', '')),
+          activityUnit: String(safeGet(inputData, 'activityUnit', '')),
+          carbonFactor: String(safeGet(inputData, 'carbonFactor', '0')), // String
           activitydataSource: String(safeGet(inputData, 'activitydataSource', 'unknown')),
-          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
-          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)), // Number
+          carbonFootprint: String(safeGet(inputData, 'carbonFootprint', '0')), // String
           verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
-          // Manufacturing specific
           ElectricityAccountingMethod: String(safeGet(inputData, 'ElectricityAccountingMethod', '')),
           ElectricityAllocationMethod: String(safeGet(inputData, 'ElectricityAllocationMethod', '')),
           EnergyConsumptionMethodology: String(safeGet(inputData, 'EnergyConsumptionMethodology', '')),
           EnergyConsumptionAllocationMethod: String(safeGet(inputData, 'EnergyConsumptionAllocationMethod', '')),
-          energyConsumption: Number(safeGet(inputData, 'energyConsumption', 0)),
+          energyConsumption: Number(safeGet(inputData, 'energyConsumption', 0)), // Number
           energyType: String(safeGet(inputData, 'energyType', '')),
           chemicalsMaterial: String(safeGet(inputData, 'chemicalsMaterial', '')),
           MaterialAllocationMethod: String(safeGet(inputData, 'MaterialAllocationMethod', '')),
           WaterUseMethodology: String(safeGet(inputData, 'WaterUseMethodology', '')),
           WaterAllocationMethod: String(safeGet(inputData, 'WaterAllocationMethod', '')),
-          waterConsumption: Number(safeGet(inputData, 'waterConsumption', 0)),
+          waterConsumption: Number(safeGet(inputData, 'waterConsumption', 0)), // Number
           packagingMaterial: String(safeGet(inputData, 'packagingMaterial', '')),
           direct_emission: String(safeGet(inputData, 'direct_emission', '')),
           WasteGasTreatment: String(safeGet(inputData, 'WasteGasTreatment', '')),
           WasteDisposalMethod: String(safeGet(inputData, 'WasteDisposalMethod', '')),
           WastewaterTreatment: String(safeGet(inputData, 'WastewaterTreatment', '')),
           productionMethod: String(safeGet(inputData, 'productionMethod', '')),
-          processEfficiency: Number(safeGet(inputData, 'processEfficiency', 0)),
-          wasteGeneration: Number(safeGet(inputData, 'wasteGeneration', 0)),
-          recycledMaterialPercentage: Number(safeGet(inputData, 'recycledMaterialPercentage', 0)),
-          productionCapacity: Number(safeGet(inputData, 'productionCapacity', 0)),
-          machineUtilization: Number(safeGet(inputData, 'machineUtilization', 0)),
-          qualityDefectRate: Number(safeGet(inputData, 'qualityDefectRate', 0)),
+          processEfficiency: Number(safeGet(inputData, 'processEfficiency', 0)), // Number
+          wasteGeneration: Number(safeGet(inputData, 'wasteGeneration', 0)), // Number
+          recycledMaterialPercentage: Number(safeGet(inputData, 'recycledMaterialPercentage', 0)), // Number
+          productionCapacity: Number(safeGet(inputData, 'productionCapacity', 0)), // Number
+          machineUtilization: Number(safeGet(inputData, 'machineUtilization', 0)), // Number
+          qualityDefectRate: Number(safeGet(inputData, 'qualityDefectRate', 0)), // Number
           processTechnology: String(safeGet(inputData, 'processTechnology', '')),
           manufacturingStandard: String(safeGet(inputData, 'manufacturingStandard', '')),
           automationLevel: String(safeGet(inputData, 'automationLevel', '')),
@@ -402,38 +410,39 @@ export class CarbonFlowActionHandler {
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'distribution',
           emissionType: String(safeGet(inputData, 'emissionType', 'unknown')),
-          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          quantity: String(safeGet(inputData, 'quantity', '')),
+          activityUnit: String(safeGet(inputData, 'activityUnit', '')),
+          carbonFactor: String(safeGet(inputData, 'carbonFactor', '0')), // String
           activitydataSource: String(safeGet(inputData, 'activitydataSource', 'unknown')),
-          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
-          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)), // Number
+          carbonFootprint: String(safeGet(inputData, 'carbonFootprint', '0')), // String
           verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
           dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
-          // Distribution specific
           transportationMode: String(safeGet(inputData, 'transportationMode', '')),
-          transportationDistance: Number(safeGet(inputData, 'transportationDistance', 0)),
+          transportationDistance: Number(safeGet(inputData, 'transportationDistance', 0)), // Number
           startPoint: String(safeGet(inputData, 'startPoint', '')),
           endPoint: String(safeGet(inputData, 'endPoint', '')),
           vehicleType: String(safeGet(inputData, 'vehicleType', '')),
           fuelType: String(safeGet(inputData, 'fuelType', '')),
-          fuelEfficiency: Number(safeGet(inputData, 'fuelEfficiency', 0)),
-          loadFactor: Number(safeGet(inputData, 'loadFactor', 0)),
+          fuelEfficiency: Number(safeGet(inputData, 'fuelEfficiency', 0)), // Number
+          loadFactor: Number(safeGet(inputData, 'loadFactor', 0)), // Number
           refrigeration: Boolean(safeGet(inputData, 'refrigeration', false)),
           packagingMaterial: String(safeGet(inputData, 'packagingMaterial', '')),
-          packagingWeight: Number(safeGet(inputData, 'packagingWeight', 0)),
-          warehouseEnergy: Number(safeGet(inputData, 'warehouseEnergy', 0)),
-          storageTime: Number(safeGet(inputData, 'storageTime', 0)),
+          packagingWeight: Number(safeGet(inputData, 'packagingWeight', 0)), // Number
+          warehouseEnergy: Number(safeGet(inputData, 'warehouseEnergy', 0)), // Number
+          storageTime: Number(safeGet(inputData, 'storageTime', 0)), // Number
           storageConditions: String(safeGet(inputData, 'storageConditions', '')),
           distributionNetwork: String(safeGet(inputData, 'distributionNetwork', '')),
           aiRecommendation: String(safeGet(inputData, 'aiRecommendation', '')),
           returnLogistics: Boolean(safeGet(inputData, 'returnLogistics', false)),
-          packagingRecyclability: Number(safeGet(inputData, 'packagingRecyclability', 0)),
+          packagingRecyclability: Number(safeGet(inputData, 'packagingRecyclability', 0)), // Number
           lastMileDelivery: String(safeGet(inputData, 'lastMileDelivery', '')),
           distributionMode: String(safeGet(inputData, 'distributionMode', '')),
-          distributionDistance: Number(safeGet(inputData, 'distributionDistance', 0)),
+          distributionDistance: Number(safeGet(inputData, 'distributionDistance', 0)), // Number
           distributionStartPoint: String(safeGet(inputData, 'distributionStartPoint', '')),
           distributionEndPoint: String(safeGet(inputData, 'distributionEndPoint', '')),
           distributionTransportationMode: String(safeGet(inputData, 'distributionTransportationMode', '')),
-          distributionTransportationDistance: Number(safeGet(inputData, 'distributionTransportationDistance', 0)),
+          distributionTransportationDistance: Number(safeGet(inputData, 'distributionTransportationDistance', 0)), // Number
         } as DistributionNodeData;
         break;
       case 'usage':
@@ -442,28 +451,29 @@ export class CarbonFlowActionHandler {
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'usage',
           emissionType: String(safeGet(inputData, 'emissionType', 'unknown')),
-          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          quantity: String(safeGet(inputData, 'quantity', '')),
+          activityUnit: String(safeGet(inputData, 'activityUnit', '')),
+          carbonFactor: String(safeGet(inputData, 'carbonFactor', '0')), // String
           activitydataSource: String(safeGet(inputData, 'activitydataSource', 'unknown')),
-          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
-          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)), // Number
+          carbonFootprint: String(safeGet(inputData, 'carbonFootprint', '0')), // String
           verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
           dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
-          // Usage specific
-          lifespan: Number(safeGet(inputData, 'lifespan', 0)),
-          energyConsumptionPerUse: Number(safeGet(inputData, 'energyConsumptionPerUse', 0)),
-          waterConsumptionPerUse: Number(safeGet(inputData, 'waterConsumptionPerUse', 0)),
+          lifespan: Number(safeGet(inputData, 'lifespan', 0)), // Number
+          energyConsumptionPerUse: Number(safeGet(inputData, 'energyConsumptionPerUse', 0)), // Number
+          waterConsumptionPerUse: Number(safeGet(inputData, 'waterConsumptionPerUse', 0)), // Number
           consumablesUsed: String(safeGet(inputData, 'consumablesUsed', '')),
-          consumablesWeight: Number(safeGet(inputData, 'consumablesWeight', 0)),
-          usageFrequency: Number(safeGet(inputData, 'usageFrequency', 0)),
-          maintenanceFrequency: Number(safeGet(inputData, 'maintenanceFrequency', 0)),
-          repairRate: Number(safeGet(inputData, 'repairRate', 0)),
-          userBehaviorImpact: Number(safeGet(inputData, 'userBehaviorImpact', 0)),
-          efficiencyDegradation: Number(safeGet(inputData, 'efficiencyDegradation', 0)),
-          standbyEnergyConsumption: Number(safeGet(inputData, 'standbyEnergyConsumption', 0)),
+          consumablesWeight: Number(safeGet(inputData, 'consumablesWeight', 0)), // Number
+          usageFrequency: Number(safeGet(inputData, 'usageFrequency', 0)), // Number
+          maintenanceFrequency: Number(safeGet(inputData, 'maintenanceFrequency', 0)), // Number
+          repairRate: Number(safeGet(inputData, 'repairRate', 0)), // Number
+          userBehaviorImpact: Number(safeGet(inputData, 'userBehaviorImpact', 0)), // Number
+          efficiencyDegradation: Number(safeGet(inputData, 'efficiencyDegradation', 0)), // Number
+          standbyEnergyConsumption: Number(safeGet(inputData, 'standbyEnergyConsumption', 0)), // Number
           usageLocation: String(safeGet(inputData, 'usageLocation', '')),
           usagePattern: String(safeGet(inputData, 'usagePattern', '')),
           userInstructions: String(safeGet(inputData, 'userInstructions', '')),
-          upgradeability: Number(safeGet(inputData, 'upgradeability', 0)),
+          upgradeability: Number(safeGet(inputData, 'upgradeability', 0)), // Number
           secondHandMarket: Boolean(safeGet(inputData, 'secondHandMarket', false)),
         } as UsageNodeData;
         break;
@@ -473,29 +483,30 @@ export class CarbonFlowActionHandler {
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'disposal',
           emissionType: String(safeGet(inputData, 'emissionType', 'unknown')),
-          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          quantity: String(safeGet(inputData, 'quantity', '')),
+          activityUnit: String(safeGet(inputData, 'activityUnit', '')),
+          carbonFactor: String(safeGet(inputData, 'carbonFactor', '0')), // String
           activitydataSource: String(safeGet(inputData, 'activitydataSource', 'unknown')),
-          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
-          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)), // Number
+          carbonFootprint: String(safeGet(inputData, 'carbonFootprint', '0')), // String
           verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
           dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
-          // Disposal specific
-          recyclingRate: Number(safeGet(inputData, 'recyclingRate', 0)),
-          landfillPercentage: Number(safeGet(inputData, 'landfillPercentage', 0)),
-          incinerationPercentage: Number(safeGet(inputData, 'incinerationPercentage', 0)),
-          compostPercentage: Number(safeGet(inputData, 'compostPercentage', 0)),
-          reusePercentage: Number(safeGet(inputData, 'reusePercentage', 0)),
-          hazardousWasteContent: Number(safeGet(inputData, 'hazardousWasteContent', 0)),
-          biodegradability: Number(safeGet(inputData, 'biodegradability', 0)),
-          disposalEnergyRecovery: Number(safeGet(inputData, 'disposalEnergyRecovery', 0)),
-          transportToDisposal: Number(safeGet(inputData, 'transportToDisposal', 0)),
+          recyclingRate: Number(safeGet(inputData, 'recyclingRate', 0)), // Number
+          landfillPercentage: Number(safeGet(inputData, 'landfillPercentage', 0)), // Number
+          incinerationPercentage: Number(safeGet(inputData, 'incinerationPercentage', 0)), // Number
+          compostPercentage: Number(safeGet(inputData, 'compostPercentage', 0)), // Number
+          reusePercentage: Number(safeGet(inputData, 'reusePercentage', 0)), // Number
+          hazardousWasteContent: Number(safeGet(inputData, 'hazardousWasteContent', 0)), // Number
+          biodegradability: Number(safeGet(inputData, 'biodegradability', 0)), // Number
+          disposalEnergyRecovery: Number(safeGet(inputData, 'disposalEnergyRecovery', 0)), // Number
+          transportToDisposal: Number(safeGet(inputData, 'transportToDisposal', 0)), // Number
           disposalMethod: String(safeGet(inputData, 'disposalMethod', '')),
           endOfLifeTreatment: String(safeGet(inputData, 'endOfLifeTreatment', '')),
-          recyclingEfficiency: Number(safeGet(inputData, 'recyclingEfficiency', 0)),
+          recyclingEfficiency: Number(safeGet(inputData, 'recyclingEfficiency', 0)), // Number
           dismantlingDifficulty: String(safeGet(inputData, 'dismantlingDifficulty', '')),
           wasteRegulations: String(safeGet(inputData, 'wasteRegulations', '')),
           takeback: Boolean(safeGet(inputData, 'takeback', false)),
-          circularEconomyPotential: Number(safeGet(inputData, 'circularEconomyPotential', 0)),
+          circularEconomyPotential: Number(safeGet(inputData, 'circularEconomyPotential', 0)), // Number
         } as DisposalNodeData;
         break;
       case 'finalProduct':
@@ -504,18 +515,21 @@ export class CarbonFlowActionHandler {
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'finalProduct',
           emissionType: String(safeGet(inputData, 'emissionType', 'total')),
-          carbonFactor: Number(safeGet(inputData, 'carbonFactor', 0)),
+          quantity: String(safeGet(inputData, 'quantity', '')),
+          activityUnit: String(safeGet(inputData, 'activityUnit', '')),
+          carbonFactor: String(safeGet(inputData, 'carbonFactor', '0')), // String
           activitydataSource: String(safeGet(inputData, 'activitydataSource', 'calculated')),
-          activityScore: Number(safeGet(inputData, 'activityScore', 0)),
-          carbonFootprint: Number(safeGet(inputData, 'carbonFootprint', 0)),
+          activityScore: Number(safeGet(inputData, 'activityScore', 0)), // Number
+          carbonFootprint: String(safeGet(inputData, 'carbonFootprint', '0')), // String (as per BaseNodeData)
           verificationStatus: String(safeGet(inputData, 'verificationStatus', 'pending')),
           dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
-          // FinalProduct specific
-          finalProductName: String(safeGet(inputData, 'finalProductName', String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)))), // Default to label if not present
-          totalCarbonFootprint: Number(safeGet(inputData, 'totalCarbonFootprint', 0)),
+          finalProductName: String(
+            safeGet(inputData, 'finalProductName', String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`))),
+          ),
+          totalCarbonFootprint: Number(safeGet(inputData, 'totalCarbonFootprint', 0)), // Number as per FinalProductNodeData
           certificationStatus: String(safeGet(inputData, 'certificationStatus', 'pending')),
           environmentalImpact: String(safeGet(inputData, 'environmentalImpact', '')),
-          sustainabilityScore: Number(safeGet(inputData, 'sustainabilityScore', 0)),
+          sustainabilityScore: Number(safeGet(inputData, 'sustainabilityScore', 0)), // Number as per FinalProductNodeData
           productCategory: String(safeGet(inputData, 'productCategory', '')),
           marketSegment: String(safeGet(inputData, 'marketSegment', '')),
           targetRegion: String(safeGet(inputData, 'targetRegion', '')),
@@ -532,10 +546,8 @@ export class CarbonFlowActionHandler {
       }
     }
 
-
-
     // Determine position: Use provided, or calculate default
-    let position = { x: Math.random() * 400, y: Math.random() * 400 }; // Default random position
+    let position = { x: Math.random() * 400, y: Math.random() * 400 };
     if (action.position) {
       try {
         const parsedPosition = JSON.parse(action.position);
@@ -610,7 +622,6 @@ export class CarbonFlowActionHandler {
               return node; // No actual change
             }
 
-            // Basic update without complex type guards for now
             updated = true; // Mark that an update happened (for logging/recalc)
             nodesChangedInUpdate = true;
             return {
@@ -630,9 +641,11 @@ export class CarbonFlowActionHandler {
         console.log(`成功更新节点: ${action.nodeId}`);
         // Recalculate if relevant data changed
 
-        if (Object.keys(updateData).some((key) =>
-          ['carbonFactor', 'weight', 'energyConsumption', 'transportationDistance', 'lifespan'].includes(key)
-        )) {
+        if (
+          Object.keys(updateData).some((key) =>
+            ['carbonFactor', 'weight', 'energyConsumption', 'transportationDistance', 'lifespan'].includes(key),
+          )
+        ) {
           this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Recalculate after update' });
         }
       } else {
@@ -674,7 +687,7 @@ export class CarbonFlowActionHandler {
 
       this._setEdges((currentEdges) => {
         const filteredEdges = currentEdges.filter(
-          (edge) => edge.source !== nodeIdToDelete && edge.target !== nodeIdToDelete
+          (edge) => edge.source !== nodeIdToDelete && edge.target !== nodeIdToDelete,
         );
         if (filteredEdges.length !== currentEdges.length) {
           relatedEdgesDeleted = true;
@@ -745,9 +758,7 @@ export class CarbonFlowActionHandler {
       }
 
       // Check against current edges state
-      const edgeExists = this._edges.some(
-        (edge) => edge.source === sourceNode.id && edge.target === targetNode.id
-      );
+      const edgeExists = this._edges.some((edge) => edge.source === sourceNode.id && edge.target === targetNode.id);
 
       if (edgeExists) {
         console.warn(`连接已存在: ${sourceNode.id} -> ${targetNode.id}`);
@@ -821,7 +832,12 @@ export class CarbonFlowActionHandler {
 
     const nodeTypeOrder: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal'];
     const nodesByType: Record<NodeType | 'finalProduct', Node<NodeData>[]> = {
-      product: [], manufacturing: [], distribution: [], usage: [], disposal: [], finalProduct: [],
+      product: [],
+      manufacturing: [],
+      distribution: [],
+      usage: [],
+      disposal: [],
+      finalProduct: [],
     };
     let maxNodesInStage = 0;
 
@@ -1085,28 +1101,26 @@ export class CarbonFlowActionHandler {
     const data = node.data;
     switch (node.type as NodeType) {
       case 'product':
-        // Use weight as activity data for product
-        return (data as ProductNodeData).weight || 1; // Default to 1 if weight is 0 or undefined
+        return Number((data as ProductNodeData).weight) || 1;
       case 'manufacturing':
-        // Example: Use energy consumption
-        return (data as ManufacturingNodeData).energyConsumption || 1; // Default to 1
+        return Number((data as ManufacturingNodeData).energyConsumption) || 1;
       case 'distribution':
-        // Example: Use distance
-        return (data as DistributionNodeData).transportationDistance || 1; // Default to 1
+        return Number((data as DistributionNodeData).transportationDistance) || 1;
       case 'usage': {
-        // Example: Calculate based on lifespan, frequency, and energy per use
         const usageData = data as UsageNodeData;
-        const activity = (usageData.lifespan || 0) * (usageData.usageFrequency || 0) * (usageData.energyConsumptionPerUse || 0);
-        return activity || 1; // Default to 1 if calculation is 0
+        const activity =
+          (Number(usageData.lifespan) || 0) *
+          (Number(usageData.usageFrequency) || 0) *
+          (Number(usageData.energyConsumptionPerUse) || 0);
+        return activity || 1;
       }
       case 'disposal':
-        // Example: Assume activity is 1 unit being disposed, factor handles rate
         return 1;
       case 'finalProduct':
-        return 1; // Final product itself doesn't have activity data
+        return 1;
       default:
         console.warn(`Unhandled node type in _getActivityData: ${node.type as string}`);
-        return 1; // Default activity data
+        return 1;
     }
   }
 
@@ -1114,23 +1128,15 @@ export class CarbonFlowActionHandler {
     let changed = false;
     const updatedNodes = this._nodes.map((node) => {
       if (node.type === 'finalProduct') {
-        return node; // Skip final product node for individual calculation
+        return node;
       }
 
-      const carbonFactor = node.data.carbonFactor || 0;
+      const carbonFactor = Number(node.data.carbonFactor) || 0;
       const activityData = this._getActivityData(node);
-      const carbonFootprint = Number(carbonFactor) * Number(activityData);
-      const currentFootprint = node.data.carbonFootprint || 0;
+      const carbonFootprintCalc = carbonFactor * activityData;
+      const currentFootprint = Number(node.data.carbonFootprint) || 0;
 
-      // TODO: Re-implement completion status check if needed based on actual fields
-      // let status: 'complete' | 'incomplete' = 'incomplete';
-      // const allRequiredFieldsPresent = this._checkRequiredFields(node);
-      // status = allRequiredFieldsPresent ? 'complete' : 'incomplete';
-      // const currentCompletion = safeGet(node.data as any, 'completionStatus', 'incomplete');
-      // const statusChanged = currentCompletion !== status;
-
-      // Only update if footprint changes significantly
-      const footprintChanged = Math.abs(currentFootprint - carbonFootprint) > 1e-6;
+      const footprintChanged = Math.abs(currentFootprint - carbonFootprintCalc) > 1e-6;
 
       if (footprintChanged) {
         changed = true;
@@ -1138,8 +1144,7 @@ export class CarbonFlowActionHandler {
           ...node,
           data: {
             ...node.data,
-            carbonFootprint: carbonFootprint,
-            // ...(statusChanged && { completionStatus: status }) // Add status back if check is implemented
+            carbonFootprint: String(carbonFootprintCalc),
           } as NodeData,
         };
       }
@@ -1162,64 +1167,49 @@ export class CarbonFlowActionHandler {
       return false;
     }
 
-    // --- Graph Traversal Calculation (Conceptual Example - DFS) --
-    // This requires a proper graph representation or direct traversal logic
-    // For MVP, simple sum might suffice, but a real calculation needs graph traversal.
     let totalFootprint = 0;
     const visited = new Set<string>();
-    const nodeMap = new Map(this._nodes.map(n => [n.id, n]));
-    const edgesMap = new Map<string, Edge[]>(); // Target -> [Edges pointing to it]
-    this._edges.forEach(edge => {
-        if (!edgesMap.has(edge.target)) edgesMap.set(edge.target, []);
-        edgesMap.get(edge.target)?.push(edge);
+    const nodeMap = new Map(this._nodes.map((n) => [n.id, n]));
+    const edgesMap = new Map<string, Edge[]>();
+    this._edges.forEach((edge) => {
+      if (!edgesMap.has(edge.target)) edgesMap.set(edge.target, []);
+      edgesMap.get(edge.target)?.push(edge);
     });
 
-    // Recursive function (or iterative using a stack) to calculate contribution
-    // Needs refinement based on LCA methodology (e.g., handling units, allocation)
     const calculateContribution = (nodeId: string): number => {
-        if (visited.has(nodeId)) return 0; // Avoid cycles / redundant calculation
-        visited.add(nodeId);
+      if (visited.has(nodeId)) return 0;
+      visited.add(nodeId);
 
-        const node = nodeMap.get(nodeId);
-        if (!node || node.type === 'finalProduct') return 0; // Base case
+      const node = nodeMap.get(nodeId);
+      if (!node || node.type === 'finalProduct') return 0;
 
-        let upstreamFootprint = 0;
-        const incomingEdges = edgesMap.get(nodeId) || [];
-        incomingEdges.forEach(edge => {
-            // This is overly simplified - needs allocation logic, unit matching etc.
-            upstreamFootprint += calculateContribution(edge.source);
-        });
+      let upstreamFootprint = 0;
+      const incomingEdges = edgesMap.get(nodeId) || [];
+      incomingEdges.forEach((edge) => {
+        upstreamFootprint += calculateContribution(edge.source);
+      });
 
-        // Current node's direct footprint + contribution from upstream
-        // Again, highly simplified - assumes simple addition is correct
-        return (node.data.carbonFootprint || 0) + upstreamFootprint;
+      return (Number(node.data.carbonFootprint) || 0) + upstreamFootprint;
     };
 
-    // Sum contributions from all nodes directly connected *to* the final product
     const finalIncomingEdges = edgesMap.get(targetNodeId) || [];
-    finalIncomingEdges.forEach(edge => {
-        visited.clear(); // Reset visited for each main branch if needed? Depends on graph structure.
-        totalFootprint += calculateContribution(edge.source);
+    finalIncomingEdges.forEach((edge) => {
+      visited.clear();
+      totalFootprint += calculateContribution(edge.source);
     });
-    // If the final product node itself has direct emissions (unlikely but possible)
-    // totalFootprint += targetNode.data.carbonFootprint || 0;
-    console.log(`[Debug] Total footprint calculated via traversal (simple sum): ${totalFootprint}`);
-    // --- End Graph Traversal --- //
 
     let changed = false;
-    // Use functional update for atomicity
     this._setNodes((currentNodes) => {
       let nodeChanged = false;
       const updatedNodesResult = currentNodes.map((node) => {
         if (node.id === targetNode.id) {
           const finalProductData = node.data as FinalProductNodeData;
-          const currentTotal = finalProductData.totalCarbonFootprint || 0;
+          const currentTotal = Number(finalProductData.totalCarbonFootprint) || 0;
           const currentCompliance = finalProductData.complianceStatus || 'pending';
-          const newCompliance = 'complete'; // Assuming calculation completion
+          const newCompliance = 'complete';
 
-          // Use a tolerance for float comparison
           if (Math.abs(currentTotal - totalFootprint) > 1e-6 || currentCompliance !== newCompliance) {
-            changed = true; // Mark overall change
+            changed = true;
             nodeChanged = true;
             return {
               ...node,
@@ -1233,12 +1223,10 @@ export class CarbonFlowActionHandler {
         }
         return node;
       });
-      // Return new array only if the target node was actually changed
       return nodeChanged ? updatedNodesResult : currentNodes;
     });
 
     if (changed) {
-      // this._setNodes(updatedNodes); // State updated functionally
       console.log(`Total footprint updated for ${targetNodeId}: ${totalFootprint}`);
     }
 
@@ -1252,116 +1240,102 @@ export class CarbonFlowActionHandler {
     console.log('Handling Carbon Factor Match action:', action);
     let updated = false;
 
-    // 使用函数式更新节点
-    // 定义一个包含完整信息的类型
     type NodeUpdateInfo = {
       node: Node<NodeData>;
       factor: number;
       activityName: string;
       unit: string;
-    }
-    
+    };
+
     const nodesToUpdate: NodeUpdateInfo[] = [];
-    
-    // 记录匹配结果和日志
+
     const matchResults = {
       success: [] as string[],
       failed: [] as string[],
-      logs: [] as string[]
+      logs: [] as string[],
     };
-    
-    // 首先获取所有需要更新的节点和对应的碳因子信息
+
     for (const node of this._nodes) {
       const currentFactor = node.data.carbonFactor;
-      
-      // 如果action中指定了特定的节点ID，则只处理这些节点
+
       if (action.nodeId) {
         const nodeIds = action.nodeId.split(',');
         if (!nodeIds.includes(node.id)) {
-          continue;  // 跳过未被选中的节点
+          continue;
         }
       }
-      
-      // 匹配因子为空或为0的节点
-      if (currentFactor === undefined || currentFactor === 0 || currentFactor === '0') {
-        // 记录日志：开始匹配
+
+      if (currentFactor === undefined || currentFactor === '0' || currentFactor === '') {
         matchResults.logs.push(`开始为节点 "${node.data.label || node.id}" 尝试匹配碳因子...`);
-        
+
         try {
-          // 尝试通过Climatiq API获取碳因子
           const climatiqResult = await this._fetchCarbonFactorFromClimatiqAPI(node);
-          
+
           if (climatiqResult) {
-            // Climatiq匹配成功
             nodesToUpdate.push({
               node,
               factor: climatiqResult.factor,
               activityName: climatiqResult.activityName,
-              unit: climatiqResult.unit
+              unit: climatiqResult.unit,
             });
-            
-            // 记录成功匹配
+
             matchResults.success.push(node.id);
-            matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climatiq API匹配成功，碳因子: ${climatiqResult.factor}`);
-            
+            matchResults.logs.push(
+              `节点 "${node.data.label || node.id}" 通过Climatiq API匹配成功，碳因子: ${climatiqResult.factor}`,
+            );
+
             updated = true;
-            continue;  // 跳过Climateseal API调用
+            continue;
           } else {
-            // Climatiq匹配失败，使用Climateseal API
-            matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climatiq API匹配失败，尝试使用Climateseal API...`);
+            matchResults.logs.push(
+              `节点 "${node.data.label || node.id}" 通过Climatiq API匹配失败，尝试使用Climateseal API...`,
+            );
           }
         } catch (error) {
-          // Climatiq API出错，记录日志
-          matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climatiq API匹配出错: ${error.message || '未知错误'}`);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climatiq API匹配出错: ${errorMessage}`);
         }
-        
+
         try {
-          // 尝试通过Climateseal API获取碳因子
           const climatesealResult = await this._fetchCarbonFactorFromClimatesealAPI(node);
-          
+
           if (climatesealResult) {
-            // Climateseal匹配成功
             nodesToUpdate.push({
               node,
               factor: climatesealResult.factor,
               activityName: climatesealResult.activityName,
-              unit: climatesealResult.unit
+              unit: climatesealResult.unit,
             });
-            
-            // 记录成功匹配
+
             matchResults.success.push(node.id);
-            matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climateseal API匹配成功，碳因子: ${climatesealResult.factor}`);
-            
+            matchResults.logs.push(
+              `节点 "${node.data.label || node.id}" 通过Climateseal API匹配成功，碳因子: ${climatesealResult.factor}`,
+            );
+
             updated = true;
           } else {
-            // 两个API都匹配失败
             matchResults.failed.push(node.id);
             matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过两个API都匹配失败`);
           }
         } catch (error) {
-          // Climateseal API出错，记录日志
-          matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climateseal API匹配出错: ${error.message || '未知错误'}`);
-          
-          // 如果两个API都失败，记录为匹配失败
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          matchResults.logs.push(`节点 "${node.data.label || node.id}" 通过Climateseal API匹配出错: ${errorMessage}`);
+
           if (!matchResults.success.includes(node.id)) {
             matchResults.failed.push(node.id);
           }
         }
       } else if (action.nodeId) {
-        // 如果节点已有碳因子但被明确选择进行匹配，添加到日志
         matchResults.logs.push(`跳过节点 "${node.data.label || node.id}"，因为它已经有碳因子: ${currentFactor}`);
       }
     }
-    
-    // 如果有节点需要更新，进行批量更新
+
     if (nodesToUpdate.length > 0) {
-      // 恢复使用原始的_setNodes方法进行更新
-      this._setNodes(currentNodes => {
-        const updatedNodes = currentNodes.map(node => {
-          const updateInfo = nodesToUpdate.find(u => u.node.id === node.id);
+      this._setNodes((currentNodes) => {
+        const updatedNodes = currentNodes.map((node) => {
+          const updateInfo = nodesToUpdate.find((u) => u.node.id === node.id);
           if (updateInfo) {
             updated = true;
-            // 更新 carbonFactor, carbonFactorName, carbonFactorUnit
             return {
               ...node,
               data: {
@@ -1378,28 +1352,31 @@ export class CarbonFlowActionHandler {
         });
         return updatedNodes;
       });
-      
+
       if (updated) {
         console.log(`碳因子匹配完成，已更新 ${nodesToUpdate.length} 个节点`);
-        this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Recalculate after factor match' });
+        this._handleCalculate({
+          type: 'carbonflow',
+          operation: 'calculate',
+          content: 'Recalculate after factor match',
+        });
       }
     } else {
       console.log('碳因子匹配完成，没有需要更新的节点');
     }
-    
-    // 发送匹配结果事件，即便是没有更新也发送
-    window.dispatchEvent(new CustomEvent('carbonflow-match-results', {
-      detail: matchResults
-    }));
-    
+
+    window.dispatchEvent(
+      new CustomEvent('carbonflow-match-results', {
+        detail: matchResults,
+      }),
+    );
+
     console.log('Carbon factor match operation completed, updated:', updated);
     console.log('Match results:', matchResults);
   }
 
-  // 重命名为Climateseal API
   private async _fetchCarbonFactorFromClimatesealAPI(node: Node<NodeData>): Promise<CarbonFactorResult | null> {
     try {
-      // 获取节点标签作为查询参数
       const label = node.data.label || '';
       if (!label || label.trim() === '') {
         console.warn(`节点 ${node.id} 没有有效的标签用于碳因子查询`);
@@ -1407,18 +1384,16 @@ export class CarbonFlowActionHandler {
       }
 
       console.log(`尝试为节点 ${node.id} (${label}) 从Climateseal API获取碳因子`);
-        
-      // 构建请求体
+
       const requestBody = {
         labels: [label],
-        top_k: 3, // 获取最匹配的三个结果
-        min_score: 0.3, // 降低最小匹配分数阈值
-        embedding_model: 'dashscope_v3', // 使用默认的嵌入模型
-        search_method: 'script_score' // 使用默认的搜索方法
+        top_k: 3,
+        min_score: 0.3,
+        embedding_model: 'dashscope_v3',
+        search_method: 'script_score',
       };
 
       console.log('Climateseal requestBody', requestBody);
-      // 调用后端API
       const response = await fetch('https://api.climateseals.com/match', {
         method: 'POST',
         headers: {
@@ -1431,14 +1406,14 @@ export class CarbonFlowActionHandler {
         throw new Error(`Climateseal API返回错误状态: ${response.status}`);
       }
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         success: boolean;
         results: Array<{
           query_label: string;
           matches: Array<{
             kg_co2eq: number;
-            activity_name: string; // 添加 activity_name
-            reference_product_unit: string; // 添加 unit
+            activity_name: string;
+            reference_product_unit: string;
             [key: string]: any;
           }>;
           error: string | null;
@@ -1446,35 +1421,26 @@ export class CarbonFlowActionHandler {
       };
       console.log('Climateseal 碳因子API响应:', data);
 
-      // 正确解析API返回的嵌套结构
-      if (data.results && 
-          data.results.length > 0 && 
-          data.results[0].matches && 
-          data.results[0].matches.length > 0) {
-        // 正确访问匹配结果
+      if (data.results && data.results.length > 0 && data.results[0].matches && data.results[0].matches.length > 0) {
         const bestMatch = data.results[0].matches[0];
         return {
           factor: bestMatch.kg_co2eq,
-          activityName: bestMatch.activity_name || '', // 如果没有则为空字符串
-          unit: bestMatch.reference_product_unit || 'kg' // 如果没有则默认为kg
+          activityName: bestMatch.activity_name || '',
+          unit: bestMatch.reference_product_unit || 'kg',
         };
       } else {
-        // API没有返回匹配结果，直接返回null
         console.warn('Climateseal API没有返回匹配结果');
         return null;
       }
     } catch (error) {
       console.error(`从Climateseal获取碳因子时出错:`, error);
-      // API调用失败，返回null
       console.log(`Climateseal API调用失败，不使用默认碳因子`);
       return null;
     }
   }
 
-  // 新增 Climatiq API
   private async _fetchCarbonFactorFromClimatiqAPI(node: Node<NodeData>): Promise<CarbonFactorResult | null> {
     try {
-      // 获取节点相关信息作为查询参数
       const label = node.data.label || '';
       if (!label || label.trim() === '') {
         console.warn(`节点 ${node.id} 没有有效的标签用于碳因子查询`);
@@ -1482,16 +1448,12 @@ export class CarbonFlowActionHandler {
       }
 
       console.log(`尝试为节点 ${node.id} (${label}) 从Climatiq API获取碳因子`);
-      
-      // 根据节点类型确定使用什么activity_id
-      // 这里简化处理，实际应用中可能需要更复杂的映射逻辑
+
       let activityId = 'electricity-supply_grid-source_residual_mix';
-      let energy = 1000; // 默认值
-      
-      // 根据节点类型和属性调整参数
+      let energy = 1000;
+
       switch (node.type as NodeType) {
         case 'product':
-          // 这里可以根据产品特性选择不同的活动ID
           activityId = 'material-production_average-steel-primary';
           energy = (node.data as ProductNodeData).weight || 1000;
           break;
@@ -1503,29 +1465,26 @@ export class CarbonFlowActionHandler {
           activityId = 'electricity-supply_grid-source_residual_mix';
           energy = (node.data as ManufacturingNodeData).energyConsumption || 1000;
           break;
-        // 可继续添加其他类型的处理
       }
 
-      // 构建请求体
       const requestBody = {
         emission_factor: {
           activity_id: activityId,
-          data_version: "^21"
+          data_version: '^21',
         },
         parameters: {
           energy: energy,
-          energy_unit: "kWh"
-        }
+          energy_unit: 'kWh',
+        },
       };
 
       console.log('Climatiq requestBody', requestBody);
-      
-      // 调用Climatiq API
-      const API_KEY = 'KSBRPY3WYN3HZ5XBCKD0FYD80R'; // 使用提供的API密钥
+
+      const API_KEY = 'KSBRPY3WYN3HZ5XBCKD0FYD80R';
       const response = await fetch('https://api.climatiq.io/data/v1/estimate', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${API_KEY}`,
+          Authorization: `Bearer ${API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),
@@ -1535,18 +1494,21 @@ export class CarbonFlowActionHandler {
         throw new Error(`Climatiq API返回错误状态: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        co2e?: number;
+        emission_factor?: { name?: string };
+        co2e_unit?: string;
+      };
       console.log('Climatiq 碳因子API响应:', data);
 
-      // 解析响应
-      if (data && data.co2e !== undefined) {
+      if (data && data.co2e !== undefined && typeof data.co2e === 'number' && energy !== 0) {
         return {
-          factor: data.co2e / energy, // 计算单位碳因子
+          factor: data.co2e / energy,
           activityName: data.emission_factor?.name || activityId,
-          unit: data.co2e_unit || 'kg'
+          unit: data.co2e_unit || 'kg',
         };
       } else {
-        console.warn('Climatiq API响应格式不符合预期');
+        console.warn('Climatiq API响应格式不符合预期或energy为0');
         return null;
       }
     } catch (error) {
@@ -1560,19 +1522,21 @@ export class CarbonFlowActionHandler {
    * 更新边 (Ensures edges are valid after node changes)
    */
   private _updateEdges(): void {
-    // Use functional update for edges too
-    this._setEdges(currentEdges => {
-        const nodeIds = new Set(this._nodes.map((n) => n.id));
-        const originalEdgeCount = currentEdges.length;
-        const validEdges = currentEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+    this._setEdges((currentEdges) => {
+      const nodeIds = new Set(this._nodes.map((n) => n.id));
+      const originalEdgeCount = currentEdges.length;
+      const validEdges = currentEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
 
-        if (validEdges.length !== originalEdgeCount) {
-            console.log(`Removing ${originalEdgeCount - validEdges.length} invalid edges.`);
-             // Trigger recalculation only if edges were actually removed
-             this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Recalculate after edge update' });
-            return validEdges;
-        }
-        return currentEdges; // No change
+      if (validEdges.length !== originalEdgeCount) {
+        console.log(`Removing ${originalEdgeCount - validEdges.length} invalid edges.`);
+        this._handleCalculate({
+          type: 'carbonflow',
+          operation: 'calculate',
+          content: 'Recalculate after edge update',
+        });
+        return validEdges;
+      }
+      return currentEdges;
     });
   }
 
@@ -1584,12 +1548,17 @@ export class CarbonFlowActionHandler {
   private _checkRequiredFields(node: Node<NodeData>): boolean {
     /*
      * Example placeholder check: ensure label and carbon factor exist
-     * if (!node.data.label || node.data.carbonFactor === undefined) {\n
-     *   return false;\n
-     * }\n
-     * // Add more checks based on node.type using type guards if possible\n
-     * // switch(node.type) { case 'product': if (!(node.data as ProductNodeData).weight) return false; ... }\n
+     * if (!node.data.label || node.data.carbonFactor === undefined) {
+     *
+     *   return false;
+     *
+     * }
+     *
+     * // Add more checks based on node.type using type guards if possible
+     *
+     * // switch(node.type) { case 'product': if (!(node.data as ProductNodeData).weight) return false; ... }
+     *
      */
-    return true; // Placeholder return, actual implementation needed
+    return true;
   }
 }
