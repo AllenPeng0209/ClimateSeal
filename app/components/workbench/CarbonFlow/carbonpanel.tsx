@@ -2347,6 +2347,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     onChange={(e) => setAiFilterStage(e.target.value)}
                     optionType="button"
                     buttonStyle="solid"
+                    style={{ flexWrap: 'nowrap' }}
                   >
                     <Radio value={undefined}>全部</Radio>
                     {lifecycleStages.filter(s => s !== '全部').map(stage => (
@@ -2383,6 +2384,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     onChange={(e) => setAiFilterCategory(e.target.value)}
                     optionType="button"
                     buttonStyle="solid"
+                    style={{ flexWrap: 'nowrap' }}
                   >
                     <Radio value={undefined}>全部</Radio>
                     {emissionCategories.map(cat => (
@@ -2431,6 +2433,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     value={aiFilterShowType}
                     optionType="button"
                     buttonStyle="solid"
+                    style={{ flexWrap: 'nowrap' }}
                   />
                 </Col>
               </Row>
@@ -3325,6 +3328,30 @@ const customStyles = `
 .ai-autofill-modal .ant-table-body {
   scrollbar-width: thin;
   scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a);
+}
+
+/* 强制所有 Radio.Group 单行展示 */
+.ai-autofill-modal .ant-radio-group {
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  font-size: 11px !important;
+}
+.ai-autofill-modal .ant-radio-group .ant-radio-button-wrapper,
+.ai-autofill-modal .ant-radio-group .ant-radio-wrapper {
+  flex-shrink: 0 !important;
+  min-width: 110px !important;
+  max-width: 110px !important;
+  width: 110px !important;
+  padding: 0 4px !important;
+  text-align: center !important;
+  justify-content: center !important;
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  font-size: 11px !important;
+  box-sizing: border-box !important;
 }
 
 `;
