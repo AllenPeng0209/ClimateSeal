@@ -2331,10 +2331,11 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         onCancel={() => setIsAIAutoFillModalVisible(false)}
         footer={null}
         width={1400}
+        className="ai-autofill-modal" // Added className
       >
         {/* Consolidated Filter Panel - Placed above the table */}
         <div style={{ marginBottom: 20, padding: 16, borderRadius: 4 }}> {/* Removed border style */}
-          <Row gutter={[16, 16]}> {/* Vertical gutter between filter items */}
+          <Row gutter={[12, 8]}> {/* Vertical gutter between filter items, changed from [16,16] */}
             {/* Row 1: 生命周期阶段 */}
             <Col span={24}>
               <Row align="middle" gutter={[8, 0]}> {/* gutter between title and control */}
@@ -2445,7 +2446,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           bordered
           dataSource={filteredAIAutoFillSources.map((item, idx) => ({ ...item, key: item.id, index: idx + 1 }))}
           pagination={false}
-          scroll={{ x: 'max-content', y: 400 }}
+          scroll={{ x: 'max-content', y: 550 }} // Increased scroll height from 400
           size="small"
           columns={columnsAIAutoFill}
         />
@@ -3201,7 +3202,123 @@ const customStyles = `
   margin-top: 8px !important;
 }
 
+/* AI Auto Fill Modal Specific Styles */
+.ai-autofill-modal .ant-modal-body {
+  padding-top: 12px !important; /* Reduce top padding of modal body */
+}
 
+/* Filter Panel Compacting */
+.ai-autofill-modal .ant-modal-body > div:first-child { /* The filter panel wrapper */
+  padding: 8px !important; /* Further reduce padding from 10px */
+  margin-bottom: 8px !important; /* Further reduce bottom margin from 10px */
+}
+
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-row {
+  margin-bottom: 2px !important; /* Reduce space between filter rows from 4px */
+}
+/* Ensure filter rows themselves are more compact if they have default large margins */
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-row.ant-form-item {
+    margin-bottom: 2px !important; /* Reduce from 4px */
+}
+
+
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-col {
+  padding-top: 2px !important; /* Reduce vertical padding for cols */
+  padding-bottom: 2px !important;
+}
+
+/* Filter Labels and Controls Font and Size */
+.ai-autofill-modal .ant-typography,
+.ai-autofill-modal .ant-form-item-label > label {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  margin-bottom: 2px !important; /* Reduce space below label */
+}
+
+.ai-autofill-modal .ant-radio-wrapper,
+.ai-autofill-modal .ant-radio-button-wrapper {
+  font-size: 12px !important;
+  padding: 0 8px !important; /* Adjust padding for radio buttons */
+  height: 28px !important; /* Adjust height */
+  line-height: 26px !important; /* Adjust line-height */
+}
+.ai-autofill-modal .ant-radio-group {
+  margin-top: 2px; /* Align radio group better with label */
+}
+
+
+.ai-autofill-modal .ant-input,
+.ai-autofill-modal .ant-input-affix-wrapper {
+  font-size: 12px !important;
+  height: 28px !important; /* Adjust height */
+  padding-top: 0px !important; /* Corrected padding for input field text */
+  padding-bottom: 0px !important;
+}
+.ai-autofill-modal .ant-input-affix-wrapper input.ant-input {
+    height: auto !important; /* Allow inner input to not conflict */
+}
+
+
+.ai-autofill-modal .ant-btn {
+  font-size: 12px !important;
+  padding: 0px 10px !important; /* Adjust padding for buttons */
+  height: 28px !important; /* Adjust height */
+  line-height: 26px !important; /* Needs to be slightly less than height for text centering */
+}
+.ai-autofill-modal .ant-btn .anticon {
+  font-size: 14px !important; /* Keep icons readable */
+  vertical-align: middle !important; /* Better icon alignment in button */
+}
+
+
+/* Filter Row Alignment and Label Width */
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-row.ant-row-middle {
+  margin-bottom: 2px !important; /* Tighter rows, was 4px */
+}
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-row.ant-row-middle .ant-col[flex*="px"] { /* Target label column */
+  flex-basis: 110px !important; /* Reduce label column width */
+  max-width: 110px !important;
+  margin-right: 8px; /* Add some space between label and control */
+}
+.ai-autofill-modal .ant-modal-body > div:first-child .ant-row.ant-row-middle .ant-col[flex="auto"] {
+  padding-left: 0 !important; /* Remove potential padding from auto col */
+}
+
+
+/* Table Font and Padding */
+.ai-autofill-modal .ant-table-thead > tr > th,
+.ai-autofill-modal .ant-table-tbody > tr > td {
+  font-size: 12px !important;
+  padding: 6px 8px !important; /* Reduce padding in table cells */
+}
+
+/* Specifically for the grouped table headers */
+.ai-autofill-modal .ant-table-thead > tr > th > div {
+  font-size: 12px !important;
+  font-weight: bold !important; /* Keep headers bold */
+  padding: 2px 0 !important; /* Reduce padding inside the div wrapper of group titles */
+}
+
+/* Bottom Action Buttons in AI Modal */
+.ai-autofill-modal .ant-modal-body > div:last-child { /* The bottom button container */
+  margin-top: 12px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--bolt-elements-borderColor, #333);
+}
+
+/* AI Autofill Modal specific scrollbar for its table */
+.ai-autofill-modal .ant-table-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.ai-autofill-modal .ant-table-body::-webkit-scrollbar-thumb {
+  background-color: var(--bolt-elements-textDisabled, #555);
+  border-radius: 3px;
+}
+.ai-autofill-modal .ant-table-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a);
+}
 
 `;
 
