@@ -19,7 +19,6 @@ import {
   Empty,
   List,
   Tabs, // <-- Import Tabs
-  Divider, // <-- Import Divider
   Typography, // <-- Import Typography
   Radio, // <-- Import Radio
 } from 'antd';
@@ -28,7 +27,6 @@ import {
   SettingOutlined,
   PlusOutlined,
   SearchOutlined,
-  RedoOutlined,
   UploadOutlined,
   EyeOutlined,
   DeleteOutlined,
@@ -65,7 +63,7 @@ interface FileRecord {
 
 interface WorkflowFileRecord {
   file_id: string;
-  files: FileRecord;
+  files: FileRecord; // Assuming files is a single object, not an array. If it's an array, this needs to be FileRecord[]
 }
 import type { CarbonFlowAction } from '~/types/actions';  // 修正导入路径
 
@@ -191,14 +189,22 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const [isEmissionDrawerVisible, setIsEmissionDrawerVisible] = useState(false);
   const [editingEmissionSource, setEditingEmissionSource] = useState<EmissionSource | null>(null);
-  const [drawerInitialValues, setDrawerInitialValues] = useState<Partial<EmissionSource & { lifecycleStage: string }>>({}); // 用于传递初始值
+  const [drawerInitialValues, setDrawerInitialValues] = useState<Partial<EmissionSource & { lifecycleStage: string }>>(
+    {},
+  ); // 用于传递初始值
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploadModalVisible, setIsUploadModalVisible] = useState(false); // State for the upload modal visibility
   const [modalFileList, setModalFileList] = useState<ModalUploadFile[]>([]); // State for files in the modal upload list
   const [isFactorMatchModalVisible, setIsFactorMatchModalVisible] = useState(false); // 新增：因子匹配弹窗状态
   const [selectedFactorMatchSources, setSelectedFactorMatchSources] = useState<React.Key[]>([]); // 新增：因子匹配弹窗中选中的排放源
-  const [matchResults, setMatchResults] = useState<{success: string[], failed: string[], logs: string[]}>({
-    success: [], failed: [], logs: []
+  const [matchResults, setMatchResults] = useState<{
+    success: string[];
+    failed: string[];
+    logs: string[];
+  }>({
+    success: [],
+    failed: [],
+    logs: [],
   }); // 新增：存储匹配结果的状态
   const [showMatchResultsModal, setShowMatchResultsModal] = useState(false); // 新增：匹配结果弹窗显示状态
   const [backgroundDataActiveTabKey, setBackgroundDataActiveTabKey] = useState<string>('database'); // Re-add state for active background data tab
@@ -220,8 +226,14 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const [aiFilterShowType, setAiFilterShowType] = useState<'all' | 'ai' | 'manual'>('all');
   const [aiAutoFillSelectedRowKeys, setAiAutoFillSelectedRowKeys] = useState<React.Key[]>([]);
   const [aiAutoFillConfirmType, setAiAutoFillConfirmType] = useState<'conversion' | 'transport' | null>(null);
-  const [aiAutoFillResult, setAiAutoFillResult] = useState<{success: string[], failed: {id: string, reason: string}[]}|null>(null);
+  const [aiAutoFillResult, setAiAutoFillResult] = useState<
+    {
+      success: string[];
+      failed: { id: string; reason: string }[];
+    } | null
+  >(null);
   const [allEmissionSourcesForAIModal, setAllEmissionSourcesForAIModal] = useState<EmissionSource[]>([]); // New state for AI modal data
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false); // <-- Add this line
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
   const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
@@ -967,10 +979,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         setUploadedFiles(prev => [...prev, {
           id: fileData.id,
           name: fileObj.name,
-          type: formData.fileType,
+          type: formData.fileType, // 使用表单中用户选择的文件类型
           uploadTime: new Date().toLocaleString(),
-          url: filePath,
-          status: 'completed',
+          url: filePath, // 保存的是 storage path
+          status: 'pending', // 修改点 1：初始状态为 'pending' (未解析)
           size: fileObj.size,
           mimeType: fileObj.type,
           content: content // 缓存文件内容
@@ -1011,96 +1023,51 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   };
 
    const handleParseFile = async (file: UploadedFile) => {
-    console.log('Parsing file:', file);
-    
-    // 更新文件状态为解析中
-    setUploadedFiles((prev: UploadedFile[]) =>
-      prev.map(f =>
-        f.id === file.id
-          ? { ...f, status: 'parsing' }
-          : f
-      )
-    );
+     if (!file || !file.content) {
+       message.error('文件内容为空，无法解析');
+       return;
+     }
 
-    try {
-      let fileContent = file.content;
-      
-      // 如果没有缓存的内容，从 Supabase 存储中获取
-      if (!fileContent && file.url) {
-        const { data: fileData, error: downloadError } = await supabase.storage
-          .from('files')
-          .download(file.url);
-          
-        if (downloadError) {
-          throw new Error(`Failed to download file: ${downloadError.message}`);
-        }
-        
-        if (!fileData) {
-          throw new Error('No file data received from storage');
-        }
-        
-        // 将文件数据转换为文本
-        fileContent = await fileData.text();
-      }
+     // 修改点 2：立即将文件状态设置为 'parsing' (解析中)
+     setUploadedFiles((prevFiles) =>
+       prevFiles.map((f) =>
+         f.id === file.id ? { ...f, status: 'parsing' } : f
+       )
+     );
+     message.loading({ content: `正在解析文件: ${file.name}...`, key: 'parsingFile' });
 
-      if (!fileContent) {
-        throw new Error('No file content available');
-      }
+     try {
+       const fileContent = file.content;
 
-      // 创建解析动作
-      const parseAction: CarbonFlowAction = {
-        type: 'carbonflow',
-        operation: 'file_parser',
-        nodeId: `file-${file.id}`,
-        nodeType: 'file',
-        content: `解析文件: ${file.name}`,
-        data: JSON.stringify({
-          content: fileContent,
-          fileName: file.name,
-          fileType: file.type
-        })
-      };
+       // 关键修改：构建与 CarbonFlow.tsx 一致的 action，并通过事件分发
+       const fileActionForEvent: CarbonFlowAction = {
+         type: 'carbonflow',
+         operation: 'file_parser',
+         data: fileContent,
+         content: `面板发起解析: ${file.name}`, // 调整消息内容以区分来源
+         description: `File parsing initiated from panel for ${file.name}`,
+       };
 
-      // 执行解析动作
-      const actionHandler = new CarbonFlowActionHandler({
-        nodes,
-        edges, // <--- Pass edges state
-        setNodes: (newNodes) => {
-          if (Array.isArray(newNodes)) {
-            setStoreNodes(newNodes);
-          } else {
-            setStoreNodes((prev: Node<NodeData>[]) => newNodes(prev));
-          }
-        },
-        setEdges: setEdges // <--- Pass setEdges function
-      });
+       console.log('[carbonpanel.tsx] Dispatching carbonflow-action for file parsing:', fileActionForEvent);
+       window.dispatchEvent(
+         new CustomEvent('carbonflow-action', {
+           detail: { action: fileActionForEvent },
+         }),
+       );
 
-      await actionHandler.handleAction(parseAction);
+       // 修改点 2：移除乐观的 'completed' 状态设置和相关的 message.success
+       // message.success({ content: '文件解析请求已发送至主流程处理!', key: 'parsingFile' });
+       // 文件状态的最终确认 (completed/failed) 应由 CarbonFlow.tsx 处理后的反馈决定
 
-      // 更新文件状态为已完成
-      setUploadedFiles((prev: UploadedFile[]) =>
-        prev.map(f =>
-          f.id === file.id
-            ? { ...f, status: 'completed' }
-            : f
-        )
-      );
-
-      message.success('文件解析成功');
-    } catch (error) {
-      console.error('Failed to parse file:', error);
-      message.error(`文件解析失败: ${error instanceof Error ? error.message : '未知错误'}`);
-      
-      // 更新文件状态为失败
-      setUploadedFiles((prev: UploadedFile[]) =>
-        prev.map(f =>
-          f.id === file.id
-            ? { ...f, status: 'failed' }
-            : f
-        )
-      );
-    }
-  };
+     } catch (error: any) {
+       // 这个 catch 块可能不会捕捉到主流程中的解析错误，因为事件分发是异步的。
+       console.error('在面板中准备文件解析并分发事件时出错:', error);
+       message.error({ content: `文件解析准备失败: ${error.message}`, key: 'parsingFile' });
+       setUploadedFiles((prevFiles) =>
+         prevFiles.map((f) => (f.id === file.id ? { ...f, status: 'failed' } : f)),
+       );
+     }
+   };
 
    const handleEditFile = (file: UploadedFile) => {
        console.log('Editing file metadata:', file);
@@ -1627,16 +1594,28 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       }
 
       // 转换数据格式
-      const formattedFiles: UploadedFile[] = (data as unknown as WorkflowFileRecord[]).map(item => ({
-        id: item.file_id,
-        name: item.files.name,
-        type: item.files.type,
-        uploadTime: new Date(item.files.created_at).toLocaleString(),
-        url: item.files.path,
-        status: 'completed' as const,
-        size: item.files.size,
-        mimeType: item.files.mime_type
-      }));
+      const formattedFiles: UploadedFile[] = (data as unknown as WorkflowFileRecord[]).map(item => {
+        // Assuming item.files is an object based on your WorkflowFileRecord interface.
+        // If Supabase actually returns an array for item.files, you'd need item.files[0]
+        // and add checks for item.files being non-null and non-empty.
+        const fileDetail = item.files; // Assuming files is a single object
+
+        if (!fileDetail) {
+          console.warn('Skipping item due to missing file details:', item);
+          return null; // Skip this item if fileDetail is null/undefined
+        }
+
+        return {
+          id: item.file_id,
+          name: fileDetail.name,
+          type: fileDetail.type,
+          uploadTime: new Date(fileDetail.created_at).toLocaleString(),
+          url: fileDetail.path,
+          status: 'completed' as const,
+          size: fileDetail.size,
+          mimeType: fileDetail.mime_type
+        };
+      }).filter(Boolean) as UploadedFile[]; // Filter out nulls and assert type
 
       setUploadedFiles(formattedFiles);
     } catch (error) {
@@ -1908,7 +1887,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                <Card title={`排放源清单${selectedStage === '全部' ? '' : ` - ${selectedStage}`}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space> {/* Buttons for the left side */}
-                            <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>批量操作</Button>
+                            <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button>
                             <Button icon={<ExperimentOutlined />} onClick={() => setIsAIAutoFillModalVisible(true)} type="default">AI补全数据</Button>
                         </Space>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
