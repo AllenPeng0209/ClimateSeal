@@ -21,6 +21,7 @@ import {
   Tabs, // <-- Import Tabs
   Divider, // <-- Import Divider
   Typography, // <-- Import Typography
+  Radio, // <-- Import Radio
 } from 'antd';
 import type { FormInstance } from 'antd';
 import {
@@ -2331,64 +2332,110 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         footer={null}
         width={1400}
       >
-        {/* 筛选区和缺失数据筛选按钮 */}
-        <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16 }}>
-          {/* 生命周期阶段筛选 */}
-          <Select
-            placeholder="生命周期阶段 (全部)"
-            style={{ width: 150 }}
-            allowClear
-            value={aiFilterStage}
-            onChange={setAiFilterStage}
-          >
-            {lifecycleStages.filter(s => s !== '全部').map(stage => (
-              <Select.Option key={stage} value={stage}>{stage}</Select.Option>
-            ))}
-          </Select>
-          {/* 排放源名称筛选 */}
-          <Input
-            placeholder="排放源名称"
-            style={{ width: 180 }}
-            allowClear
-            value={aiFilterName}
-            onChange={e => setAiFilterName(e.target.value)}
-          />
-          {/* 排放源类别筛选 */}
-          <Select
-            placeholder="排放源类别 (全部)"
-            style={{ width: 150 }}
-            allowClear
-            value={aiFilterCategory}
-            onChange={setAiFilterCategory}
-          >
-            {emissionCategories.map(cat => (
-              <Select.Option key={cat} value={cat}>{cat}</Select.Option>
-            ))}
-          </Select>
-          {/* 缺失数据筛选按钮 */}
-          <Button
-            type={aiFilterMissingActivity ? 'primary' : 'default'}
-            onClick={() => setAiFilterMissingActivity(v => !v)}
-          >
-            活动数据数值及单位缺失
-          </Button>
-          <Button
-            type={aiFilterMissingConversion ? 'primary' : 'default'}
-            onClick={() => setAiFilterMissingConversion(v => !v)}
-          >
-            单位转换系数缺失
-          </Button>
-          {/* 数据展示范围单选 */}
-          <Select
-            value={aiFilterShowType}
-            style={{ width: 140 }}
-            onChange={setAiFilterShowType}
-          >
-            <Select.Option value="all">全部</Select.Option>
-            <Select.Option value="ai">含AI生成数据</Select.Option>
-            <Select.Option value="manual">不含AI生成数据</Select.Option>
-          </Select>
+        {/* Consolidated Filter Panel - Placed above the table */}
+        <div style={{ marginBottom: 20, padding: 16, borderRadius: 4 }}> {/* Removed border style */}
+          <Row gutter={[16, 16]}> {/* Vertical gutter between filter items */}
+            {/* Row 1: 生命周期阶段 */}
+            <Col span={24}>
+              <Row align="middle" gutter={[8, 0]}> {/* gutter between title and control */}
+                <Col flex="0 0 140px"><Typography.Text strong>生命周期阶段:</Typography.Text></Col>
+                <Col flex="auto">
+                  <Radio.Group
+                    value={aiFilterStage}
+                    onChange={(e) => setAiFilterStage(e.target.value)}
+                    optionType="button"
+                    buttonStyle="solid"
+                  >
+                    <Radio value={undefined}>全部</Radio>
+                    {lifecycleStages.filter(s => s !== '全部').map(stage => (
+                      <Radio key={stage} value={stage}>{stage}</Radio>
+                    ))}
+                  </Radio.Group>
+                </Col>
+              </Row>
+            </Col>
+
+            {/* Row 2: 排放源名称 */}
+            <Col span={24}>
+              <Row align="middle" gutter={[8, 0]}>
+                <Col flex="0 0 140px"><Typography.Text strong>排放源名称:</Typography.Text></Col>
+                <Col flex="auto">
+                  <Input
+                    placeholder="请输入排放源名称"
+                    style={{ maxWidth: 300 }} // Use maxWidth to prevent overly wide input
+                    allowClear
+                    value={aiFilterName}
+                    onChange={e => setAiFilterName(e.target.value)}
+                  />
+                </Col>
+              </Row>
+            </Col>
+
+            {/* Row 3: 排放源类别 */}
+            <Col span={24}>
+              <Row align="middle" gutter={[8, 0]}>
+                <Col flex="0 0 140px"><Typography.Text strong>排放源类别:</Typography.Text></Col>
+                <Col flex="auto">
+                  <Radio.Group
+                    value={aiFilterCategory}
+                    onChange={(e) => setAiFilterCategory(e.target.value)}
+                    optionType="button"
+                    buttonStyle="solid"
+                  >
+                    <Radio value={undefined}>全部</Radio>
+                    {emissionCategories.map(cat => (
+                      <Radio key={cat} value={cat}>{cat}</Radio>
+                    ))}
+                  </Radio.Group>
+                </Col>
+              </Row>
+            </Col>
+
+            {/* Row 4: 缺失数据 */}
+            <Col span={24}>
+              <Row align="middle" gutter={[8, 0]}>
+                <Col flex="0 0 140px"><Typography.Text strong>缺失数据:</Typography.Text></Col>
+                <Col flex="auto">
+                  <Space wrap>
+                    <Button
+                      type={aiFilterMissingActivity ? 'primary' : 'default'}
+                      onClick={() => setAiFilterMissingActivity(v => !v)}
+                    >
+                      活动数据数值及单位
+                    </Button>
+                    <Button
+                      type={aiFilterMissingConversion ? 'primary' : 'default'}
+                      onClick={() => setAiFilterMissingConversion(v => !v)}
+                    >
+                      单位转换系数
+                    </Button>
+                  </Space>
+                </Col>
+              </Row>
+            </Col>
+
+            {/* Row 5: 是否含AI数据 */}
+            <Col span={24}>
+              <Row align="middle" gutter={[8, 0]}>
+                <Col flex="0 0 140px"><Typography.Text strong>是否含AI数据:</Typography.Text></Col>
+                <Col flex="auto">
+                  <Radio.Group
+                    options={[
+                      { label: '全部', value: 'all' },
+                      { label: '含AI生成数据', value: 'ai' },
+                      { label: '不含AI生成数据', value: 'manual' },
+                    ]}
+                    onChange={(e) => setAiFilterShowType(e.target.value)}
+                    value={aiFilterShowType}
+                    optionType="button"
+                    buttonStyle="solid"
+                  />
+                </Col>
+              </Row>
+            </Col>
+          </Row>
         </div>
+
         <Table
           rowSelection={{
             type: 'checkbox',
