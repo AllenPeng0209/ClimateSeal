@@ -123,6 +123,21 @@ type UploadedFile = {
   content?: string; // 添加content字段用于缓存文件内容
 };
 
+// New type for Parsed Emission Sources in the Parse File Modal
+type ParsedEmissionSource = {
+  id: string; // Unique ID for this parsed item
+  key: React.Key; // For table selection
+  index: number; // For display order
+  lifecycleStage: string;
+  name: string;
+  category: string;
+  supplementaryInfo?: string;
+  activityData?: number;
+  activityUnit?: string;
+  dataStatus: '未生效' | '已生效' | '已删除'; // Key new field from PRD
+  sourceFileId: string; // Link back to the UploadedFile
+};
+
 // Extend antd's UploadFile type to include our custom selectedType
 type ModalUploadFile = UploadFile & {
   selectedType?: string;
@@ -185,6 +200,14 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   }); // 新增：存储匹配结果的状态
   const [showMatchResultsModal, setShowMatchResultsModal] = useState(false); // 新增：匹配结果弹窗显示状态
   const [backgroundDataActiveTabKey, setBackgroundDataActiveTabKey] = useState<string>('database'); // Re-add state for active background data tab
+
+  // States for the new Parse File Modal
+  const [isParseFileModalVisible, setIsParseFileModalVisible] = useState(false);
+  const [currentParsingFile, setCurrentParsingFile] = useState<UploadedFile | null>(null);
+  const [parsedEmissionSources, setParsedEmissionSources] = useState<ParsedEmissionSource[]>([]);
+  const [selectedParsedSourceKeys, setSelectedParsedSourceKeys] = useState<React.Key[]>([]);
+  const [parsingStatus, setParsingStatus] = useState<'未开始' | '解析中' | '解析成功' | '解析失败'>('未开始');
+  const [parseResultSummary, setParseResultSummary] = useState<string>('无概览信息。');
 
   const uploadModalFormRef = React.useRef<FormInstance>(null);
   const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
@@ -1071,6 +1094,72 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
        setModalFileList([]);
    };
 
+  // --- Handlers for the Parse File Modal ---
+  const handleCloseParseFileModal = () => {
+    setIsParseFileModalVisible(false);
+    setCurrentParsingFile(null);
+    setParsedEmissionSources([]);
+    setSelectedParsedSourceKeys([]);
+    setParsingStatus('未开始');
+    setParseResultSummary('');
+  };
+
+  const handleStartParsing = () => {
+    if (!currentParsingFile) return;
+    setParsingStatus('解析中');
+    setParseResultSummary('正在解析文件...');
+    // Simulate parsing
+    setTimeout(() => {
+      // Simulate some results
+      const newParsedSources: ParsedEmissionSource[] = [
+        { id: 'parsed-sim-1', key: 'parsed-sim-1', index: 1, lifecycleStage: '原材料获取阶段', name: '解析结果A', category: '原材料', activityData: 120, activityUnit: 'kg', dataStatus: '未生效', sourceFileId: currentParsingFile.id, supplementaryInfo: '模拟解析数据1' },
+        { id: 'parsed-sim-2', key: 'parsed-sim-2', index: 2, lifecycleStage: '生产阶段', name: '解析结果B', category: '能耗', activityData: 240, activityUnit: 'kWh', dataStatus: '未生效', sourceFileId: currentParsingFile.id, supplementaryInfo: '模拟解析数据2' },
+        { id: 'parsed-sim-3', key: 'parsed-sim-3', index: 3, lifecycleStage: '分销运输阶段', name: '解析结果C', category: '运输', activityData: 360, activityUnit: 't*km', dataStatus: '未生效', sourceFileId: currentParsingFile.id, supplementaryInfo: '模拟解析数据3' },
+      ];
+      setParsedEmissionSources(newParsedSources);
+      setParsingStatus('解析成功');
+      setParseResultSummary(`解析完成：成功生成 ${newParsedSources.length} 条数据。`);
+      message.success('文件解析模拟完成！');
+    }, 2000);
+  };
+
+  const handleBatchSetStatus = (status: '未生效' | '已生效' | '已删除') => {
+    if (selectedParsedSourceKeys.length === 0) {
+      message.warning('请至少选择一条数据进行操作。');
+      return;
+    }
+    setParsedEmissionSources(prev =>
+      prev.map(item =>
+        selectedParsedSourceKeys.includes(item.key) ? { ...item, dataStatus: status } : item
+      )
+    );
+    message.success(`选中的 ${selectedParsedSourceKeys.length} 条数据已批量设置为 "${status}"。`);
+    setSelectedParsedSourceKeys([]); // Clear selection after batch operation
+
+    // TODO: If status is '已生效', consider adding these to the main `emissionSources` / nodes
+    // For now, this only updates the local state within this modal.
+  };
+
+  // Helper function to get Chinese status message for UploadedFile status
+  const getChineseFileStatusMessage = (status: UploadedFile['status'] | ('未开始' | '解析中' | '解析成功' | '解析失败')) : string => {
+    switch (status) {
+        case 'pending':
+        case '未开始': // Also handle the internal state if it's already in a preliminary Chinese form
+            return '未解析';
+        case 'parsing':
+        case '解析中':
+            return '解析中';
+        case 'completed':
+        case '解析成功':
+            return '解析完成';
+        case 'failed':
+        case '解析失败':
+            return '解析失败';
+        default:
+            return status; // Fallback
+    }
+  };
+
   // --- Render functions ---
 
   // Updated renderScore to return the score value (0-100, rounded) or 0 if invalid/missing/zero
@@ -1190,7 +1279,26 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const fileTableColumns = [
       { title: '文件名称', dataIndex: 'name', key: 'name' },
       { title: '文件类型', dataIndex: 'type', key: 'type', width: 120 }, // Renamed header as per PRD
-      { title: '状态', dataIndex: 'status', key: 'status', width: 100 }, // Added Status column
+      { 
+        title: '状态', 
+        dataIndex: 'status', 
+        key: 'status', 
+        width: 100, 
+        render: (status: UploadedFile['status']) => {
+          switch (status) {
+            case 'pending':
+              return '未解析';
+            case 'parsing':
+              return '解析中';
+            case 'completed':
+              return '解析完成';
+            case 'failed':
+              return '解析失败';
+            default:
+              return status; // Fallback, though should not happen
+          }
+        }
+      }, // Added Status column
       {
           title: '操作',
           key: 'action',
@@ -1200,12 +1308,12 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                   <Tooltip title="解析">
                       <Button type="link" icon={<ExperimentOutlined />} onClick={() => handleParseFile(record)} />
                   </Tooltip>
-                  <Tooltip title="编辑">
+                  {/* <Tooltip title="编辑">
                        <Button type="link" icon={<EditOutlined />} onClick={() => handleEditFile(record)} />
                   </Tooltip>
                   <Tooltip title="预览">
                       <Button type="link" icon={<EyeOutlined />} onClick={() => handlePreviewFile(record)} />
-                  </Tooltip>
+                  </Tooltip> */}
                   <Tooltip title="删除">
                        <Popconfirm title="确定删除吗?" onConfirm={() => handleDeleteFile(record.id)}>
                           <Button type="link" danger icon={<DeleteOutlined />} />
@@ -2217,6 +2325,101 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           </Tabs>
         </div>
       </Modal>
+
+      {/* 原始数据文件解析模态框 */}
+      <Modal
+        title="原始数据文件解析"
+        open={isParseFileModalVisible}
+        onCancel={handleCloseParseFileModal}
+        width="85%" // Wider modal
+        style={{ top: 20 }} // Position closer to the top
+        footer={[
+          <Button key="close" onClick={handleCloseParseFileModal}>
+            返回
+          </Button>,
+          <Button
+            key="startParse"
+            type="primary"
+            onClick={handleStartParsing}
+            disabled={parsingStatus === '解析中' || parsingStatus === '解析成功'}
+            loading={parsingStatus === '解析中'}
+          >
+            {parsingStatus === '解析中' ? '正在解析...' : '开始解析'}
+          </Button>,
+          <Button key="batchEffective" onClick={() => handleBatchSetStatus('已生效')} disabled={selectedParsedSourceKeys.length === 0}>
+            批量生效
+          </Button>,
+          <Button key="batchIneffective" onClick={() => handleBatchSetStatus('未生效')} disabled={selectedParsedSourceKeys.length === 0}>
+            批量失效
+          </Button>,
+          // "批量删除" might be needed based on PRD ("已删除" state)
+          // <Button key="batchDelete" danger onClick={() => handleBatchSetStatus('已删除')} disabled={selectedParsedSourceKeys.length === 0}>
+          //  批量删除
+          // </Button>,
+        ]}
+      >
+        {currentParsingFile && (
+          <div style={{ marginBottom: 24 }}>
+            <Typography.Title level={5}>文件信息</Typography.Title>
+            <Row gutter={16}>
+              <Col span={8}><strong>文件名称:</strong> {currentParsingFile.name}</Col>
+              <Col span={8}><strong>上传时间:</strong> {new Date(currentParsingFile.uploadTime).toLocaleString()}</Col>
+              <Col span={8}>
+                <strong>文件路径:</strong>{' '}
+                {currentParsingFile.url ? (
+                  <a href={currentParsingFile.url} target="_blank" rel="noopener noreferrer">
+                    点击预览
+                  </a>
+                ) : (
+                  '无可用链接'
+                )}
+              </Col>
+            </Row>
+            <Divider />
+            <Typography.Title level={5} style={{ marginTop: 16 }}>解析结果</Typography.Title>
+            <Row gutter={16}>
+                <Col span={8}><strong>解析状态:</strong> {getChineseFileStatusMessage(parsingStatus)}</Col>
+                <Col span={16}><strong>解析结果概览:</strong> {parseResultSummary}</Col>
+            </Row>
+          </div>
+        )}
+        <Typography.Title level={5} style={{ marginTop: 16, marginBottom: 16 }}>解析结果数据</Typography.Title>
+        <Table
+          rowSelection={{
+            type: 'checkbox',
+            selectedRowKeys: selectedParsedSourceKeys,
+            onChange: (keys: React.Key[]) => {
+              setSelectedParsedSourceKeys(keys);
+            },
+          }}
+          columns={[
+            { title: '序号', dataIndex: 'index', key: 'index', render: (text: any, record: ParsedEmissionSource, index: number) => index + 1, width: 60 },
+            { title: '生命周期阶段', dataIndex: 'lifecycleStage', key: 'lifecycleStage' },
+            { title: '排放源名称', dataIndex: 'name', key: 'name' },
+            { title: '排放源类别', dataIndex: 'category', key: 'category' },
+            { title: '排放源补充信息', dataIndex: 'supplementaryInfo', key: 'supplementaryInfo', render: (text?: string) => text || '-' },
+            { title: '活动数据数值', dataIndex: 'activityData', key: 'activityData', render: (val?: number) => (typeof val === 'number' ? val : '-') },
+            { title: '活动数据单位', dataIndex: 'activityUnit', key: 'activityUnit', render: (text?: string) => text || '-' },
+            {
+              title: '数据状态',
+              dataIndex: 'dataStatus',
+              key: 'dataStatus',
+              render: (status: ParsedEmissionSource['dataStatus']) => {
+                let color = 'grey';
+                if (status === '已生效') color = 'green';
+                else if (status === '已删除') color = 'red';
+                return <span style={{ color }}>{status}</span>;
+              },
+            },
+          ]}
+          dataSource={parsedEmissionSources}
+          rowKey="key"
+          size="small"
+          pagination={{ pageSize: 10 }}
+          scroll={{ y: 'calc(60vh - 250px)' }} // Adjust scroll height as needed
+        />
+      </Modal>
+
     </div>
   );
 }
