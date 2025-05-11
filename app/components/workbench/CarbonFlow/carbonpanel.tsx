@@ -186,6 +186,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const [modelScore, setModelScore] = useState<ModelScoreType>({}); // Placeholder state
   const [selectedStage, setSelectedStage] = useState<string>(lifecycleStages[0]);
   const [emissionSources, setEmissionSources] = useState<EmissionSource[]>([]); // Placeholder state
+  const [edges, setEdges] = useState<Edge[]>([]); // <--- Add edges state
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const [isEmissionDrawerVisible, setIsEmissionDrawerVisible] = useState(false);
   const [editingEmissionSource, setEditingEmissionSource] = useState<EmissionSource | null>(null);
@@ -200,6 +201,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   }); // 新增：存储匹配结果的状态
   const [showMatchResultsModal, setShowMatchResultsModal] = useState(false); // 新增：匹配结果弹窗显示状态
   const [backgroundDataActiveTabKey, setBackgroundDataActiveTabKey] = useState<string>('database'); // Re-add state for active background data tab
+  const [isUploading, setIsUploading] = useState(false); // State for upload loading
 
   // States for the new Parse File Modal
   const [isParseFileModalVisible, setIsParseFileModalVisible] = useState(false);
@@ -868,7 +870,16 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         const content = await fileObj.text();
 
         // 上传到 Storage
-        const filePath = `${workflowId}/${Date.now()}_${fileObj.name}`;
+        // Original filePath: const filePath = `${workflowId}/${Date.now()}_${fileObj.name}`;
+
+        // New robust filePath construction
+        const originalName = fileObj.name;
+        const nameParts = originalName.split('.');
+        const extension = nameParts.length > 1 ? nameParts.pop() : 'dat'; // Default to .dat if no extension
+        
+        const safeFileNameInPath = `${Date.now()}_${file.uid}.${extension}`;
+        const filePath = `${workflowId}/${safeFileNameInPath}`;
+
         const { error: uploadError } = await supabase.storage
           .from('files')
           .upload(filePath, fileObj);
@@ -1007,7 +1018,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       // 执行解析动作
       const actionHandler = new CarbonFlowActionHandler({
         nodes,
-        edges,
+        edges, // <--- Pass edges state
         setNodes: (newNodes) => {
           if (Array.isArray(newNodes)) {
             setStoreNodes(newNodes);
@@ -1015,7 +1026,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             setStoreNodes((prev: Node<NodeData>[]) => newNodes(prev));
           }
         },
-        setEdges: () => {}
+        setEdges: setEdges // <--- Pass setEdges function
       });
 
       await actionHandler.handleAction(parseAction);
@@ -2111,6 +2122,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         okText="确认" // Customize button text
         cancelText="取消" // Customize button text
         destroyOnClose // Reset state when modal is closed
+        confirmLoading={isUploading} // Add confirmLoading state
       >
          <Form layout="vertical" ref={uploadModalFormRef}>
             <Form.Item label="添加文件:" className="upload-modal-upload-item">
