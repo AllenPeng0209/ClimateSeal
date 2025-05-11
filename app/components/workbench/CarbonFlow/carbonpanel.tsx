@@ -3019,6 +3019,128 @@ const customStyles = `
   scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a);
 }
 
+/* Pagination styles for file-upload-table */
+.file-upload-table .ant-pagination {
+    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Overall pagination container */
+    padding: 8px;
+    border-radius: 4px;
+    margin-top: 16px !important;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.file-upload-table .ant-pagination ul { /* In case AntD wraps LIs in a UL */
+    display: flex;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Common styles for all pagination list items (numbers, prev/next arrows, jump arrows) */
+.file-upload-table .ant-pagination-item,
+.file-upload-table .ant-pagination-prev,
+.file-upload-table .ant-pagination-next,
+.file-upload-table .ant-pagination-jump-prev,
+.file-upload-table .ant-pagination-jump-next {
+    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
+    border: 1px solid var(--bolt-elements-borderColor, #333) !important;
+    border-radius: 2px !important; /* Consistent border-radius */
+    min-width: 32px; /* AntD default min-width for items */
+    height: 32px; /* AntD default height */
+    line-height: 30px; /* AntD default line-height */
+    text-align: center;
+    margin-right: 8px; /* Default spacing */
+    display: inline-block; /* Ensure they behave as blocks for sizing */
+    vertical-align: middle;
+}
+
+/* Hover styles for non-disabled pagination list items */
+.file-upload-table .ant-pagination-item:not(.ant-pagination-disabled):hover,
+.file-upload-table .ant-pagination-prev:not(.ant-pagination-disabled):hover,
+.file-upload-table .ant-pagination-next:not(.ant-pagination-disabled):hover,
+.file-upload-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover,
+.file-upload-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover {
+    background-color: var(--bolt-elements-background-depth-0, #333) !important;
+    border-color: var(--bolt-primary, #5165f9) !important;
+}
+
+/* Links and icons inside pagination items */
+.file-upload-table .ant-pagination-item a, /* For numbered items */
+.file-upload-table .ant-pagination-item-link, /* For prev/next/jump arrows */
+.file-upload-table .ant-pagination-item-ellipsis { /* For ellipsis */
+    color: var(--bolt-elements-textSecondary) !important;
+    background-color: transparent !important; /* Links/icons must be transparent */
+    display: block; /* Fill the parent LI */
+    height: 100%;
+    width: 100%;
+}
+
+/* Text/icon color on hover for links/icons inside hovered LIs */
+.file-upload-table .ant-pagination-item:not(.ant-pagination-disabled):hover a,
+.file-upload-table .ant-pagination-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
+.file-upload-table .ant-pagination-next:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
+.file-upload-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
+.file-upload-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
+.file-upload-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-ellipsis, /* Ellipsis hover icon color */
+.file-upload-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover .ant-pagination-item-ellipsis {
+    color: var(--bolt-primary, #5165f9) !important;
+}
+
+/* Active state for numbered pagination items (LI has .ant-pagination-item-active) */
+.file-upload-table .ant-pagination-item-active {
+    background-color: var(--bolt-primary, #5165f9) !important;
+    border-color: var(--bolt-primary, #5165f9) !important;
+}
+.file-upload-table .ant-pagination-item-active a {
+    color: var(--bolt-primary-contrast-text, #fff) !important;
+}
+
+/* Disabled state for any pagination item (LI has .ant-pagination-disabled) */
+.file-upload-table .ant-pagination-disabled {
+    background-color: var(--bolt-elements-background-disabled, #222) !important;
+    border-color: var(--bolt-elements-borderColor) !important; /* Keep border consistent */
+    cursor: not-allowed;
+}
+.file-upload-table .ant-pagination-disabled .ant-pagination-item-link,
+.file-upload-table .ant-pagination-disabled a, /* For disabled numbered items if any */
+.file-upload-table .ant-pagination-disabled .ant-pagination-item-ellipsis {
+    color: var(--bolt-elements-textDisabled) !important;
+    background-color: transparent !important; /* Link is still transparent */
+    cursor: not-allowed;
+}
+/* No hover effect change for disabled items */
+.file-upload-table .ant-pagination-disabled:hover {
+    background-color: var(--bolt-elements-background-disabled, #222) !important;
+    border-color: var(--bolt-elements-borderColor) !important;
+}
+.file-upload-table .ant-pagination-disabled:hover .ant-pagination-item-link,
+.file-upload-table .ant-pagination-disabled:hover a,
+.file-upload-table .ant-pagination-disabled:hover .ant-pagination-item-ellipsis {
+    color: var(--bolt-elements-textDisabled) !important;
+}
+
+/* Ellipsis specific text styling (if not an icon) */
+.file-upload-table li.ant-pagination-jump-prev .ant-pagination-item-ellipsis,
+.file-upload-table li.ant-pagination-jump-next .ant-pagination-item-ellipsis {
+    letter-spacing: 2px;
+}
+
+/* Select for page size changer (if present) */
+.file-upload-table .ant-pagination-options .ant-select-selector {
+    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
+    border-color: var(--bolt-elements-borderColor) !important;
+    color: var(--bolt-elements-textPrimary) !important;
+}
+.file-upload-table .ant-pagination-options .ant-select-arrow {
+    color: var(--bolt-elements-textSecondary) !important;
+}
+
+/* Empty state description in table */
+.file-upload-table .ant-empty-description {
+    color: var(--bolt-elements-textSecondary) !important;
+}
+
+
 /* --- Upload Modal Dark Styles --- */
 .ant-modal-content {
     background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
