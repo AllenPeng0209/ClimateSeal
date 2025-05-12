@@ -26,7 +26,7 @@ export const useCarbonFlowStore = create<CarbonFlowStore>((set, get) => ({
   getCarbonFlowData: () => {
     const { nodes, edges, aiSummary } = get();
     return { nodes, edges, aiSummary };
-  }
+  },
 }));
 
 // 事件发射器
@@ -34,6 +34,7 @@ export const emitCarbonFlowData = () => {
   const data = useCarbonFlowStore.getState().getCarbonFlowData();
   const event = new CustomEvent('carbonFlowDataUpdate', { detail: data });
   window.dispatchEvent(event);
+
   return data;
 };
 
@@ -42,9 +43,9 @@ export const subscribeToCarbonFlowData = (callback: (data: CarbonFlowData) => vo
   const handleUpdate = (event: CustomEvent<CarbonFlowData>) => {
     callback(event.detail);
   };
-  
+
   window.addEventListener('carbonFlowDataUpdate', handleUpdate as EventListener);
-  
+
   // 返回取消订阅函数
   return () => {
     window.removeEventListener('carbonFlowDataUpdate', handleUpdate as EventListener);
@@ -54,12 +55,14 @@ export const subscribeToCarbonFlowData = (callback: (data: CarbonFlowData) => vo
 // 批量应用 CarbonFlowAction 到 CarbonFlowStore
 export function applyCarbonFlowActions(actions: CarbonFlowAction[]) {
   const { nodes, setNodes } = useCarbonFlowStore.getState();
-  let newNodes = [...nodes];
+  const newNodes = [...nodes]; // Use const as it's reassigned via push
 
-  actions.forEach(action => {
+  actions.forEach((action) => {
     if (action.type === 'carbonflow') {
       if (action.operation === 'create') {
-        const nodeData = JSON.parse(action.data);
+        // Ensure action.data is a string before parsing
+        const dataToParse = typeof action.data === 'string' ? action.data : '{}';
+        const nodeData = JSON.parse(dataToParse);
         newNodes.push({
           id: action.nodeId || `node_${Date.now()}_${Math.random()}`,
           type: nodeData.lifecycleStage || 'default',

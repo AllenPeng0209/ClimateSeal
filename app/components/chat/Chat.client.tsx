@@ -153,7 +153,7 @@ export const ChatImpl = memo(
     
     useEffect(() => {
       const unsubscribe = subscribeToCarbonFlowData((data) => {
-        console.log('[Chat] 收到CarbonFlow数据更新:', data);
+        // console.log('[Chat] 收到CarbonFlow数据更新:', data);
         setCarbonFlowData(data);
       });
       
@@ -177,21 +177,34 @@ export const ChatImpl = memo(
       setData,
     } = useChat({
       api: '/api/chat',
-      body: {
-        apiKeys,
-        files,
-        promptId,
-        contextOptimization: contextOptimizationEnabled,
-        carbonFlowData,
-        supabase: {
-          isConnected: supabaseConn.isConnected,
-          hasSelectedProject: !!selectedProject,
-          credentials: {
-            supabaseUrl: supabaseConn?.credentials?.supabaseUrl,
-            anonKey: supabaseConn?.credentials?.anonKey,
+      body: (() => {
+        const constructedCarbonFlowData = carbonFlowData
+          ? {
+              nodes: carbonFlowData.nodes,
+              Score: carbonFlowData.aiSummary?.credibilityScore ?? 0,
+              State: carbonFlowData.aiSummary ?? null,
+            }
+          : null;
+
+        const requestBody = {
+          apiKeys,
+          files,
+          promptId,
+          contextOptimization: contextOptimizationEnabled,
+          carbonFlowData: constructedCarbonFlowData,
+          supabase: {
+            isConnected: supabaseConn.isConnected,
+            hasSelectedProject: !!selectedProject,
+            credentials: {
+              supabaseUrl: supabaseConn?.credentials?.supabaseUrl,
+              anonKey: supabaseConn?.credentials?.anonKey,
+            },
           },
-        },
-      },
+        };
+
+
+        return requestBody;
+      })(),
       sendExtraMessageFields: true,
       onError: (e) => {
         logger.error('Request failed\n\n', e, error);
