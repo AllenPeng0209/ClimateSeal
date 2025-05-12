@@ -1465,6 +1465,21 @@ export class CarbonFlowActionHandler {
       }),
     );
 
+    // 因子匹配完成后，触发chat响应
+    window.dispatchEvent(
+      new CustomEvent('carbonflow-trigger-chat', {
+        detail: {
+          type: 'factor_match_complete',
+          matchResults: {
+            totalMatched: nodesToUpdate.length,
+            successCount: matchResults.success.length,
+            failedCount: matchResults.failed.length,
+            updated: updated
+          }
+        }
+      })
+    );
+
     console.log('Carbon factor match operation completed, updated:', updated);
     console.log('Match results:', matchResults);
   }

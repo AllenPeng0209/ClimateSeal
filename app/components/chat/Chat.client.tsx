@@ -29,9 +29,7 @@ import { streamingState } from '~/lib/stores/streaming';
 import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
 import { subscribeToCarbonFlowData } from '~/components/workbench/CarbonFlow/CarbonFlowBridge';
-import type { CarbonFlowData } from '~/types/carbonFlow';
 import { useLoaderData } from '@remix-run/react';
-import type { LoaderData } from '~/types/loader';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -133,7 +131,7 @@ export const ChatImpl = memo(
     );
     const supabaseAlert = useStore(workbenchStore.supabaseAlert);
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
-    const { workflow } = useLoaderData<LoaderData>();
+    const { workflow } = useLoaderData<any>();
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
@@ -151,7 +149,7 @@ export const ChatImpl = memo(
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
 
     const messagesFromStore = useStore(chatMessagesStore);
-    const [carbonFlowData, setCarbonFlowData] = useState<CarbonFlowData | null>(null);
+    const [carbonFlowData, setCarbonFlowData] = useState<any>(null);
     
     useEffect(() => {
       const unsubscribe = subscribeToCarbonFlowData((data) => {
@@ -198,9 +196,8 @@ export const ChatImpl = memo(
       onError: (e) => {
         logger.error('Request failed\n\n', e, error);
         logStore.logError('Chat request failed', e, {
-          component: 'Chat',
-          action: 'request',
-          error: e.message,
+          files: files?.length || 0,
+          carbonFlowData: !!carbonFlowData,
         });
         toast.error(
           'There was an error processing your request: ' + (e.message ? e.message : 'No details were returned'),
@@ -543,6 +540,44 @@ export const ChatImpl = memo(
         window.removeEventListener('chatHistoryUpdated', handleChatHistoryUpdate as EventListener);
       };
     }, []);
+
+    // 监听右侧面板触发的事件，如因子匹配完成 - 移到append函数定义后
+    useEffect(() => {
+      const handleCarbonFlowTriggerChat = (event: CustomEvent) => {
+        const { type, matchResults } = event.detail;
+        
+        console.log('[Chat] 收到CarbonFlow触发chat事件:', type, matchResults);
+        
+        if (type === 'factor_match_complete') {
+          // 构建一个系统消息，显示因子匹配结果
+          const { totalMatched, successCount, failedCount, updated } = matchResults;
+          
+          let responseMessage = '';
+          
+          if (updated && successCount > 0) {
+            responseMessage = `因子匹配已完成，共匹配${totalMatched}个节点，其中${successCount}个成功，${failedCount}个失败。请继续补充必要数据并查看可信分数，确保模型完整性。如需调整匹配结果，可在操作台右侧重新匹配。`;
+          } else if (failedCount > 0 && successCount === 0) {
+            responseMessage = `因子匹配未成功，所有${failedCount}个节点均匹配失败。建议检查节点数据完整性，特别是活动数据和单位信息，然后再次尝试匹配。如有必要，可手动配置碳因子。`;
+          } else {
+            responseMessage = `因子匹配操作已完成，但未发现需要更新的因子数据。可能是因为所有节点已有因子数据，或没有选择节点进行匹配。请检查排放源列表，确认是否需要进行因子匹配。`;
+          }
+          
+          // 使用append方法添加一条助手消息，类似于chat收到用户消息后的自动回复
+          append({
+            role: 'assistant',
+            content: responseMessage,
+          });
+        }
+      };
+      
+      // 注册事件监听
+      window.addEventListener('carbonflow-trigger-chat', handleCarbonFlowTriggerChat as EventListener);
+      
+      // 清理函数
+      return () => {
+        window.removeEventListener('carbonflow-trigger-chat', handleCarbonFlowTriggerChat as EventListener);
+      };
+    }, [append]); // 依赖append函数
 
     return (
       <BaseChat
