@@ -178,7 +178,7 @@ export default function VendorData() {
                             </TableCell>
                             <TableCell className="border border-gray-200 text-center">
                                 <a href={item.dataLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                                    {item.dataLink}
+                                    数据填报链接
                                 </a>
                             </TableCell>
                             <TableCell className="border border-gray-200 text-center">{item.status}</TableCell>
