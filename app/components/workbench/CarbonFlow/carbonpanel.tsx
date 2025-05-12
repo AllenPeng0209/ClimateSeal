@@ -110,6 +110,8 @@ type EmissionSource = {
   backgroundDataSourceTab?: 'database' | 'manual'; // 新增：记录背景数据源选择的tab
   evidenceFiles?: UploadedFile[]; // 新增: 关联证据文件
   evidenceVerificationStatus?: '缺失' | '完整、未校验' | '完整、AI校验未通过' | '完整、AI校验通过' | '完整、第三方校验通过'; // 新增：证明材料校验状态
+  startPoint?: string;
+  endPoint?: string;
 };
 
 // New type for Uploaded Files
@@ -421,6 +423,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             // 读取证明材料验证状态，如果不存在则根据evidenceFiles动态生成
             evidenceVerificationStatus: data.evidenceVerificationStatus || 
               (Array.isArray(data.evidenceFiles) && data.evidenceFiles.length > 0 ? '完整、未校验' : '缺失'),
+            startPoint: typeof data.startPoint === 'string' ? data.startPoint : '', // 新增：从节点数据获取起点
+            endPoint: typeof data.endPoint === 'string' ? data.endPoint : '', // 新增：从节点数据获取终点
           };
         });
 
@@ -460,6 +464,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           // 读取证明材料验证状态，如果不存在则根据evidenceFiles动态生成
           evidenceVerificationStatus: data.evidenceVerificationStatus || 
             (Array.isArray(data.evidenceFiles) && data.evidenceFiles.length > 0 ? '完整、未校验' : '缺失'),
+          startPoint: typeof data.startPoint === 'string' ? data.startPoint : '', // 新增：从节点数据获取起点
+          endPoint: typeof data.endPoint === 'string' ? data.endPoint : '', // 新增：从节点数据获取终点
         };
       });
       setAllEmissionSourcesForAIModal(allSources as EmissionSource[]);
@@ -476,16 +482,19 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         .eq('workflow_id', workflowId);
       const nodeIdToFiles: Record<string, UploadedFile[]> = {};
       for (const wf of workflowFiles || []) {
+        let fileDetail = wf.files;
+        if (Array.isArray(fileDetail)) fileDetail = fileDetail[0];
+        if (!fileDetail) continue;
         if (!nodeIdToFiles[wf.workflow_node_id]) nodeIdToFiles[wf.workflow_node_id] = [];
         nodeIdToFiles[wf.workflow_node_id].push({
-          id: wf.files.id,
-          name: wf.files.name,
-          type: wf.files.type,
-          uploadTime: wf.files.created_at,
-          url: wf.files.path,
+          id: fileDetail.id,
+          name: fileDetail.name,
+          type: fileDetail.type,
+          uploadTime: fileDetail.created_at,
+          url: fileDetail.path,
           status: 'completed',
-          size: wf.files.size,
-          mimeType: wf.files.mime_type
+          size: fileDetail.size,
+          mimeType: fileDetail.mime_type
         });
       }
       const emissionSources = (nodes || []).map(node => ({
@@ -527,6 +536,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         dataRisk: data.dataRisk || undefined, // 数据风险
         backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
         evidenceFiles: Array.isArray(data.evidenceFiles) ? data.evidenceFiles : [],
+        startPoint: typeof data.startPoint === 'string' ? data.startPoint : '', // 新增：从节点数据获取起点
+        endPoint: typeof data.endPoint === 'string' ? data.endPoint : '', // 新增：从节点数据获取终点
       };
       return source;
     });
@@ -635,6 +646,34 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       console.error(`Node with ID ${editingEmissionSource.id} not found!`);
       return;
     }
+     if (editingEmissionSource) {
+       // --- 更新已有排放源 ---
+       // 更新本地狀態
+       setEmissionSources(prev => prev.map(item => 
+         item.id === editingEmissionSource.id 
+           ? { 
+                // 更新本地 emissionSources 状态时也使用正确的映射
+                id: item.id,
+                name: values.name,
+                category: values.category, 
+                activityData: values.activityData, // Form data is likely number
+                activityUnit: values.activityUnit, 
+                conversionFactor: values.conversionFactor, 
+                factorName: values.factorName,
+                factorUnit: values.factorUnit,
+                emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 保存 emissionFactorGeographicalRepresentativeness
+                factorSource: values.factorSource,
+                updatedAt: new Date().toISOString(), 
+                updatedBy: 'User',
+                factorMatchStatus: editingEmissionSource.factorMatchStatus, // 保留原有的因子匹配状态
+                supplementaryInfo: values.supplementaryInfo || '', // 更新补充信息
+                dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
+                backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab
+                startPoint: typeof values.startPoint === 'string' ? values.startPoint : '', // 新增：从节点数据获取起点
+                endPoint: typeof values.endPoint === 'string' ? values.endPoint : '', // 新增：从节点数据获取终点
+             } 
+           : item
+       ));
 
     try {
       // 保存文件关联 - 拿当前drawer中的evidenceFiles而不是从values中获取
@@ -652,6 +691,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         const num = parseFloat(strVal);
         return isNaN(num) ? undefined : num;
       };
+             // --- 结束更新通用字段保存逻辑 ---
 
       // 更新证明材料验证状态
       let evidenceVerificationStatus: string = '缺失';
@@ -681,18 +721,14 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       
       // 应用更新
       Object.assign(nodeData, updates);
-
       // 更新全局节点状态
       setStoreNodes([...nodes]);
-
       // 重置Drawer状态
       setEditingEmissionSource(null);
       setIsEmissionDrawerVisible(false);
       setDrawerEvidenceFiles([]);
-
       // 更新显示的排放源数据
       refreshEmissionSourcesForStage(selectedStage);
-
       message.success('保存成功');
     } catch (error) {
       console.error('Error saving emission source:', error);
@@ -1670,8 +1706,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       children: [
         { title: '数值', dataIndex: 'activityData', width: 90, align: 'center', render: (v: any, r: any) => v !== undefined && v !== null ? <span>{v}{r.activityData_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
         { title: '单位', dataIndex: 'activityUnit', width: 80, align: 'center', render: (v: any, r: any) => v ? <span>{v}{r.activityUnit_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
-        { title: '运输-起点地址', dataIndex: 'transportStart', width: 120, align: 'center', render: () => '-' },
-        { title: '运输-终点地址', dataIndex: 'transportEnd', width: 120, align: 'center', render: () => '-' },
+        { title: '运输-起点地址', dataIndex: 'startPoint', width: 120, align: 'center', render: () => '-' },
+        { title: '运输-终点地址', dataIndex: 'endPoint', width: 120, align: 'center', render: () => '-' },
         { title: '运输方式', dataIndex: 'transportType', width: 90, align: 'center', render: () => '-' },
         { title: '证据文件', dataIndex: 'evidenceFiles', width: 90, align: 'center', render: (_: any, r: any) => Array.isArray(r.evidenceFiles) && r.evidenceFiles.length > 0 ? '有' : '无' },
       ]

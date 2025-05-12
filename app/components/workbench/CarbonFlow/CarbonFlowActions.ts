@@ -10,12 +10,13 @@ import type {
   ProductNodeData,
 } from '~/types/nodes';
 import type { CsvParseResultItem } from '~/lib/agents/csv-parser';
+import convert from 'convert-units'; // Added import for convert-units
 
 // 定义碳因子匹配结果的返回类型
 type CarbonFactorResult = {
-  factor: number;
+  factor: number; // Should be in kgCO2e / unit
   activityName: string;
-  unit: string;
+  unit: string; // The unit of the activity for which the factor is provided
 };
 
 type NodeType = 'product' | 'manufacturing' | 'distribution' | 'usage' | 'disposal' | 'finalProduct';
@@ -824,253 +825,325 @@ export class CarbonFlowActionHandler {
   // --- Layout Implementations return true if changes applied ---
 
   private _applyNormalLayout(): boolean {
-    const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth; // Use static property
-    const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight; // Use static property
-    const HORIZONTAL_SPACING = 350;
-    const VERTICAL_SPACING = 250;
-    const PADDING = 50;
+    let layoutAppliedReturnFlag = false;
 
-    const nodeTypeOrder: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal'];
-    const nodesByType: Record<NodeType | 'finalProduct', Node<NodeData>[]> = {
-      product: [],
-      manufacturing: [],
-      distribution: [],
-      usage: [],
-      disposal: [],
-      finalProduct: [],
-    };
-    let maxNodesInStage = 0;
+    this._setNodes((currentNodesGlobal) => {
+      const nodesToLayout = currentNodesGlobal;
 
-    this._nodes.forEach((node) => {
-      const nodeType = node.type as NodeType | 'finalProduct';
+      const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth;
+      const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight;
+      const HORIZONTAL_SPACING = 350;
+      const VERTICAL_SPACING = 250;
+      const PADDING = 50;
 
-      if (nodesByType[nodeType]) {
-        nodesByType[nodeType].push(node);
-        if (nodeType !== 'finalProduct') {
-          maxNodesInStage = Math.max(maxNodesInStage, nodesByType[nodeType].length);
+      const nodeTypeOrder: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal'];
+      const nodesByType: Record<NodeType | 'finalProduct', Node<NodeData>[]> = {
+        product: [],
+        manufacturing: [],
+        distribution: [],
+        usage: [],
+        disposal: [],
+        finalProduct: [],
+      };
+      let maxNodesInStage = 0;
+
+      nodesToLayout.forEach((node) => { // Use nodesToLayout
+        const nodeType = node.type as NodeType | 'finalProduct';
+        if (nodesByType[nodeType]) {
+          nodesByType[nodeType].push(node);
+          if (nodeType !== 'finalProduct') {
+            maxNodesInStage = Math.max(maxNodesInStage, nodesByType[nodeType].length);
+          }
+        } else {
+          console.warn(`Node ${node.id} has unknown type: ${node.type}`);
         }
-      } else {
-        console.warn(`Node ${node.id} has unknown type: ${node.type}`);
-      }
-    });
-    maxNodesInStage = Math.max(1, maxNodesInStage);
-
-    const finalProductNode = nodesByType.finalProduct[0];
-    const positionedNodes: Node<NodeData>[] = [];
-
-    nodeTypeOrder.forEach((nodeType, typeIndex) => {
-      const typeNodes = nodesByType[nodeType] || [];
-      const stageHeight = typeNodes.length * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
-      const totalMaxHeight = maxNodesInStage * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
-      const startY = PADDING + (totalMaxHeight - stageHeight) / 2;
-
-      typeNodes.forEach((node, nodeIndex) => {
-        const x = PADDING + typeIndex * (NODE_WIDTH + HORIZONTAL_SPACING);
-        const y = startY + nodeIndex * (NODE_HEIGHT + VERTICAL_SPACING);
-        positionedNodes.push({ ...node, position: { x, y } });
       });
-    });
+      maxNodesInStage = Math.max(1, maxNodesInStage);
 
-    if (finalProductNode) {
-      const x = PADDING + nodeTypeOrder.length * (NODE_WIDTH + HORIZONTAL_SPACING);
-      const totalMaxHeight = maxNodesInStage * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
-      const y = PADDING + (totalMaxHeight - NODE_HEIGHT) / 2;
-      positionedNodes.push({ ...finalProductNode, position: { x, y } });
-    }
+      const finalProductNode = nodesByType.finalProduct[0];
+      const positionedNodes: Node<NodeData>[] = [];
 
-    // Position any remaining nodes (e.g., with unknown types)
-    const positionedIds = new Set(positionedNodes.map((n) => n.id));
-    this._nodes.forEach((node) => {
-      if (!positionedIds.has(node.id)) {
-        // Position unclassified nodes simply at the start for now
-        positionedNodes.push({ ...node, position: { x: PADDING, y: PADDING } });
+      nodeTypeOrder.forEach((nodeType, typeIndex) => {
+        const typeNodes = nodesByType[nodeType] || [];
+        const stageHeight = typeNodes.length * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+        const totalMaxHeight = maxNodesInStage * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+        const startY = PADDING + (totalMaxHeight - stageHeight) / 2;
+
+        typeNodes.forEach((node, nodeIndex) => {
+          const x = PADDING + typeIndex * (NODE_WIDTH + HORIZONTAL_SPACING);
+          const y = startY + nodeIndex * (NODE_HEIGHT + VERTICAL_SPACING);
+          positionedNodes.push({ ...node, position: { x, y } });
+        });
+      });
+
+      if (finalProductNode) {
+        const x = PADDING + nodeTypeOrder.length * (NODE_WIDTH + HORIZONTAL_SPACING);
+        const totalMaxHeight = maxNodesInStage * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+        const y = PADDING + (totalMaxHeight - NODE_HEIGHT) / 2;
+        positionedNodes.push({ ...finalProductNode, position: { x, y } });
       }
+
+      const positionedIds = new Set(positionedNodes.map((n) => n.id));
+      nodesToLayout.forEach((node) => { // Ensure all nodes from nodesToLayout are included
+        if (!positionedIds.has(node.id)) {
+          positionedNodes.push({ ...node, position: { x: PADDING, y: PADDING } });
+        }
+      });
+      
+      let positionsActuallyChanged = false;
+      if (nodesToLayout.length !== positionedNodes.length) {
+        positionsActuallyChanged = true;
+      } else {
+        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        for (const updatedNode of positionedNodes) {
+            const originalPos = originalNodePositions.get(updatedNode.id);
+            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+                positionsActuallyChanged = true;
+                break;
+            }
+        }
+      }
+
+      if (positionsActuallyChanged) {
+        layoutAppliedReturnFlag = true;
+        this._updateEdgesInternal(positionedNodes); // Pass the newly layouted nodes
+        console.log('Successfully applied Normal layout (functional update)');
+        return positionedNodes;
+      }
+      return nodesToLayout;
     });
-
-    // Check if positions actually changed before updating state
-    const originalPositions = JSON.stringify(this._nodes.map((n) => n.position));
-    const newPositions = JSON.stringify(positionedNodes.map((n) => n.position));
-
-    if (originalPositions !== newPositions) {
-      this._setNodes(positionedNodes);
-      this._updateEdges(); // Update edges only if nodes moved
-      console.log('Successfully applied Normal layout');
-      return true;
-    }
-
-    return false;
+    return layoutAppliedReturnFlag;
   }
 
   private _applyVerticalLayout(): boolean {
-    const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth;
-    const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight;
-    const HORIZONTAL_SPACING = 250;
-    const VERTICAL_SPACING = 200;
-    const PADDING = 50;
+    let layoutAppliedReturnFlag = false;
 
-    const stages: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal', 'finalProduct'];
-    const stageMap = new Map<string, Node<NodeData>[]>();
-    stages.forEach((stage) => stageMap.set(stage, []));
-    const miscNodes: Node<NodeData>[] = [];
-    let maxNodesInRow = 0;
+    this._setNodes((currentNodesGlobal) => {
+      const nodesToLayout = currentNodesGlobal;
 
-    this._nodes.forEach((node) => {
-      const stage = node.type as string;
+      const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth;
+      const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight;
+      const HORIZONTAL_SPACING = 250;
+      const VERTICAL_SPACING = 200;
+      const PADDING = 50;
 
-      if (stageMap.has(stage)) {
-        stageMap.get(stage)?.push(node);
-        maxNodesInRow = Math.max(maxNodesInRow, stageMap.get(stage)!.length);
-      } else {
-        miscNodes.push(node);
-      }
-    });
-    maxNodesInRow = Math.max(maxNodesInRow, miscNodes.length, 1);
+      const stages: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal', 'finalProduct'];
+      const stageMap = new Map<string, Node<NodeData>[]>();
+      stages.forEach((stage) => stageMap.set(stage, []));
+      const miscNodes: Node<NodeData>[] = [];
+      let maxNodesInRow = 0;
 
-    const updatedNodes: Node<NodeData>[] = [];
-    let currentY = PADDING;
-    const totalMaxWidth = maxNodesInRow * (NODE_WIDTH + HORIZONTAL_SPACING) - HORIZONTAL_SPACING;
+      nodesToLayout.forEach((node) => { // Use nodesToLayout
+        const stage = node.type as string;
+        if (stageMap.has(stage)) {
+          stageMap.get(stage)?.push(node);
+          maxNodesInRow = Math.max(maxNodesInRow, stageMap.get(stage)!.length);
+        } else {
+          miscNodes.push(node);
+        }
+      });
+      maxNodesInRow = Math.max(maxNodesInRow, miscNodes.length, 1);
 
-    stages.forEach((stage) => {
-      const nodesInStage = stageMap.get(stage) || [];
-      if (nodesInStage.length > 0) {
-        const stageWidth = nodesInStage.length * (NODE_WIDTH + HORIZONTAL_SPACING) - HORIZONTAL_SPACING;
+      const updatedNodesFromLayout: Node<NodeData>[] = [];
+      let currentY = PADDING;
+      const totalMaxWidth = maxNodesInRow * (NODE_WIDTH + HORIZONTAL_SPACING) - HORIZONTAL_SPACING;
+
+      stages.forEach((stage) => {
+        const nodesInStage = stageMap.get(stage) || [];
+        if (nodesInStage.length > 0) {
+          const stageWidth = nodesInStage.length * (NODE_WIDTH + HORIZONTAL_SPACING) - HORIZONTAL_SPACING;
+          let currentX = PADDING + (totalMaxWidth - stageWidth) / 2;
+          nodesInStage.forEach((node) => {
+            updatedNodesFromLayout.push({ ...node, position: { x: currentX, y: currentY } });
+            currentX += NODE_WIDTH + HORIZONTAL_SPACING;
+          });
+          currentY += NODE_HEIGHT + VERTICAL_SPACING;
+        }
+      });
+
+      if (miscNodes.length > 0) {
+        const stageWidth = miscNodes.length * (NODE_WIDTH + HORIZONTAL_SPACING) - HORIZONTAL_SPACING;
         let currentX = PADDING + (totalMaxWidth - stageWidth) / 2;
-
-        nodesInStage.forEach((node) => {
-          updatedNodes.push({ ...node, position: { x: currentX, y: currentY } });
+        miscNodes.forEach((node) => {
+          updatedNodesFromLayout.push({ ...node, position: { x: currentX, y: currentY } });
           currentX += NODE_WIDTH + HORIZONTAL_SPACING;
         });
-        currentY += NODE_HEIGHT + VERTICAL_SPACING;
       }
+      
+      let positionsActuallyChanged = false;
+       if (nodesToLayout.length !== updatedNodesFromLayout.length) {
+        positionsActuallyChanged = true;
+      } else {
+        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        for (const updatedNode of updatedNodesFromLayout) {
+            const originalPos = originalNodePositions.get(updatedNode.id);
+            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+                positionsActuallyChanged = true;
+                break;
+            }
+        }
+      }
+
+      if (positionsActuallyChanged) {
+        layoutAppliedReturnFlag = true;
+        this._updateEdgesInternal(updatedNodesFromLayout); // Pass the newly layouted nodes
+        console.log('Successfully applied Vertical layout (functional update)');
+        return updatedNodesFromLayout;
+      }
+      return nodesToLayout;
     });
-
-    // Position misc nodes at the bottom
-    if (miscNodes.length > 0) {
-      const stageWidth = miscNodes.length * (NODE_WIDTH + HORIZONTAL_SPACING) - HORIZONTAL_SPACING;
-      let currentX = PADDING + (totalMaxWidth - stageWidth) / 2;
-      miscNodes.forEach((node) => {
-        updatedNodes.push({ ...node, position: { x: currentX, y: currentY } });
-        currentX += NODE_WIDTH + HORIZONTAL_SPACING;
-      });
-    }
-
-    const originalPositions = JSON.stringify(this._nodes.map((n) => n.position));
-    const newPositions = JSON.stringify(updatedNodes.map((n) => n.position));
-
-    if (originalPositions !== newPositions) {
-      this._setNodes(updatedNodes);
-      this._updateEdges();
-      console.log('Successfully applied Vertical layout');
-      return true;
-    }
-
-    return false;
+    return layoutAppliedReturnFlag;
   }
 
   private _applyHorizontalLayout(): boolean {
-    const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth;
-    const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight;
-    const HORIZONTAL_SPACING = 250;
-    const VERTICAL_SPACING = 200;
-    const PADDING = 50;
+    let layoutAppliedReturnFlag = false;
 
-    const stages: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal', 'finalProduct'];
-    const stageMap = new Map<string, Node<NodeData>[]>();
-    stages.forEach((stage) => stageMap.set(stage, []));
-    const miscNodes: Node<NodeData>[] = [];
-    let maxNodesInCol = 0;
+    this._setNodes((currentNodesGlobal) => {
+      const nodesToLayout = currentNodesGlobal;
 
-    this._nodes.forEach((node) => {
-      const stage = node.type as string;
+      const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth;
+      const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight;
+      const HORIZONTAL_SPACING = 250;
+      const VERTICAL_SPACING = 200;
+      const PADDING = 50;
 
-      if (stageMap.has(stage)) {
-        stageMap.get(stage)?.push(node);
-        maxNodesInCol = Math.max(maxNodesInCol, stageMap.get(stage)!.length);
-      } else {
-        miscNodes.push(node);
-      }
-    });
-    maxNodesInCol = Math.max(maxNodesInCol, miscNodes.length, 1);
+      const stages: NodeType[] = ['product', 'manufacturing', 'distribution', 'usage', 'disposal', 'finalProduct'];
+      const stageMap = new Map<string, Node<NodeData>[]>();
+      stages.forEach((stage) => stageMap.set(stage, []));
+      const miscNodes: Node<NodeData>[] = [];
+      let maxNodesInCol = 0;
 
-    const updatedNodes: Node<NodeData>[] = [];
-    let currentX = PADDING;
-    const totalMaxHeight = maxNodesInCol * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+      nodesToLayout.forEach((node) => { // Use nodesToLayout
+        const stage = node.type as string;
+        if (stageMap.has(stage)) {
+          stageMap.get(stage)?.push(node);
+          maxNodesInCol = Math.max(maxNodesInCol, stageMap.get(stage)!.length);
+        } else {
+          miscNodes.push(node);
+        }
+      });
+      maxNodesInCol = Math.max(maxNodesInCol, miscNodes.length, 1);
 
-    stages.forEach((stage) => {
-      const nodesInStage = stageMap.get(stage) || [];
-      if (nodesInStage.length > 0) {
-        const stageHeight = nodesInStage.length * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+      const updatedNodesFromLayout: Node<NodeData>[] = [];
+      let currentX = PADDING;
+      const totalMaxHeight = maxNodesInCol * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+
+      stages.forEach((stage) => {
+        const nodesInStage = stageMap.get(stage) || [];
+        if (nodesInStage.length > 0) {
+          const stageHeight = nodesInStage.length * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
+          let currentY = PADDING + (totalMaxHeight - stageHeight) / 2;
+          nodesInStage.forEach((node) => {
+            updatedNodesFromLayout.push({ ...node, position: { x: currentX, y: currentY } });
+            currentY += NODE_HEIGHT + VERTICAL_SPACING;
+          });
+          currentX += NODE_WIDTH + HORIZONTAL_SPACING;
+        }
+      });
+
+      if (miscNodes.length > 0) {
+        const stageHeight = miscNodes.length * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
         let currentY = PADDING + (totalMaxHeight - stageHeight) / 2;
-
-        nodesInStage.forEach((node) => {
-          updatedNodes.push({ ...node, position: { x: currentX, y: currentY } });
+        miscNodes.forEach((node) => {
+          updatedNodesFromLayout.push({ ...node, position: { x: currentX, y: currentY } });
           currentY += NODE_HEIGHT + VERTICAL_SPACING;
         });
-        currentX += NODE_WIDTH + HORIZONTAL_SPACING;
       }
+
+      let positionsActuallyChanged = false;
+      if (nodesToLayout.length !== updatedNodesFromLayout.length) {
+        positionsActuallyChanged = true;
+      } else {
+        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        for (const updatedNode of updatedNodesFromLayout) {
+            const originalPos = originalNodePositions.get(updatedNode.id);
+            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+                positionsActuallyChanged = true;
+                break;
+            }
+        }
+      }
+
+      if (positionsActuallyChanged) {
+        layoutAppliedReturnFlag = true;
+        this._updateEdgesInternal(updatedNodesFromLayout); // Pass the newly layouted nodes
+        console.log('Successfully applied Horizontal layout (functional update)');
+        return updatedNodesFromLayout;
+      }
+      return nodesToLayout;
     });
-
-    // Position misc nodes at the end
-    if (miscNodes.length > 0) {
-      const stageHeight = miscNodes.length * (NODE_HEIGHT + VERTICAL_SPACING) - VERTICAL_SPACING;
-      let currentY = PADDING + (totalMaxHeight - stageHeight) / 2;
-      miscNodes.forEach((node) => {
-        updatedNodes.push({ ...node, position: { x: currentX, y: currentY } });
-        currentY += NODE_HEIGHT + VERTICAL_SPACING;
-      });
-    }
-
-    const originalPositions = JSON.stringify(this._nodes.map((n) => n.position));
-    const newPositions = JSON.stringify(updatedNodes.map((n) => n.position));
-
-    if (originalPositions !== newPositions) {
-      this._setNodes(updatedNodes);
-      this._updateEdges();
-      console.log('Successfully applied Horizontal layout');
-      return true;
-    }
-
-    return false;
+    return layoutAppliedReturnFlag;
   }
 
   private _applyRadialLayout(): boolean {
-    if (this._nodes.length <= 1) {
-      console.log('Skipping radial layout for 1 or 0 nodes.');
-      return false;
-    }
+    let layoutAppliedReturnFlag = false;
 
-    // Attempt to find finalProduct, fallback to the first node
-    const centerNode = this._nodes.find((node) => node.type === 'finalProduct') || this._nodes[0];
-    const otherNodes = this._nodes.filter((node) => node.id !== centerNode.id);
+    this._setNodes((currentNodesGlobal) => {
+      const nodesToLayout = currentNodesGlobal;
 
-    // Simple estimation for canvas size, might need adjustment
-    const approxWidth = Math.max(800, Math.sqrt(this._nodes.length) * (CarbonFlowActionHandler._nodeWidth + 150));
-    const approxHeight = Math.max(600, Math.sqrt(this._nodes.length) * (CarbonFlowActionHandler._nodeHeight + 150));
-    const centerX = approxWidth / 2;
-    const centerY = approxHeight / 2;
-    const radius = Math.max(200, Math.min(centerX * 0.8, centerY * 0.8, otherNodes.length * 50)); // Adjust radius calculation
+      if (nodesToLayout.length <= 1) {
+        console.log('Skipping radial layout for 1 or 0 nodes.');
+        // No change to layoutAppliedReturnFlag, it remains false
+        return nodesToLayout; // Return original nodes
+      }
 
-    const updatedNodes: Node<NodeData>[] = [];
-    updatedNodes.push({ ...centerNode, position: { x: centerX, y: centerY } });
+      const centerNodeCandidate = nodesToLayout.find((node) => node.type === 'finalProduct');
+      const centerNode = centerNodeCandidate || nodesToLayout[0];
+      const otherNodes = nodesToLayout.filter((node) => node.id !== centerNode.id);
 
-    otherNodes.forEach((node, index) => {
-      const angle = (2 * Math.PI * index) / otherNodes.length;
-      const x = centerX + radius * Math.cos(angle) - CarbonFlowActionHandler._nodeWidth / 2; // Adjust for node width
-      const y = centerY + radius * Math.sin(angle) - CarbonFlowActionHandler._nodeHeight / 2; // Adjust for node height
-      updatedNodes.push({ ...node, position: { x, y } });
+      const approxWidth = Math.max(800, Math.sqrt(nodesToLayout.length) * (CarbonFlowActionHandler._nodeWidth + 150));
+      const approxHeight = Math.max(600, Math.sqrt(nodesToLayout.length) * (CarbonFlowActionHandler._nodeHeight + 150));
+      const centerX = approxWidth / 2;
+      const centerY = approxHeight / 2;
+      const radius = Math.max(200, Math.min(centerX * 0.8, centerY * 0.8, otherNodes.length * 50));
+
+      const updatedNodesFromLayout: Node<NodeData>[] = [];
+      updatedNodesFromLayout.push({ ...centerNode, position: { x: centerX, y: centerY } });
+
+      otherNodes.forEach((node, index) => {
+        const angle = (2 * Math.PI * index) / otherNodes.length;
+        const x = centerX + radius * Math.cos(angle) - CarbonFlowActionHandler._nodeWidth / 2;
+        const y = centerY + radius * Math.sin(angle) - CarbonFlowActionHandler._nodeHeight / 2;
+        updatedNodesFromLayout.push({ ...node, position: { x, y } });
+      });
+
+      // Ensure all nodes from nodesToLayout are included if any were missed (e.g. if centerNode logic was complex)
+      if (updatedNodesFromLayout.length !== nodesToLayout.length) {
+          const layoutIds = new Set(updatedNodesFromLayout.map(n => n.id));
+          nodesToLayout.forEach(n => {
+              if (!layoutIds.has(n.id)) {
+                  updatedNodesFromLayout.push({...n, position: {x: centerX, y: centerY}}); // Default position for any missed
+              }
+          });
+      }
+
+
+      let positionsActuallyChanged = false;
+      // Check if positions actually changed compared to nodesToLayout
+      if (nodesToLayout.length !== updatedNodesFromLayout.length) {
+         positionsActuallyChanged = true; // Should not happen if logic is correct
+      } else {
+        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        for (const updatedNode of updatedNodesFromLayout) {
+            const originalPos = originalNodePositions.get(updatedNode.id);
+            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+                positionsActuallyChanged = true;
+                break;
+            }
+        }
+      }
+
+
+      if (positionsActuallyChanged) {
+        layoutAppliedReturnFlag = true;
+        this._updateEdgesInternal(updatedNodesFromLayout); // Pass the newly layouted nodes
+        console.log('Successfully applied Radial layout (functional update)');
+        return updatedNodesFromLayout;
+      }
+      return nodesToLayout;
     });
 
-    const originalPositions = JSON.stringify(this._nodes.map((n) => n.position));
-    const newPositions = JSON.stringify(updatedNodes.map((n) => n.position));
-
-    if (originalPositions !== newPositions) {
-      this._setNodes(updatedNodes);
-      this._updateEdges();
-      console.log('Successfully applied Radial layout');
-      return true;
-    }
-
-    return false;
+    return layoutAppliedReturnFlag;
   }
 
   /**
@@ -1099,15 +1172,24 @@ export class CarbonFlowActionHandler {
 
   private _getActivityData(node: Node<NodeData>): number {
     const data = node.data;
+    // Ensure node.data.quantity is used if it's the primary activity data field
+    // For now, respecting existing logic, but this might need unification.
+    // The unit of this returned value is assumed to be node.data.activityUnit
     switch (node.type as NodeType) {
       case 'product':
-        return Number((data as ProductNodeData).weight) || 1;
+        // Prefer quantity if available and meaningful, otherwise fallback to weight
+        return Number((data as ProductNodeData).quantity) || Number((data as ProductNodeData).weight) || 1;
       case 'manufacturing':
-        return Number((data as ManufacturingNodeData).energyConsumption) || 1;
+        return Number((data as ManufacturingNodeData).quantity) || Number((data as ManufacturingNodeData).energyConsumption) || 1;
       case 'distribution':
-        return Number((data as DistributionNodeData).transportationDistance) || 1;
+
+        return Number((data as DistributionNodeData).quantity) || Number((data as DistributionNodeData).transportationDistance) || 1;
       case 'usage': {
         const usageData = data as UsageNodeData;
+        // If quantity is provided for usage, it might represent the number of functional units directly
+        if (usageData.quantity && Number(usageData.quantity)) {
+          return Number(usageData.quantity);
+        }
         const activity =
           (Number(usageData.lifespan) || 0) *
           (Number(usageData.usageFrequency) || 0) *
@@ -1115,9 +1197,9 @@ export class CarbonFlowActionHandler {
         return activity || 1;
       }
       case 'disposal':
-        return 1;
+        return Number((data as DisposalNodeData).quantity) || 1; // Assuming quantity is relevant here too
       case 'finalProduct':
-        return 1;
+        return 1; // Final product's own activity data is not directly used for its footprint sum
       default:
         console.warn(`Unhandled node type in _getActivityData: ${node.type as string}`);
         return 1;
@@ -1125,39 +1207,47 @@ export class CarbonFlowActionHandler {
   }
 
   private _calculateNodeFootprints(): boolean {
-    let changed = false;
-    const updatedNodes = this._nodes.map((node) => {
-      if (node.type === 'finalProduct') {
+    let overallChanged = false;
+
+    this._setNodes(currentNodes => {
+      let changedInThisUpdate = false;
+      const updatedNodes = currentNodes.map((node) => {
+        if (node.type === 'finalProduct') {
+          return node;
+        }
+
+        const carbonFactor = Number(node.data.carbonFactor) || 0;
+        const activityDataOriginal = this._getActivityData(node);
+        const unitConversionFactorValue = Number(node.data.unitConversion) || 1;
+
+        const activityDataInFactorUnit = activityDataOriginal * unitConversionFactorValue;
+        const carbonFootprintCalc = carbonFactor * activityDataInFactorUnit;
+
+        const currentFootprint = Number(node.data.carbonFootprint) || 0;
+        const footprintChanged = Math.abs(currentFootprint - carbonFootprintCalc) > 1e-9;
+
+        if (footprintChanged) {
+          changedInThisUpdate = true;
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              carbonFootprint: String(carbonFootprintCalc),
+            } as NodeData,
+          };
+        }
         return node;
+      });
+
+      if (changedInThisUpdate) {
+        overallChanged = true; // Set the flag for the outer function
+        console.log('Node footprints recalculated using unit conversions (functional update).');
+        return updatedNodes;
       }
-
-      const carbonFactor = Number(node.data.carbonFactor) || 0;
-      const activityData = this._getActivityData(node);
-      const carbonFootprintCalc = carbonFactor * activityData;
-      const currentFootprint = Number(node.data.carbonFootprint) || 0;
-
-      const footprintChanged = Math.abs(currentFootprint - carbonFootprintCalc) > 1e-6;
-
-      if (footprintChanged) {
-        changed = true;
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            carbonFootprint: String(carbonFootprintCalc),
-          } as NodeData,
-        };
-      }
-
-      return node;
+      return currentNodes; // No change
     });
 
-    if (changed) {
-      this._setNodes(updatedNodes);
-      console.log('Node footprints recalculated.');
-    }
-
-    return changed;
+    return overallChanged;
   }
 
   private _calculateTotalFootprint(targetNodeId: string): boolean {
@@ -1242,9 +1332,9 @@ export class CarbonFlowActionHandler {
 
     type NodeUpdateInfo = {
       node: Node<NodeData>;
-      factor: number;
+      factor: number; // kgCO2e / unit
       activityName: string;
-      unit: string;
+      unit: string; // activity unit for the factor
     };
 
     const nodesToUpdate: NodeUpdateInfo[] = [];
@@ -1332,25 +1422,29 @@ export class CarbonFlowActionHandler {
 
     if (nodesToUpdate.length > 0) {
       this._setNodes((currentNodes) => {
-        const updatedNodes = currentNodes.map((node) => {
+        const updatedNodesMap = currentNodes.map((node) => {
           const updateInfo = nodesToUpdate.find((u) => u.node.id === node.id);
           if (updateInfo) {
             updated = true;
+            const nodeActivityUnit = node.data.activityUnit;
+            const apiFactorActivityUnit = updateInfo.unit;
+            const conversionMultiplier = this._getConversionMultiplier(nodeActivityUnit, apiFactorActivityUnit);
+
             return {
               ...node,
               data: {
                 ...node.data,
-                carbonFactor: String(updateInfo.factor),
+                carbonFactor: String(updateInfo.factor), // Factor in kgCO2e / apiFactorActivityUnit
                 carbonFactorName: updateInfo.activityName,
-                carbonFactorUnit: updateInfo.unit,
-                activitydataSource: '数据库匹配',
-                verificationStatus: 'verified',
+                carbonFactorUnit: apiFactorActivityUnit, // The unit of activity for which carbonFactor is specified
+                unitConversion: String(conversionMultiplier), // Multiplier to convert node's activityUnit to carbonFactorUnit
+                carbonFactordataSource: '数据库匹配',
               },
             };
           }
           return node;
         });
-        return updatedNodes;
+        return updatedNodesMap; // Corrected: was updatedNodes
       });
 
       if (updated) {
@@ -1411,9 +1505,9 @@ export class CarbonFlowActionHandler {
         results: Array<{
           query_label: string;
           matches: Array<{
-            kg_co2eq: number;
+            kg_co2eq: number; // This is the factor value in kgCO2e per reference_product_unit
             activity_name: string;
-            reference_product_unit: string;
+            reference_product_unit: string; // This is the activity unit for the factor
             [key: string]: any;
           }>;
           error: string | null;
@@ -1424,9 +1518,9 @@ export class CarbonFlowActionHandler {
       if (data.results && data.results.length > 0 && data.results[0].matches && data.results[0].matches.length > 0) {
         const bestMatch = data.results[0].matches[0];
         return {
-          factor: bestMatch.kg_co2eq,
+          factor: bestMatch.kg_co2eq, // Factor in kgCO2e / reference_product_unit
           activityName: bestMatch.activity_name || '',
-          unit: bestMatch.reference_product_unit || 'kg',
+          unit: bestMatch.reference_product_unit || 'kg', // Activity unit for the factor
         };
       } else {
         console.warn('Climateseal API没有返回匹配结果');
@@ -1449,21 +1543,27 @@ export class CarbonFlowActionHandler {
 
       console.log(`尝试为节点 ${node.id} (${label}) 从Climatiq API获取碳因子`);
 
+      // This section requires careful review to align activity_id, parameters, and node data semantics.
+      // For now, we proceed with the existing logic of using 'energy' and 'energy_unit'.
+      // The `CarbonFactorResult.unit` will be 'kWh' due to `energy_unit: 'kWh'`.
       let activityId = 'electricity-supply_grid-source_residual_mix';
-      let energy = 1000;
+      let activityValue = 1000; // This is the 'energy' parameter value
+      const activityUnitForFactor = 'kWh'; // This is due to requestBody.parameters.energy_unit
 
       switch (node.type as NodeType) {
         case 'product':
-          activityId = 'material-production_average-steel-primary';
-          energy = (node.data as ProductNodeData).weight || 1000;
+          activityId = 'material-production_average-steel-primary'; // Factor likely per unit mass
+          // The 'energy' parameter is currently (mis)used for weight.
+          activityValue = Number((node.data as ProductNodeData).weight) || 1000;
+          // Ideally, activityUnitForFactor should be the mass unit, but Climatiq call uses 'kWh'.
           break;
         case 'distribution':
-          activityId = 'freight_vehicle-type_truck-size_heavy-fuel_source_diesel-distance_long';
-          energy = (node.data as DistributionNodeData).transportationDistance || 1000;
+          activityId = 'freight_vehicle-type_truck-size_heavy-fuel_source_diesel-distance_long'; // Factor likely per unit distance or tkm
+          activityValue = Number((node.data as DistributionNodeData).transportationDistance) || 1000;
           break;
         case 'manufacturing':
-          activityId = 'electricity-supply_grid-source_residual_mix';
-          energy = (node.data as ManufacturingNodeData).energyConsumption || 1000;
+          activityId = 'electricity-supply_grid-source_residual_mix'; // Factor per kWh
+          activityValue = Number((node.data as ManufacturingNodeData).energyConsumption) || 1000;
           break;
       }
 
@@ -1473,8 +1573,8 @@ export class CarbonFlowActionHandler {
           data_version: '^21',
         },
         parameters: {
-          energy: energy,
-          energy_unit: 'kWh',
+          energy: activityValue, // Value of activity (e.g. weight, distance, energy consumption)
+          energy_unit: activityUnitForFactor, // Unit of activityValue, hardcoded to 'kWh'
         },
       };
 
@@ -1495,20 +1595,34 @@ export class CarbonFlowActionHandler {
       }
 
       const data = (await response.json()) as {
-        co2e?: number;
+        co2e?: number; // Total CO2e for the given parameters
         emission_factor?: { name?: string };
-        co2e_unit?: string;
+        co2e_unit?: string; // Unit of data.co2e (e.g., 'kg', 'g')
       };
       console.log('Climatiq 碳因子API响应:', data);
 
-      if (data && data.co2e !== undefined && typeof data.co2e === 'number' && energy !== 0) {
+      if (data && data.co2e !== undefined && typeof data.co2e === 'number' && activityValue !== 0) {
+        let factorKgCo2ePerActivityUnit = data.co2e / activityValue; // Factor in [data.co2e_unit] / [activityUnitForFactor]
+
+        // Convert factor to kgCO2e / activityUnitForFactor
+        if (data.co2e_unit === 'g') {
+          factorKgCo2ePerActivityUnit /= 1000;
+        } else if (data.co2e_unit === 't' || data.co2e_unit === 'tonne') {
+          factorKgCo2ePerActivityUnit *= 1000;
+        } else if (data.co2e_unit !== 'kg') {
+          console.warn(
+            `Climatiq CO2e unit is ${data.co2e_unit}. Factor is ${factorKgCo2ePerActivityUnit} [${data.co2e_unit}/${activityUnitForFactor}]. Conversion to kgCO2e might be inaccurate if not 'g', 't', or 'kg'.`,
+          );
+          // Add more conversions if necessary (e.g., from lbs)
+        }
+
         return {
-          factor: data.co2e / energy,
+          factor: factorKgCo2ePerActivityUnit, // Factor in kgCO2e / activityUnitForFactor (e.g. kgCO2e/kWh)
           activityName: data.emission_factor?.name || activityId,
-          unit: data.co2e_unit || 'kg',
+          unit: activityUnitForFactor, // Activity unit for the factor (e.g. 'kWh')
         };
       } else {
-        console.warn('Climatiq API响应格式不符合预期或energy为0');
+        console.warn('Climatiq API响应格式不符合预期或 activityValue (energy parameter) 为0');
         return null;
       }
     } catch (error) {
@@ -1520,16 +1634,18 @@ export class CarbonFlowActionHandler {
 
   /**
    * 更新边 (Ensures edges are valid after node changes)
+   * This method is now an internal helper called by layout methods within their setNodes callback.
+   * It directly triggers a functional update on edges.
    */
-  private _updateEdges(): void {
+  private _updateEdgesInternal(currentLayoutedNodes: Node<NodeData>[]): void {
     this._setEdges((currentEdges) => {
-      const nodeIds = new Set(this._nodes.map((n) => n.id));
+      const nodeIds = new Set(currentLayoutedNodes.map((n) => n.id));
       const originalEdgeCount = currentEdges.length;
       const validEdges = currentEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
 
       if (validEdges.length !== originalEdgeCount) {
-        console.log(`Removing ${originalEdgeCount - validEdges.length} invalid edges.`);
-        this._handleCalculate({
+        console.log(`Removing ${originalEdgeCount - validEdges.length} invalid edges (functional update).`);
+        this._handleCalculate({ // This calculate call might need similar functional update if it writes to nodes
           type: 'carbonflow',
           operation: 'calculate',
           content: 'Recalculate after edge update',
@@ -1560,5 +1676,127 @@ export class CarbonFlowActionHandler {
      *
      */
     return true;
+  }
+
+  /**
+   * Maps commonly used unit strings to the abbreviations expected by the 'convert-units' library.
+   * @param unit The unit string to map.
+   * @returns The corresponding 'convert-units' abbreviation, or the original unit if no mapping is found.
+   */
+  private _mapUnitToConvertUnitsAbbreviation(unit: string | undefined): string | undefined {
+    if (!unit) return undefined;
+    const normalizedUnit = String(unit).toLowerCase().trim();
+
+    const unitMap: Record<string, string> = {
+      // Weight
+      'kg': 'kg',
+      'kilogram': 'kg',
+      'gram': 'g',
+      'g': 'g',
+      'tonne': 't',
+      't': 't',
+      'metric ton': 't',
+      'lb': 'lb',
+      'pound': 'lb',
+      'oz': 'oz', // mass ounce
+      'ounce': 'oz',
+
+      // Energy
+      'kwh': 'kWh',
+      'kilowatt hour': 'kWh',
+      'wh': 'Wh',
+      'watt hour': 'Wh',
+      'mwh': 'MWh',
+      'megawatt hour': 'MWh',
+      'gwh': 'GWh',
+      'gigawatt hour': 'GWh',
+      'mj': 'MJ',
+      'megajoule': 'MJ',
+      'gj': 'GJ',
+      'gigajoule': 'GJ',
+      'btu': 'Btu', // British Thermal Unit
+      'british thermal unit': 'Btu',
+
+      // Distance
+      'km': 'km',
+      'kilometer': 'km',
+      'm': 'm',
+      'meter': 'm',
+      'mi': 'mi',
+      'mile': 'mi',
+      'nmi': 'nMi', // Nautical Mile
+      'nautical mile': 'nMi',
+
+      // Volume
+      'l': 'l',
+      'liter': 'l',
+      'litre': 'l',
+      'ml': 'ml',
+      'milliliter': 'ml',
+      'm3': 'm3', // Cubic meter
+      'cubic meter': 'm3',
+      'gallon': 'gal', // US liquid gallon is default for 'gal'
+      'us gallon': 'gal',
+      'uk gallon': 'galUK', // Imperial gallon
+      'imperial gallon': 'galUK',
+
+      // Add other units as needed
+    };
+
+    return unitMap[normalizedUnit] || normalizedUnit; // Return mapped or original if not in map
+  }
+
+  /**
+   * Calculates a conversion multiplier to convert a value from a source unit to a target unit,
+   * using the 'convert-units' library.
+   * @param sourceUnit The unit of the original value (e.g., node.data.activityUnit).
+   * @param targetUnit The unit required for the calculation (e.g., carbonFactor's activity unit).
+   * @returns A multiplier. If conversion is not possible or units are same/unknown, returns 1.
+   */
+  private _getConversionMultiplier(sourceUnit: string | undefined, targetUnit: string | undefined): number {
+    if (!sourceUnit || !targetUnit) {
+      return 1;
+    }
+
+    const sUnitRaw = String(sourceUnit).toLowerCase().trim();
+    const tUnitRaw = String(targetUnit).toLowerCase().trim();
+
+    if (sUnitRaw === tUnitRaw) {
+      return 1;
+    }
+
+    const sUnit = this._mapUnitToConvertUnitsAbbreviation(sUnitRaw);
+    const tUnit = this._mapUnitToConvertUnitsAbbreviation(tUnitRaw);
+
+    if (!sUnit || !tUnit) {
+      console.warn(
+        `Unit mapping failed for source '${sourceUnit}' or target '${targetUnit}'. Defaulting to conversion factor 1.`,
+      );
+      return 1;
+    }
+    
+    if (sUnit === tUnit) { // Check again after mapping
+        return 1;
+    }
+
+    try {
+      // Ensure 'convert' is available in the scope (e.g., imported at the top of the file)
+      // import convert from 'convert-units'; // This line is now at the top of the file
+      const multiplier = convert(1).from(sUnit as any).to(tUnit as any); // Use 'as any' if types are tricky with convert-units
+      
+      if (typeof multiplier === 'number' && !isNaN(multiplier)) {
+        return multiplier;
+      } else {
+        console.warn(
+          `'convert-units' returned an unexpected value for ${sUnit} to ${tUnit}: ${multiplier}. Defaulting to 1.`,
+        );
+        return 1;
+      }
+    } catch (error) {
+      console.warn(
+        `Cannot convert unit from '${sourceUnit}' (mapped to '${sUnit}') to '${targetUnit}' (mapped to '${tUnit}') using 'convert-units'. Error: ${(error as Error).message}. Defaulting to conversion factor 1.`,
+      );
+      return 1;
+    }
   }
 }
