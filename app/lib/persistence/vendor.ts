@@ -6,10 +6,13 @@ import { z } from 'zod';
 // Table name constants
 const VENDORS_TABLE = 'vendors';
 
+const HARDCODED_SUPABASE_URL = 'https://xkcdlulngazdosqvwnsc.supabase.co';
+const HARDCODED_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhrY2RsdWxuZ2F6ZG9zcXZ3bnNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMzMzQ5MzUsImV4cCI6MjA1ODkxMDkzNX0.9gyLSGLhLYxUZWcbUQe6CwEXx5Lpbyqzzpw8ygWvQ0Q';
+
 // TODO: shaobo322
 const supabase = createClient(
-    "https://gteroiyixmumpmokkezy.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0ZXJvaXlpeG11bXBtb2trZXp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY5NDEyODcsImV4cCI6MjA2MjUxNzI4N30.zidwpurKw-DaAlW6v4p9OcksRYWF0nRqIFiRLTo8xw8"
+    HARDCODED_SUPABASE_URL,
+    HARDCODED_SUPABASE_ANON_KEY
 );
 
 

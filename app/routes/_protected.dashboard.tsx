@@ -36,6 +36,7 @@ const pathToMenuKeyMap: Record<string, string> = {
   'carbon-factor-search': 'carbon-factor-search',
   'vendor-information': 'vendor-information',
   'vendor-purchase-goods': 'vendor-purchase-goods',
+  'vendor-data-info': 'vendor-data-info',
   'enterprise-knowledge': 'enterprise-knowledge',
   'industry-knowledge': 'industry-knowledge',
   'policy-knowledge': 'policy-knowledge',
@@ -123,6 +124,9 @@ export default function Dashboard() {
         case 'vendor-purchase-goods':
           path = '/dashboard/vendor-purchase-goods';
           break;
+        case 'vendor-data-info':
+          path = '/dashboard/vendor-data-info';
+          break;
         case 'enterprise-knowledge':
           path = '/dashboard/enterprise-knowledge';
           break;
@@ -182,7 +186,10 @@ export default function Dashboard() {
           key: 'dashboard:vendor-purchase-goods',
           label: '采购商品管理',
         },
-
+        {
+          key: 'dashboard:vendor-data-info',
+          label: '供应商数据',
+        }
       ]
     },
     {
