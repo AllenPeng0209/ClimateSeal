@@ -1,10 +1,10 @@
-import { json, type LoaderFunctionArgs, type MetaFunction } from "@remix-run/node";
+import { json, type LoaderFunctionArgs, type MetaFunction, type SerializeFrom } from "@remix-run/node";
 import { useLoaderData, useSearchParams, useRevalidator, useNavigate } from "@remix-run/react";
 import { useState } from "react";
 import { Modal, message, Layout, Menu, Button, Typography, Space, Dropdown, Avatar } from "antd";
 import { ensureUUID } from "~/utils/uuid";
-import type { Workflow, VendorTask, VendorDataTask } from "~/types/dashboard";
-import { workflowTasks, vendorDataTasks, carbonReductionTasks, carbonTrendData } from "~/utils/mockData";
+import type { Workflow, VendorTask, VendorDataTask, CarbonTrendData, Product } from "~/types/dashboard";
+import { workflowTasks, vendorDataTasks as importedVendorTasks, carbonReductionTasks, carbonTrendData as importedCarbonTrendData } from "~/utils/mockData";
 import DashboardSection from "~/components/dashboard/sections/DashboardSection";
 import WorkbenchSection from "~/components/dashboard/sections/WorkbenchSection";
 import PolicyKnowledgeSection from "~/components/dashboard/sections/PolicyKnowledgeSection";
@@ -15,6 +15,7 @@ import EnterpriseKnowledgeSection from "~/components/dashboard/sections/Enterpri
 import IndustryKnowledgeSection from "~/components/dashboard/sections/IndustryKnowledgeSection";
 import VendorManagement from "~/components/dashboard/sections/VendorManagement";
 import VendorPurchaseGoods from "~/components/dashboard/sections/VendorPurchaseGoods";
+import VendorData from "~/components/dashboard/sections/VendorData";
 import "~/styles/dashboard.css";
 import { useAuthContext } from '../contexts/AuthContext';
 import { PrivateRoute } from '../components/auth/PrivateRoute';
@@ -49,7 +50,7 @@ export const meta: MetaFunction = () => {
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const searchQuery = url.searchParams.get("q") || "";
-  const industryFilter = url.searchParams.get("industry") || "";
+  const industryFilter = url.searchParams.get("industry") ?? "";
 
   // TODO: 从后端获取实际数据
   const workflows = [
@@ -94,7 +95,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
   ];
 
-  const vendorTasks: VendorDataTask[] = [
+  const localVendorDataTasks: VendorDataTask[] = [
     {
       id: "vt-1",
       vendor: "供应商A",
@@ -115,6 +116,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
   ];
 
+  // Transform importedCarbonTrendData (CarbonTrendPoint[]) to CarbonTrendData object
+  const transformedCarbonTrendData: CarbonTrendData = {
+    months: importedCarbonTrendData.map(d => d.date),
+    values: importedCarbonTrendData.map(d => d.value),
+    industryAvg: importedCarbonTrendData.map(d => d.value * 0.8), // Mock data for avg
+    leadingAvg: importedCarbonTrendData.map(d => d.value * 1.2), // Mock data for avg
+    ourCompany: importedCarbonTrendData.map(d => d.value) // Mock data
+  };
+
   // 过滤工作流
   const filteredWorkflows = workflows.filter(workflow => {
     const matchesSearch = workflow.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -125,10 +135,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return json({
     workflows: filteredWorkflows,
     products,
-    vendorTasks,
+    vendorTasks: localVendorDataTasks,
+    actualVendorTasks: importedVendorTasks,
     workflowTasks,
     carbonReductionTasks,
-    carbonTrendData,
+    carbonTrendData: transformedCarbonTrendData,
     searchQuery,
     industryFilter
   });
@@ -140,12 +151,13 @@ export default function Dashboard() {
     workflows,
     products,
     vendorTasks,
-    workflowTasks,
+    actualVendorTasks,
+    workflowTasks: loaderWorkflowTasks,
     carbonReductionTasks,
     carbonTrendData,
     searchQuery,
     industryFilter
-  } = useLoaderData<typeof loader>();
+  } = useLoaderData<SerializeFrom<typeof loader>>();
 
   const navigate = useNavigate();
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -252,7 +264,10 @@ export default function Dashboard() {
           key: 'dashboard:vendor-purchase-goods',
           label: '采购商品管理',
         },
-
+        {
+          key: 'dashboard:vendor-data-management',
+          label: '供应商数据',
+        },
       ]
     },
     {
@@ -308,7 +323,7 @@ export default function Dashboard() {
         return (
           <DashboardSection
             products={products}
-            workflowTasks={workflowTasks}
+            workflowTasks={loaderWorkflowTasks}
             vendorDataTasks={vendorTasks}
             carbonReductionTasks={carbonReductionTasks}
             carbonTrendData={carbonTrendData}
@@ -329,7 +344,7 @@ export default function Dashboard() {
       case "vendor-data":
         return (
           <VendorDataSection
-            vendorTasks={vendorTasks}
+            vendorTasks={actualVendorTasks}
             onAddTask={(task) => {
               // TODO: 实现添加任务的逻辑
               console.log('添加任务:', task);
@@ -346,6 +361,12 @@ export default function Dashboard() {
         );
       case "carbon-factor-search":
         return <CarbonFactorSearchSection />;
+      case "vendor-information":
+        return <VendorManagement />;
+      case "vendor-purchase-goods":
+        return <VendorPurchaseGoods />;
+      case "vendor-data-management":
+        return <VendorData />;
       case "enterprise-knowledge":
         return <EnterpriseKnowledgeSection />;
       case "industry-knowledge":
@@ -354,10 +375,6 @@ export default function Dashboard() {
         return <PolicyKnowledgeSection />;
       case "settings":
         return <SettingsSection />;
-      case "vendor-information":
-        return <VendorManagement />;
-      case "vendor-purchase-goods":
-        return <VendorPurchaseGoods />;
       default:
         return <div>功能开发中...</div>;
     }

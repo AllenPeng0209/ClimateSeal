@@ -51,7 +51,7 @@ export interface VendorDataTask {
   status: '已提交' | '待提交' | '逾期';
   deadline: string;
   submittedAt: string | null;
-  dataQuality?: string;
+  dataQuality?: string | null;
 }
 
 export interface CarbonReductionTask {
