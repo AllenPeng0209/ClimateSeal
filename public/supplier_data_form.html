@@ -12,8 +12,16 @@
     </header>
     <div class="container">
         <div class="chat-area">
-            <!-- chat 部分，后续将复用 workflow中的左侧chat -->
-            <h2>chat</h2>
+            <div class="chat-header">
+                <h3>碳助手AI Chatbot</h3>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <!-- Chat messages will be appended here by JavaScript -->
+            </div>
+            <div class="chat-input-area">
+                <textarea id="chatInput" placeholder="在此输入您的问题..." rows="3"></textarea>
+                <button id="sendChatButton">发送</button>
+            </div>
         </div>
         <div class="form-area">
             <h2 class="form-header-fixed">数据请求</h2>
