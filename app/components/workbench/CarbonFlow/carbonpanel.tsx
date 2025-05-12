@@ -312,6 +312,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             hasEvidenceFiles: data.hasEvidenceFiles || false, // 证明材料
             dataRisk: data.dataRisk || undefined, // 数据风险
             backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
+            startPoint: typeof data.startPoint === 'string' ? data.startPoint : '', // 新增：从节点数据获取起点
+            endPoint: typeof data.endPoint === 'string' ? data.endPoint : '', // 新增：从节点数据获取终点
           };
         });
 
@@ -347,6 +349,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           hasEvidenceFiles: data.hasEvidenceFiles || false,
           dataRisk: data.dataRisk || undefined,
           backgroundDataSourceTab: data.backgroundDataSourceTab || 'database',
+          startPoint: typeof data.startPoint === 'string' ? data.startPoint : '', // 新增：从节点数据获取起点
+          endPoint: typeof data.endPoint === 'string' ? data.endPoint : '', // 新增：从节点数据获取终点
         };
       });
       setAllEmissionSourcesForAIModal(allSources as EmissionSource[]);
@@ -384,6 +388,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         hasEvidenceFiles: data.hasEvidenceFiles || false, // 证明材料
         dataRisk: data.dataRisk || undefined, // 数据风险
         backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
+        startPoint: typeof data.startPoint === 'string' ? data.startPoint : '', // 新增：从节点数据获取起点
+        endPoint: typeof data.endPoint === 'string' ? data.endPoint : '', // 新增：从节点数据获取终点
       };
       return source;
     });
@@ -512,6 +518,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 hasEvidenceFiles: editingEmissionSource.hasEvidenceFiles, // 保留证明材料状态
                 dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
                 backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab
+                startPoint: typeof values.startPoint === 'string' ? values.startPoint : '', // 新增：从节点数据获取起点
+                endPoint: typeof values.endPoint === 'string' ? values.endPoint : '', // 新增：从节点数据获取终点
              } 
            : item
        ));
@@ -543,6 +551,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
              dataToUpdate.hasEvidenceFiles = editingEmissionSource.hasEvidenceFiles; // 保留证明材料状态
              dataToUpdate.dataRisk = editingEmissionSource.dataRisk; // 保留数据风险
              dataToUpdate.backgroundDataSourceTab = backgroundDataActiveTabKey as ('database' | 'manual'); // 更新：保存当前选择的tab到节点
+             dataToUpdate.startPoint = typeof values.startPoint === 'string' ? values.startPoint : ''; // 新增：从节点数据获取起点
+             dataToUpdate.endPoint = typeof values.endPoint === 'string' ? values.endPoint : ''; // 新增：从节点数据获取终点
+
              // --- 结束更新通用字段保存逻辑 ---
 
              let finalNodeData = dataToUpdate; // 使用更新后的 dataToUpdate
@@ -571,6 +582,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     hasEvidenceFiles: editingEmissionSource.hasEvidenceFiles, // 保留证明材料状态
                     dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
                     backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab到commonData
+                    startPoint: typeof values.startPoint === 'string' ? values.startPoint : '', // 新增：从节点数据获取起点
+                    endPoint: typeof values.endPoint === 'string' ? values.endPoint : '', // 新增：从节点数据获取终点
                 };
 
                 // 根据新的 selectedNodeType 创建特定数据结构
@@ -1718,8 +1731,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       children: [
         { title: '数值', dataIndex: 'activityData', width: 90, align: 'center', render: (v: any, r: any) => v !== undefined && v !== null ? <span>{v}{r.activityData_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
         { title: '单位', dataIndex: 'activityUnit', width: 80, align: 'center', render: (v: any, r: any) => v ? <span>{v}{r.activityUnit_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
-        { title: '运输-起点地址', dataIndex: 'transportStart', width: 120, align: 'center', render: () => '-' },
-        { title: '运输-终点地址', dataIndex: 'transportEnd', width: 120, align: 'center', render: () => '-' },
+        { title: '运输-起点地址', dataIndex: 'startPoint', width: 120, align: 'center', render: () => '-' },
+        { title: '运输-终点地址', dataIndex: 'endPoint', width: 120, align: 'center', render: () => '-' },
         { title: '运输方式', dataIndex: 'transportType', width: 90, align: 'center', render: () => '-' },
         { title: '证据文件', dataIndex: 'evidenceFiles', width: 90, align: 'center', render: (_: any, r: any) => r.hasEvidenceFiles ? '有' : '无' },
       ]
