@@ -50,6 +50,7 @@ import type { CarbonFlowAction } from '~/types/actions';
 import type { UploadFileResponse } from '~/types/file';
 import { CarbonFlowActionHandler } from './CarbonFlowActions';
 import { supabase } from '~/lib/supabase';
+import type { UploadChangeParam } from 'antd/es/upload';
 
 interface FileRecord {
   id: string;
@@ -104,9 +105,9 @@ type EmissionSource = {
   updatedBy: string;
   factorMatchStatus?: '未配置因子' | 'AI匹配失败' | 'AI匹配成功' | '已手动配置因子'; // 新增因子匹配状态
   supplementaryInfo?: string; // 重新添加：排放源补充信息
-  hasEvidenceFiles: boolean; // 证明材料
   dataRisk?: string; // 数据风险
   backgroundDataSourceTab?: 'database' | 'manual'; // 新增：记录背景数据源选择的tab
+  evidenceFiles?: UploadedFile[]; // 新增: 关联证据文件
 };
 
 // New type for Uploaded Files
@@ -235,6 +236,80 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const [allEmissionSourcesForAIModal, setAllEmissionSourcesForAIModal] = useState<EmissionSource[]>([]); // New state for AI modal data
   const [isLoadingFiles, setIsLoadingFiles] = useState(false); // <-- Add this line
 
+  // ===== 证据文件（Drawer 内 Upload）状态 =====
+  const [drawerEvidenceFiles, setDrawerEvidenceFiles] = useState<UploadedFile[]>([]);
+  // Pending uploads when node not yet created
+  const [pendingEvidenceFiles, setPendingEvidenceFiles] = useState<File[]>([]);
+
+  // Helper: upload a single evidence file to Supabase and return UploadedFile metadata
+  const uploadEvidenceFile = async (file: File, nodeId?: string): Promise<UploadedFile | null> => {
+    try {
+      const originalName = file.name;
+      const extension = originalName.split('.').pop() || 'dat';
+      const safeFileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${extension}`;
+      const filePath = `${workflowId}/${safeFileName}`;
+
+      // 1) upload to storage
+      const { error: storageErr } = await supabase.storage.from('files').upload(filePath, file);
+      if (storageErr) {
+        message.error(`上传失败: ${storageErr.message}`);
+        return null;
+      }
+
+      // 2) insert into files table
+      const { data: fileRow, error: fileTblErr } = await supabase
+        .from('files')
+        .insert({
+          name: originalName,
+          path: filePath,
+          type: 'evidence',
+          size: file.size,
+          mime_type: file.type || 'application/octet-stream',
+        })
+        .select()
+        .single();
+      if (fileTblErr) {
+        message.error(`写入文件表失败: ${fileTblErr.message}`);
+        return null;
+      }
+
+      // 3) insert into workflow_files 表，只有当 nodeId 是合法 uuid 时才写入
+      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+      const nodeUuid = nodeId && uuidRegex.test(nodeId) ? nodeId : null;
+      const { error: wfErr } = await supabase
+        .from('workflow_files')
+        .insert({ workflow_id: workflowId, file_id: fileRow.id, workflow_node_id: nodeUuid });
+      if (wfErr) {
+        message.error(`写入关联表失败: ${wfErr.message}`);
+      }
+
+      const uploaded: UploadedFile = {
+        id: fileRow.id,
+        name: originalName,
+        type: '证据文件',
+        uploadTime: new Date().toISOString(),
+        url: filePath,
+        status: 'completed',
+        size: file.size,
+        mimeType: file.type,
+      };
+      return uploaded;
+    } catch (err: any) {
+      console.error('uploadEvidenceFile error', err);
+      message.error(`上传失败: ${err.message || err}`);
+      return null;
+    }
+  };
+
+  // 当编辑排放源变化时，同步证据文件到本地 state
+  useEffect(() => {
+    if (editingEmissionSource) {
+      setDrawerEvidenceFiles(editingEmissionSource.evidenceFiles || []);
+    } else {
+      setDrawerEvidenceFiles([]);
+    }
+  }, [editingEmissionSource]);
+
   const uploadModalFormRef = React.useRef<FormInstance>(null);
   const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
 
@@ -309,9 +384,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
             factorMatchStatus: data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子', // 如果carbonFactor非0则认为已配置
             supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', // 添加：从节点数据获取补充信息
-            hasEvidenceFiles: data.hasEvidenceFiles || false, // 证明材料
             dataRisk: data.dataRisk || undefined, // 数据风险
             backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
+            evidenceFiles: Array.isArray(data.evidenceFiles) ? data.evidenceFiles : [],
           };
         });
 
@@ -344,15 +419,45 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
           factorMatchStatus: data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子',
           supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '',
-          hasEvidenceFiles: data.hasEvidenceFiles || false,
           dataRisk: data.dataRisk || undefined,
           backgroundDataSourceTab: data.backgroundDataSourceTab || 'database',
+          evidenceFiles: Array.isArray(data.evidenceFiles) ? data.evidenceFiles : [],
         };
       });
       setAllEmissionSourcesForAIModal(allSources as EmissionSource[]);
     }
   }, [nodes]);
 
+  // 1. 页面加载时，查 workflow_nodes 和 workflow_files，按 workflow_node_id 归类
+  useEffect(() => {
+    const fetchEmissionSourcesWithFiles = async () => {
+      const { data: nodes } = await supabase.from('workflow_nodes').select('*').eq('workflow_id', workflowId);
+      const { data: workflowFiles } = await supabase
+        .from('workflow_files')
+        .select('file_id, workflow_node_id, files(*)')
+        .eq('workflow_id', workflowId);
+      const nodeIdToFiles: Record<string, UploadedFile[]> = {};
+      for (const wf of workflowFiles || []) {
+        if (!nodeIdToFiles[wf.workflow_node_id]) nodeIdToFiles[wf.workflow_node_id] = [];
+        nodeIdToFiles[wf.workflow_node_id].push({
+          id: wf.files.id,
+          name: wf.files.name,
+          type: wf.files.type,
+          uploadTime: wf.files.created_at,
+          url: wf.files.path,
+          status: 'completed',
+          size: wf.files.size,
+          mimeType: wf.files.mime_type
+        });
+      }
+      const emissionSources = (nodes || []).map(node => ({
+        ...node,
+        evidenceFiles: nodeIdToFiles[node.id] || [],
+      }));
+      setEmissionSources(emissionSources);
+    };
+    fetchEmissionSourcesWithFiles();
+  }, [workflowId]);
 
   // 更新后的背景数据匹配按钮点击处理函数
   const handleCarbonFactorMatch = () => {
@@ -381,9 +486,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
         factorMatchStatus: initialStatus, 
         supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', 
-        hasEvidenceFiles: data.hasEvidenceFiles || false, // 证明材料
         dataRisk: data.dataRisk || undefined, // 数据风险
         backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
+        evidenceFiles: Array.isArray(data.evidenceFiles) ? data.evidenceFiles : [],
       };
       return source;
     });
@@ -480,6 +585,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     setIsEmissionDrawerVisible(false);
     setEditingEmissionSource(null);
     setDrawerInitialValues({}); // 关闭时清空初始值
+    setDrawerEvidenceFiles([]);
    };
 
    const handleSaveEmissionSource = (values: any) => {
@@ -509,9 +615,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 updatedBy: 'User',
                 factorMatchStatus: editingEmissionSource.factorMatchStatus, // 保留原有的因子匹配状态
                 supplementaryInfo: values.supplementaryInfo || '', // 更新补充信息
-                hasEvidenceFiles: editingEmissionSource.hasEvidenceFiles, // 保留证明材料状态
                 dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
                 backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab
+                evidenceFiles: drawerEvidenceFiles,
              } 
            : item
        ));
@@ -540,7 +646,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
              dataToUpdate.lifecycleStage = selectedStageName;
              dataToUpdate.supplementaryInfo = values.supplementaryInfo || ''; // 保存补充信息到节点数据
              dataToUpdate.unitConversion = String(values.conversionFactor ?? 1); // 新增/修正：正确保存单位转换系数
-             dataToUpdate.hasEvidenceFiles = editingEmissionSource.hasEvidenceFiles; // 保留证明材料状态
+             dataToUpdate.hasEvidenceFiles = drawerEvidenceFiles.length > 0; // 更新证明材料状态
              dataToUpdate.dataRisk = editingEmissionSource.dataRisk; // 保留数据风险
              dataToUpdate.backgroundDataSourceTab = backgroundDataActiveTabKey as ('database' | 'manual'); // 更新：保存当前选择的tab到节点
              // --- 结束更新通用字段保存逻辑 ---
@@ -568,7 +674,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 排放因子地理代表性
                     unitConversion: String(values.conversionFactor ?? 1), // 正确设置单位转换系数
                     supplementaryInfo: values.supplementaryInfo || '', // 通用数据中加入补充信息
-                    hasEvidenceFiles: editingEmissionSource.hasEvidenceFiles, // 保留证明材料状态
+                    hasEvidenceFiles: drawerEvidenceFiles.length > 0, // 更新证明材料状态
                     dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
                     backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab到commonData
                 };
@@ -607,6 +713,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
          }));
          
          message.success('排放源已更新');
++        refreshEmissionSourcesForStage(selectedStage);
        } else {
          message.success('排放源已更新（本地）');
        }
@@ -625,10 +732,11 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
          updatedBy: 'User',
          factorMatchStatus: '未配置因子', // 新增因子匹配状态
          supplementaryInfo: values.supplementaryInfo || '', // 新增时保存补充信息
-         hasEvidenceFiles: false, // 新增时默认为 false
+         evidenceFiles: drawerEvidenceFiles,
          dataRisk: undefined, // 新增时默认为 undefined
          backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 新增：保存当前选择的tab
        };
+       console.log('[Save] 新增排放源对象', newSource);
        
        // 更新本地狀態
        setEmissionSources(prev => [...prev, newSource]);
@@ -665,7 +773,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
              emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 保存排放因子地理代表性
              unitConversion: String(values.conversionFactor ?? 1), // 正确保存单位转换系数
              supplementaryInfo: values.supplementaryInfo || '', // 新节点数据中加入补充信息
-             hasEvidenceFiles: false, // 新增时默认为 false
+             hasEvidenceFiles: drawerEvidenceFiles.length > 0,
+             evidenceFiles: drawerEvidenceFiles,
              dataRisk: undefined, // 新增时默认为 undefined
              backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 新增：保存当前选择的tab到nodeData
          };
@@ -815,6 +924,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
          }));
          
          message.success('排放源已添加');
++        refreshEmissionSourcesForStage(selectedStage);
        } else {
          message.success('排放源已添加（本地）');
        }
@@ -1023,28 +1133,41 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   };
 
    const handleParseFile = async (file: UploadedFile) => {
-     if (!file || !file.content) {
-       message.error('文件内容为空，无法解析');
-       return;
-     }
-
-     // 修改点 2：立即将文件状态设置为 'parsing' (解析中)
-     setUploadedFiles((prevFiles) =>
-       prevFiles.map((f) =>
-         f.id === file.id ? { ...f, status: 'parsing' } : f
-       )
-     );
-     message.loading({ content: `正在解析文件: ${file.name}...`, key: 'parsingFile' });
-
      try {
-       const fileContent = file.content;
+       // 从 Storage 获取文件内容
+       const { data: fileData, error: downloadError } = await supabase.storage
+         .from('files')
+         .download(file.url);
 
-       // 关键修改：构建与 CarbonFlow.tsx 一致的 action，并通过事件分发
+       if (downloadError) {
+         throw new Error(`Failed to download file: ${downloadError.message}`);
+       }
+
+       if (!fileData) {
+         throw new Error('No file data received');
+       }
+
+       // 将文件内容转换为文本
+       const fileContent = await fileData.text();
+
+       if (!fileContent) {
+         throw new Error('File content is empty');
+       }
+
+       // 修改点 2：立即将文件状态设置为 'parsing' (解析中)
+       setUploadedFiles((prevFiles) =>
+         prevFiles.map((f) =>
+           f.id === file.id ? { ...f, status: 'parsing' } : f
+         )
+       );
+       message.loading({ content: `正在解析文件: ${file.name}...`, key: 'parsingFile' });
+
+       // 构建与 CarbonFlow.tsx 一致的 action，并通过事件分发
        const fileActionForEvent: CarbonFlowAction = {
          type: 'carbonflow',
          operation: 'file_parser',
          data: fileContent,
-         content: `面板发起解析: ${file.name}`, // 调整消息内容以区分来源
+         content: `面板发起解析: ${file.name}`,
          description: `File parsing initiated from panel for ${file.name}`,
        };
 
@@ -1055,12 +1178,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
          }),
        );
 
-       // 修改点 2：移除乐观的 'completed' 状态设置和相关的 message.success
-       // message.success({ content: '文件解析请求已发送至主流程处理!', key: 'parsingFile' });
-       // 文件状态的最终确认 (completed/failed) 应由 CarbonFlow.tsx 处理后的反馈决定
-
      } catch (error: any) {
-       // 这个 catch 块可能不会捕捉到主流程中的解析错误，因为事件分发是异步的。
        console.error('在面板中准备文件解析并分发事件时出错:', error);
        message.error({ content: `文件解析准备失败: ${error.message}`, key: 'parsingFile' });
        setUploadedFiles((prevFiles) =>
@@ -1248,7 +1366,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         key: 'evidenceMaterialStatus',
         render: (_: any, record: EmissionSource) => {
           // "完整，验证未通过" 状态暂不实现，默认上传即验证通过
-          if (record.hasEvidenceFiles) {
+          if (Array.isArray(record.evidenceFiles) && record.evidenceFiles.length > 0) {
             return <span className="status-complete">完整</span>;
           }
           return <span className="status-missing">缺失</span>;
@@ -1356,8 +1474,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
   // 添加刷新排放源函数，在生命周期阶段变化或匹配后调用
   const refreshEmissionSourcesForStage = useCallback((stage: string) => {
-    console.log('刷新生命周期阶段的排放源:', stage);
-    
+    console.log('[Debug] refreshEmissionSourcesForStage start', stage);
     if (!stage || !nodes) return;
     
     // 根据当前选中的生命周期阶段筛选节点
@@ -1378,6 +1495,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       case '寿命终止阶段':
         stageType = 'disposal';
         break;
+      case '全部':
+        stageType = ''; // 空字符串表示不按类型筛选
+        break;
       default:
         stageType = '';
     }
@@ -1388,35 +1508,43 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       .map((node) => {
         // 从节点数据中提取排放源信息
         const data = node.data as any;
-        // Helper to safely parse number from potentially non-numeric string
-        const safeParseFloat = (val: any): number => {
-          const num = parseFloat(val);
-          return isNaN(num) ? 0 : num;
+        // 安全解析浮点数函数
+        const safeParseFloat = (val: any): number | undefined => {
+          if (val === null || val === undefined || String(val).trim() === '') return undefined;
+          const num = parseFloat(String(val));
+          return isNaN(num) ? undefined : num;
         };
         
         return {
           id: node.id,
           name: data.label || '未命名节点',
           category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
-          activityData: safeParseFloat(data.quantity), // 读取 quantity 并转为 number
-          activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '', // 读取 activityUnit
-          conversionFactor: data.unitConversion ? safeParseFloat(data.unitConversion) : 1, // 修正：从unitConversion读取，默认为1
-          factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '', // 读取 carbonFactorName
-          factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '', // 读取 carbonFactorUnit
-          carbonFactor: typeof data.carbonFactor === 'string' ? data.carbonFactor : '', // 读取 carbonFactor
+          activityData: safeParseFloat(data.quantity),
+          activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '',
+          conversionFactor: safeParseFloat(data.unitConversion),
+          factorName: typeof data.carbonFactorName === 'string' ? data.carbonFactorName : '',
+          factorUnit: typeof data.carbonFactorUnit === 'string' ? data.carbonFactorUnit : '',
+          carbonFactor: typeof data.carbonFactor === 'string' ? data.carbonFactor : '',
           emissionFactorGeographicalRepresentativeness: 
               typeof data.emissionFactorGeographicalRepresentativeness === 'string' 
                 ? data.emissionFactorGeographicalRepresentativeness 
-                : '', // 读取 emissionFactorGeographicalRepresentativeness
-          factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '', // 读取 activitydataSource
+                : '',
+          factorSource: typeof data.activitydataSource === 'string' ? data.activitydataSource : '',
           updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
           updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : 'System',
-          factorMatchStatus: data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子', // 如果carbonFactor非0则认为已配置
-          supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '', // 添加：从节点数据获取补充信息
+          // 重要：确保正确提取 factorMatchStatus
+          factorMatchStatus: data.factorMatchStatus || 
+             (data.carbonFactor && parseFloat(data.carbonFactor) !== 0 ? '已手动配置因子' : '未配置因子'),
+          supplementaryInfo: typeof data.supplementaryInfo === 'string' ? data.supplementaryInfo : '',
+          dataRisk: data.dataRisk || undefined,
+          backgroundDataSourceTab: data.backgroundDataSourceTab || 'database',
+          // 重要：确保正确提取 evidenceFiles
+          evidenceFiles: Array.isArray(data.evidenceFiles) ? data.evidenceFiles : [],
         };
       });
     
-    setEmissionSources(filteredNodes as EmissionSource[]); // Add type assertion
+    console.log(`[Debug] refreshEmissionSourcesForStage: found ${filteredNodes.length} nodes for stage "${stage}"`);
+    setEmissionSources(filteredNodes as EmissionSource[]); // 更新 emissionSources
   }, [nodes]);
 
   // 当选中的生命周期阶段变化时，加载对应的排放源
@@ -1444,28 +1572,68 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       // 显示结果弹窗
       setShowMatchResultsModal(true);
       
-      // 更新本地表格状态中的节点匹配状态
-      setEmissionSources(prevSources => {
-        return prevSources.map(source => {
-          if (success?.includes(source.id)) {
-            return { ...source, factorMatchStatus: 'AI匹配成功' };
-          } else if (failed?.includes(source.id)) {
-            return { ...source, factorMatchStatus: 'AI匹配失败' };
-          }
-          return source;
-        });
-      });
-      
       // 关闭因子匹配选择弹窗
       setIsFactorMatchModalVisible(false);
       
       // 清空选择的排放源
       setSelectedFactorMatchSources([]);
-      
-      // 如果当前选中的生命周期阶段非空，刷新该阶段的排放源列表
-      if (selectedStage) {
-        refreshEmissionSourcesForStage(selectedStage);
+
+      // ======= 新增核心同步逻辑 =======
+      // 1. 同步更新 store 中的节点 (nodes)
+      if (nodes && setStoreNodes) {
+        const updatedNodes = [...nodes]; // 创建副本以进行修改
+        
+        // 处理成功的节点
+        for (const nodeId of success || []) {
+          const nodeIndex = updatedNodes.findIndex(node => node.id === nodeId);
+          if (nodeIndex >= 0) {
+            // 找到节点，更新其 factorMatchStatus
+            const nodeData = { ...(updatedNodes[nodeIndex].data as any) }; // 创建数据副本
+            nodeData.factorMatchStatus = 'AI匹配成功'; // 设置匹配状态
+            // 更新节点数据
+            updatedNodes[nodeIndex] = {
+              ...updatedNodes[nodeIndex],
+              data: nodeData
+            };
+          }
+        }
+        
+        // 处理失败的节点
+        for (const nodeId of failed || []) {
+          const nodeIndex = updatedNodes.findIndex(node => node.id === nodeId);
+          if (nodeIndex >= 0) {
+            // 找到节点，更新其 factorMatchStatus
+            const nodeData = { ...(updatedNodes[nodeIndex].data as any) }; // 创建数据副本
+            nodeData.factorMatchStatus = 'AI匹配失败'; // 设置匹配状态
+            // 更新节点数据
+            updatedNodes[nodeIndex] = {
+              ...updatedNodes[nodeIndex],
+              data: nodeData
+            };
+          }
+        }
+        
+        // 应用更新后的节点到 store
+        setStoreNodes(updatedNodes);
+        
+        // 2. 更新本地 emissionSources 状态
+        setEmissionSources(prevSources => {
+          return prevSources.map(source => {
+            if (success?.includes(source.id)) {
+              return { ...source, factorMatchStatus: 'AI匹配成功' };
+            } else if (failed?.includes(source.id)) {
+              return { ...source, factorMatchStatus: 'AI匹配失败' };
+            }
+            return source;
+          });
+        });
+        
+        // 3. 触发事件，通知其他组件数据已更新
+        window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
+          detail: { action: 'UPDATE_NODES', nodeIds: [...(success || []), ...(failed || [])] }
+        }));
       }
+      // ======= 结束核心同步逻辑 =======
       
       // 在结果处理完成后显示最终提示信息
       if (success?.length > 0 && failed?.length === 0) {
@@ -1478,6 +1646,11 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         // 如果 success 和 failed 都为空 (例如没有节点需要匹配或出现意外情况)
         message.info('碳因子匹配处理完成，未发现需要更新的排放源。');
       }
+      
+      // 如果当前选中的生命周期阶段非空，刷新该阶段的排放源列表
+      if (selectedStage) {
+        refreshEmissionSourcesForStage(selectedStage);
+      }
     };
 
     // 注册自定义事件监听器
@@ -1487,7 +1660,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     return () => {
       window.removeEventListener('carbonflow-match-results', handleMatchResults as EventListener);
     };
-  }, [selectedStage, refreshEmissionSourcesForStage]);
+  }, [selectedStage, refreshEmissionSourcesForStage, nodes, setStoreNodes]);
 
   const handleFactorMatchAI = async () => {
     console.log('AI匹配 invoked for sources:', selectedFactorMatchSources);
@@ -1721,7 +1894,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         { title: '运输-起点地址', dataIndex: 'transportStart', width: 120, align: 'center', render: () => '-' },
         { title: '运输-终点地址', dataIndex: 'transportEnd', width: 120, align: 'center', render: () => '-' },
         { title: '运输方式', dataIndex: 'transportType', width: 90, align: 'center', render: () => '-' },
-        { title: '证据文件', dataIndex: 'evidenceFiles', width: 90, align: 'center', render: (_: any, r: any) => r.hasEvidenceFiles ? '有' : '无' },
+        { title: '证据文件', dataIndex: 'evidenceFiles', width: 90, align: 'center', render: (_: any, r: any) => Array.isArray(r.evidenceFiles) && r.evidenceFiles.length > 0 ? '有' : '无' },
       ]
     },
     // 背景数据
@@ -1782,6 +1955,58 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     }
     return true;
   });
+
+  // Drawer 内 Upload 组件的变更处理
+  const handleEvidenceUploadChange: UploadProps['onChange'] = (info: UploadChangeParam<UploadFile>) => {
+    // 文件被删除的处理 - 保持不变
+    if (info.file.status === 'removed') {
+      setDrawerEvidenceFiles(prev => {
+        const updated = prev.filter(f => f.id !== info.file.uid);
+        console.log('[Upload] 文件被移除, drawerEvidenceFiles', updated);
+        return updated;
+      });
+      return;
+    }
+    
+    // 所有其他状态（上传中、上传完成等）- 这里不再添加文件
+    // 因为 beforeUpload 已经处理了所有上传逻辑并添加了文件到 drawerEvidenceFiles
+    console.log('[Upload] onChange status', info.file.status, info.file);
+    
+    // 不再执行以下代码，避免重复添加文件:
+    /*
+    if (info.file.status !== 'removed') {
+      const newFile: UploadedFile = {
+        id: info.file.uid,
+        name: info.file.name,
+        type: info.file.type || '证据文件',
+        uploadTime: new Date().toISOString(),
+        status: 'completed',
+        size: info.file.size,
+        mimeType: info.file.type,
+      };
+      console.log('[Upload] 新文件完成上传', newFile);
+      setDrawerEvidenceFiles(prev => {
+        if (prev.find(f => f.id === newFile.id)) return prev; // 去重
+        const updated = [...prev, newFile];
+        console.log('[Upload] 更新 drawerEvidenceFiles', updated);
+        return updated;
+      });
+      // 更新节点 evidenceFiles 并刷新
+      if (editingEmissionSource) {
+        const targetNode = nodes.find(n => n.id === editingEmissionSource.id);
+        if (targetNode) {
+          (targetNode.data as any).evidenceFiles = [
+            ...((targetNode.data as any).evidenceFiles ?? []),
+            newFile,
+          ];
+          console.log('[Upload] 写回 node.data.evidenceFiles', (targetNode.data as any).evidenceFiles);
+          setStoreNodes([...nodes]);
+        }
+      }
+      refreshEmissionSourcesForStage(selectedStage);
+    }
+    */
+  };
 
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
@@ -2026,6 +2251,51 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 name="evidenceFiles"
                 listType="text"
                 maxCount={5}
+                multiple
+                beforeUpload={async (file) => {
+                  console.log('[Upload] beforeUpload (真实上传到 Supabase)', file);
+                  if (!editingEmissionSource) {
+                    message.warning('请先保存排放源，再上传证明文件');
+                    return false;
+                  }
+                  const uploaded = await uploadEvidenceFile(file as File, editingEmissionSource.id);
+                  if (uploaded) {
+                    setDrawerEvidenceFiles(prev => [...prev, uploaded]);
+                    // 同步到节点
+                    if (editingEmissionSource) {
+                      const target = nodes.find(n => n.id === editingEmissionSource.id);
+                      if (target) {
+                        (target.data as any).evidenceFiles = [
+                          ...((target.data as any).evidenceFiles ?? []),
+                          uploaded,
+                        ];
+                        setStoreNodes([...nodes]);
+                      }
+                    }
+                    refreshEmissionSourcesForStage(selectedStage);
+                  }
+                  // return false to stop default upload list behavior (we handle list ourselves)
+                  return false;
+                }}
+                onRemove={(file) => {
+                  console.log('[Upload] onRemove', file);
+                  setDrawerEvidenceFiles(prev => {
+                    const updated = prev.filter(f => f.id !== file.uid);
+                    console.log('[Upload] drawerEvidenceFiles after remove', updated);
+                    return updated;
+                  });
+                  return true;
+                }}
+                onChange={(info) => {
+                  console.log('[Upload] onChange status', info.file.status, info.file);
+                  handleEvidenceUploadChange(info);
+                }}
+                fileList={drawerEvidenceFiles.map(f => ({
+                  uid: f.id,
+                  name: f.name,
+                  status: 'done',
+                  url: f.url,
+                }))}
               >
                 <Button icon={<UploadOutlined />} className="panel-sider-upload">上传</Button>
               </Upload>
