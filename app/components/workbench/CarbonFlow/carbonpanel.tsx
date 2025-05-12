@@ -311,6 +311,11 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           
           // 更新全局节点状态，会触发 aiSummary 更新
           setStoreNodes([...nodes]);
+
+          // 立即派发评分刷新事件，确保AI评分面板刷新
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('force-refresh-ai-summary'));
+          }, 100);
           
           // 触发事件，通知其他组件数据已更新
           window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
@@ -1420,6 +1425,11 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       if (selectedStage) {
         refreshEmissionSourcesForStage(selectedStage);
       }
+      
+      // 补充：主动派发评分刷新事件，确保AI评分面板刷新
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('force-refresh-ai-summary'));
+      }, 100);
     };
 
     // 注册自定义事件监听器

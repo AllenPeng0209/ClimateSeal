@@ -94,11 +94,11 @@ const initialAiSummaryReport: AISummaryReport = {
 };
 
 interface CarbonFlowAISummaryProps {
-  nodes: Node<NodeData>[];
   setSelectedNode: (node: Node<NodeData> | null) => void;
 }
 
-export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISummaryProps) => {
+export const CarbonFlowAISummary = ({ setSelectedNode }: CarbonFlowAISummaryProps) => {
+  const nodes = useCarbonFlowStore(state => state.nodes);
   const [aiReport, setAiReport] = useState<AISummaryReport>(initialAiSummaryReport);
   const { setAiSummary: setStoreAiSummary } = useCarbonFlowStore();
 
