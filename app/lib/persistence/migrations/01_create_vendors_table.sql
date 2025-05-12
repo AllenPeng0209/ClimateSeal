@@ -17,33 +17,33 @@ CREATE TABLE IF NOT EXISTS public.vendors (
 ALTER TABLE public.vendors ENABLE ROW LEVEL SECURITY;
 
 -- Create policy for reading vendors (all authenticated users can read)
-CREATE POLICY "Allow authenticated users to read vendors"
-  ON public.vendors
-  FOR SELECT
-  TO authenticated
-  USING (true);
+-- CREATE POLICY "Allow authenticated users to read vendors"
+--   ON public.vendors
+--   FOR SELECT
+--   TO authenticated
+--   USING (true);
 
 -- Create policy for inserting vendors (all authenticated users can insert)
-CREATE POLICY "Allow authenticated users to insert vendors"
-  ON public.vendors
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
+-- CREATE POLICY "Allow authenticated users to insert vendors"
+--   ON public.vendors
+--   FOR INSERT
+--   TO authenticated
+--   WITH CHECK (true);
 
 -- Create policy for updating vendors (all authenticated users can update)
-CREATE POLICY "Allow authenticated users to update vendors"
-  ON public.vendors
-  FOR UPDATE
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+-- CREATE POLICY "Allow authenticated users to update vendors"
+--   ON public.vendors
+--   FOR UPDATE
+--   TO authenticated
+--   USING (true)
+--   WITH CHECK (true);
 
 -- Create policy for deleting vendors (all authenticated users can delete)
-CREATE POLICY "Allow authenticated users to delete vendors"
-  ON public.vendors
-  FOR DELETE
-  TO authenticated
-  USING (true);
+-- CREATE POLICY "Allow authenticated users to delete vendors"
+--   ON public.vendors
+--   FOR DELETE
+--   TO authenticated
+--   USING (true);
 
 -- Add some initial test data
 INSERT INTO public.vendors (name, contact_person, phone, email, address, remarks, status, updated_by)
