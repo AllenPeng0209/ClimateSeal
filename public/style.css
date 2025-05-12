@@ -16,6 +16,11 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+html, body {
+    height: 100vh; /* Ensure full viewport height */
+    overflow: hidden; /* Prevent body scrolling */
+}
+
 body {
     font-family: var(--font-sans);
     margin: 0;
@@ -24,7 +29,6 @@ body {
     color: var(--text-primary);
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
     line-height: 1.6;
 }
 
@@ -33,6 +37,7 @@ header {
     padding: 15px 30px;
     border-bottom: 1px solid var(--border-color);
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    flex-shrink: 0; /* Prevent header from shrinking */
 }
 
 header h1 {
@@ -44,12 +49,12 @@ header h1 {
 
 .container {
     display: flex;
-    flex: 1;
-    margin: 25px;
+    flex: 1; /* Take remaining vertical space */
+    margin: 0 25px 25px 25px; /* Adjust margin for body structure */
     background-color: var(--card-bg);
-    border-radius: 12px;
+    border-radius: 0 0 12px 12px; /* Adjust border radius for top margin removed */
     box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-    overflow: hidden;
+    overflow: hidden; /* Crucial for internal scrolling */
 }
 
 .chat-area {
@@ -57,31 +62,44 @@ header h1 {
     padding: 25px;
     border-right: 1px solid var(--border-color);
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column; /* Allow chat content to scroll if needed */
     background-color: var(--secondary-bg);
+    overflow-y: auto; /* Allow chat area to scroll independently */
 }
 
 .chat-area h2 {
     color: var(--text-secondary);
     font-weight: 400;
     font-size: 1.5em;
+    text-align: center; /* Center placeholder text */
+    margin: auto; /* Center placeholder text */
 }
 
 .form-area {
-    flex: 2.5; /* Give form area a bit more space */
-    padding: 35px 50px;
-    overflow-y: auto;
+    flex: 2.5;
+    display: flex;
+    flex-direction: column; /* Key for stacking header, content, footer */
+    overflow: hidden; /* Prevent form-area itself from scrolling */
+    padding: 0; /* Remove padding, will be handled by inner elements */
 }
 
-.form-area h2 {
+.form-header-fixed {
     font-size: 2em;
     color: var(--text-primary);
-    margin-top: 0;
-    margin-bottom: 25px;
+    margin: 0;
     font-weight: 600;
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 15px;
+    padding: 20px 50px; /* Adjust padding as needed */
+    background-color: var(--card-bg); /* Match card background */
+    z-index: 10; /* Ensure it stays on top if needed */
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+/* Styles for the scrollable form content area */
+.form-content-scrollable {
+    flex: 1; /* Take up available space between header and footer */
+    overflow-y: auto; /* Enable vertical scrolling */
+    padding: 25px 50px; /* Inner padding for the content */
 }
 
 .intro-text {
@@ -193,6 +211,15 @@ header h1 {
     background-color: #c53030; /* Darker red */
 }
 
+/* Fixed footer area for the submit button */
+.form-footer-fixed {
+    padding: 20px 50px;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--card-bg); /* Match card background */
+    flex-shrink: 0; /* Prevent shrinking */
+    z-index: 10;
+}
+
 #submitButton {
     background-color: var(--success-color);
     color: white;
@@ -204,7 +231,7 @@ header h1 {
     font-weight: 600;
     transition: background-color 0.2s ease-in-out;
     display: block;
-    margin: 40px auto 10px auto;
+    margin: 0 auto; /* Center button within the fixed footer */
     min-width: 150px;
     text-align: center;
 }
@@ -214,37 +241,55 @@ header h1 {
 }
 
 /* Responsive adjustments */
-@media (max-width: 992px) { /* Adjusted breakpoint for better layout */
-    .form-area {
-        padding: 25px 30px;
+@media (max-width: 992px) {
+    .form-header-fixed,
+    .form-content-scrollable,
+    .form-footer-fixed {
+        padding-left: 30px;
+        padding-right: 30px;
     }
 }
 
 @media (max-width: 768px) {
     .container {
         flex-direction: column;
-        margin: 15px;
+        margin: 0 15px 15px 15px;
+        border-radius: 0 0 8px 8px;
     }
     .chat-area {
         border-right: none;
         border-bottom: 1px solid var(--border-color);
-        min-height: 150px;
+        min-height: 150px; /* Or a percentage of viewport height if preferred */
+        max-height: 30vh; /* Example max height for chat on mobile */
         flex: none;
     }
     .form-area {
-        padding: 20px;
-        flex: 1;
+        flex: 1; /* Allow form area to take remaining space */
+    }
+    .form-header-fixed,
+    .form-content-scrollable,
+    .form-footer-fixed {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+    .form-header-fixed {
+        padding-top: 15px;
+        padding-bottom: 15px;
+        font-size: 1.6em;
+    }
+     .form-content-scrollable {
+        padding-top: 15px;
+        padding-bottom: 15px;
+    }
+    .form-footer-fixed {
+        padding-top: 15px;
+        padding-bottom: 15px;
     }
     header {
         padding: 12px 20px;
     }
     header h1 {
         font-size: 1.5em;
-    }
-    .form-area h2 {
-        font-size: 1.6em;
-        margin-bottom: 20px;
-        padding-bottom: 12px;
     }
     .form-group input[type="text"],
     .form-group input[type="number"],
@@ -255,5 +300,6 @@ header h1 {
     #submitButton {
         padding: 12px 20px;
         font-size: 1em;
+        width: 100%; /* Make button full width on small screens */
     }
 } 
