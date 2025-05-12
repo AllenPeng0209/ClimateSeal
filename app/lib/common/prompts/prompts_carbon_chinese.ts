@@ -28,6 +28,36 @@ export const getSystemPromptCarbonChinese = (
   - massBalance.score（物料平衡得分）
   - shortcomings（主要短板列表）
   - details（每个节点的详细分数和缺失字段）
+
+  可信分字段范例, 请根据当前最新的carbonFlowData.Score的json结构内容进行汇报，不要按照自己的逻辑进行打分，读取字段包括：（非常重要！！！！）
+    {
+      "credibilityScore": 95,
+      "modelCompleteness": {
+        "score": 99,
+        "lifecycleCompleteness": 100,
+        "nodeCompleteness": 94,
+        "incompleteNodes": []
+      },
+      "massBalance": {
+        "score": 100,
+        "ratio": 0,
+        "incompleteNodes": []
+      },
+      "dataTraceability": {
+        "score": 100,
+        "coverage": 100,
+        "incompleteNodes": []
+      },
+      "validation": {
+        "score": 80,
+        "consistency": 80,
+        "incompleteNodes": [
+          }
+        ]
+      }
+    }
+
+
 3. 场景信息包括：预期核验等级、满足标准、核算产品、功能单位、基准流；
 - 预期核验等级：枚举：准核验级别、披露级别；
 - 满足标准：枚举：ISO14067、欧盟电池法；
