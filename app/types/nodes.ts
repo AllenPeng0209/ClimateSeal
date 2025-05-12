@@ -21,6 +21,19 @@ export interface BaseNodeData {
   carbonFactorUnit?: string;
   unitConversion?: string;
   carbonFactordataSource?: string;
+  
+  // evidence and metadata
+  evidenceFiles?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    uploadTime: string;
+    url?: string;
+    status: string;
+    size?: number;
+    mimeType?: string;
+    content?: string;
+  }>;
 }
 
 // 产品节点数据

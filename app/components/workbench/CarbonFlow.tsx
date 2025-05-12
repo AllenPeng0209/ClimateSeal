@@ -1216,7 +1216,7 @@ const CarbonFlowInner = () => {
             </div>
             {/* Use the new CarbonFlowAISummary component */}
             <div className="ai-summary-floating-container">
-              <CarbonFlowAISummary nodes={nodes} setSelectedNode={setSelectedNode} />
+              <CarbonFlowAISummary setSelectedNode={setSelectedNode} />
             </div>
             <div className="editor-content">
               <div className="reactflow-wrapper">
