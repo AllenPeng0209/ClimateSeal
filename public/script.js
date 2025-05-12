@@ -146,41 +146,108 @@ document.addEventListener('DOMContentLoaded', function () {
     const chatInput = document.getElementById('chatInput');
     const sendChatButton = document.getElementById('sendChatButton');
 
+    function typeOutMessage(element, message, isHTML, callback) {
+        let i = 0;
+        element.innerHTML = ''; // Clear previous content if any, and ensure it starts empty for typing.
+        const typingSpeed = 30; // Milliseconds per character
+
+        function typeChar() {
+            if (i < message.length) {
+                if (isHTML) {
+                    // Check for HTML tags like <br> and add them completely
+                    if (message[i] === '<' && message.substring(i, i + 4).toLowerCase() === '<br>') {
+                        element.innerHTML += '<br>';
+                        i += 4;
+                    } else if (message[i] === '<' && message.substring(i, i + 5).toLowerCase() === '<br/>') {
+                        element.innerHTML += '<br/>';
+                        i += 5;
+                    } else {
+                        element.innerHTML += message[i];
+                        i++;
+                    }
+                } else {
+                    element.textContent += message[i];
+                    i++;
+                }
+                if (chatMessagesContainer) {
+                    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+                }
+                setTimeout(typeChar, typingSpeed);
+            } else {
+                if (callback) callback();
+            }
+        }
+        typeChar();
+    }
+
     function addChatMessage(message, sender, isHTML = false) {
         if (!chatMessagesContainer) return;
 
         const messageElement = document.createElement('div');
-        messageElement.classList.add('chat-message', sender); // sender is 'user' or 'assistant'
-        
-        if (isHTML) {
-            messageElement.innerHTML = message; // Use innerHTML if message contains HTML
-        } else {
-            messageElement.textContent = message; // Use textContent for plain text to prevent XSS
-        }
+        messageElement.classList.add('chat-message', sender);
         
         chatMessagesContainer.appendChild(messageElement);
-        chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight; // Auto-scroll to bottom
+
+        if (sender === 'assistant') {
+            typeOutMessage(messageElement, message, isHTML, () => {
+                // Optional: any action after typing completes, like enabling input
+                if (chatMessagesContainer) {
+                     chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight; // Final scroll after typing
+                }
+            });
+        } else { // For 'user' messages, display immediately
+            if (isHTML) {
+                messageElement.innerHTML = message;
+            } else {
+                messageElement.textContent = message;
+            }
+            if (chatMessagesContainer) {
+                chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+            }
+        }
     }
 
     function sendUserMessage() {
-        if (!chatInput) return;
+        if (!chatInput || !sendChatButton) return;
         const messageText = chatInput.value.trim();
         if (messageText !== '') {
             addChatMessage(messageText, 'user');
-            chatInput.value = ''; // Clear input
+            chatInput.value = '';
+            chatInput.disabled = true; // Disable input while AI is "typing"
+            sendChatButton.disabled = true;
             
-            // Simulate AI response after a short delay
             setTimeout(() => {
                 const aiResponses = [
                     "感谢您的提问，我会尽力帮助您。",
-                    "正在处理您的问题...",
-                    "我明白了，关于这个问题，我可以提供以下信息... (模拟回复)",
-                    "您好！我是碳助手，有什么可以帮您的吗？",
-                    "对于碳足迹和数据填报方面的问题，我很乐意为您解答。"
+                    "正在处理您的问题，请稍候...",
+                    "我明白了，关于这个问题，我可以提供以下信息... (这是一个模拟回复，展示逐字效果)",
+                    "您好！我是碳助手，有什么可以帮您的吗？请尽管问。",
+                    "对于碳足迹和数据填报方面的问题，我很乐意为您解答。请详细描述您的问题。"
                 ];
                 const randomResponse = aiResponses[Math.floor(Math.random() * aiResponses.length)];
-                addChatMessage(randomResponse, 'assistant');
-            }, 1000);
+                
+                // Create an empty assistant message element first, then type into it.
+                // The addChatMessage function itself will handle the typing for assistant.
+                addChatMessage(randomResponse, 'assistant', false); 
+                
+                // Re-enable input after AI response is initiated (typing will continue)
+                // A better approach for enabling after typing is complete is via callback in typeOutMessage
+                // For now, let's re-enable it after a slightly longer delay or after typing *starts*.
+                // The `typeOutMessage` callback is a better place for this.
+                // To ensure it's enabled after typing, we'll use a callback from addChatMessage for assistant.
+                // This requires modifying addChatMessage to accept a callback or by modifying typeOutMessage's callback chain.
+
+                // Simplified re-enabling: This enables once the typing starts.
+                // A more robust solution would involve the callback in typeOutMessage to signal completion.
+                // For now, the callback in addChatMessage when sender === 'assistant' will handle it.
+                const tempMsgElementForCallback = document.createElement('div'); // Dummy element for callback concept
+                typeOutMessage(tempMsgElementForCallback, randomResponse, false, () => {
+                    chatInput.disabled = false;
+                    sendChatButton.disabled = false;
+                    chatInput.focus(); 
+                });
+
+            }, 700); // Slightly longer delay before AI starts to "think"
         }
     }
 
@@ -191,7 +258,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (chatInput) {
         chatInput.addEventListener('keypress', function(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault(); // Prevent new line on Enter
+                event.preventDefault();
                 sendUserMessage();
             }
         });
@@ -203,6 +270,18 @@ document.addEventListener('DOMContentLoaded', function () {
         我可以协助您解答关于碳足迹数据填报的疑问，提供相关指引，或帮助您理解某些特定指标的计算方法等。<br><br>
         如果您在填报过程中遇到任何问题，请随时在这里向我提问。
     `;
-    addChatMessage(assistantGreeting, 'assistant', true);
+    // Ensure inputs are disabled during initial greeting typing
+    if(chatInput) chatInput.disabled = true;
+    if(sendChatButton) sendChatButton.disabled = true;
+
+    const tempMsgElementForGreetingCallback = document.createElement('div'); // Dummy for callback
+    typeOutMessage(tempMsgElementForGreetingCallback, assistantGreeting, true, () => {
+        if(chatInput) {
+            chatInput.disabled = false;
+            chatInput.focus();
+        }
+        if(sendChatButton) sendChatButton.disabled = false;
+    });
+    addChatMessage(assistantGreeting, 'assistant', true); // This will now use the typing effect
 
 }); 
