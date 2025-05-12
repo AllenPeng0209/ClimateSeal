@@ -16,19 +16,20 @@
             <h2>chat</h2>
         </div>
         <div class="form-area">
-            <h2>数据请求</h2>
+            <h2 class="form-header-fixed">数据请求</h2>
             <p><strong>公司名称:</strong> XXXXX</p>
-            <p class="intro-text">
-                为响应国家及行业对可持续发展和碳减排的要求，同时进一步加强我司在环境管理与绿色供应链建设方面的工作，我们正在开展碳足迹相关数据的收集工作。此项工作旨在全面了解并评估产品或服务在生命周期各阶段的碳排放情况，以便我们在后续的碳管理与减排措施制定中，能够更科学地识别重点环节、优化资源配置，并共同提升整体的环保绩效。
-            </p>
-            <p class="intro-text">
-                因此，诚挚邀请贵司配合提供相关碳足迹数据。我们承诺，所有收集的数据将仅用于本次环境评估及改进分析，并严格按照保密原则处理。
-            </p>
-            <p class="intro-text">
-                请在下方如实填写数据和内容，如果有问题可以询问左侧AI助手，感谢。
-            </p>
+            
+            <form id="dataRequestForm" class="form-content-scrollable">
+                <p class="intro-text">
+                    为响应国家及行业对可持续发展和碳减排的要求，同时进一步加强我司在环境管理与绿色供应链建设方面的工作，我们正在开展碳足迹相关数据的收集工作。此项工作旨在全面了解并评估产品或服务在生命周期各阶段的碳排放情况，以便我们在后续的碳管理与减排措施制定中，能够更科学地识别重点环节、优化资源配置，并共同提升整体的环保绩效。
+                </p>
+                <p class="intro-text">
+                    因此，诚挚邀请贵司配合提供相关碳足迹数据。我们承诺，所有收集的数据将仅用于本次环境评估及改进分析，并严格按照保密原则处理。
+                </p>
+                <p class="intro-text">
+                    请在下方如实填写数据和内容，如果有问题可以询问左侧AI助手，感谢。
+                </p>
 
-            <form id="dataRequestForm">
                 <div class="form-group">
                     <label for="emissionSourceName">排放源名称:</label>
                     <input type="text" id="emissionSourceName" name="emissionSourceName" value="排放源名称示例" readonly>
@@ -61,9 +62,10 @@
                     <input type="file" id="fileInput" multiple hidden>
                     <div id="fileList"></div>
                 </div>
-
-                <button type="submit" id="submitButton">确认提交</button>
             </form>
+            <div class="form-footer-fixed">
+                <button type="submit" id="submitButton" form="dataRequestForm">确认提交</button>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>
