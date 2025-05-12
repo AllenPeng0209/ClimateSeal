@@ -51,6 +51,7 @@ import type { UploadFileResponse } from '~/types/file';
 import { CarbonFlowActionHandler } from './CarbonFlowActions';
 import { supabase } from '~/lib/supabase';
 import type { UploadChangeParam } from 'antd/es/upload';
+import type { RcFile } from 'antd/es/upload';
 
 interface FileRecord {
   id: string;
@@ -108,6 +109,7 @@ type EmissionSource = {
   dataRisk?: string; // 数据风险
   backgroundDataSourceTab?: 'database' | 'manual'; // 新增：记录背景数据源选择的tab
   evidenceFiles?: UploadedFile[]; // 新增: 关联证据文件
+  evidenceVerificationStatus?: '缺失' | '完整、未校验' | '完整、AI校验未通过' | '完整、AI校验通过' | '完整、第三方校验通过'; // 新增：证明材料校验状态
 };
 
 // New type for Uploaded Files
@@ -293,6 +295,30 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         size: file.size,
         mimeType: file.type,
       };
+
+      // 重要：立即更新 nodes 以触发 aiSummary 重新计算
+      if (nodeId && nodes) {
+        const targetNode = nodes.find(n => n.id === nodeId);
+        if (targetNode) {
+          // 更新节点的 evidenceFiles 数组
+          (targetNode.data as any).evidenceFiles = [
+            ...((targetNode.data as any).evidenceFiles || []),
+            uploaded
+          ];
+          
+          // 设置证明材料验证状态为"完整、未校验"
+          (targetNode.data as any).evidenceVerificationStatus = '完整、未校验';
+          
+          // 更新全局节点状态，会触发 aiSummary 更新
+          setStoreNodes([...nodes]);
+          
+          // 触发事件，通知其他组件数据已更新
+          window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
+            detail: { action: 'UPDATE_NODE', nodeId: nodeId }
+          }));
+        }
+      }
+
       return uploaded;
     } catch (err: any) {
       console.error('uploadEvidenceFile error', err);
@@ -387,10 +413,14 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             dataRisk: data.dataRisk || undefined, // 数据风险
             backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
             evidenceFiles: Array.isArray(data.evidenceFiles) ? data.evidenceFiles : [],
+            // 读取证明材料验证状态，如果不存在则根据evidenceFiles动态生成
+            evidenceVerificationStatus: data.evidenceVerificationStatus || 
+              (Array.isArray(data.evidenceFiles) && data.evidenceFiles.length > 0 ? '完整、未校验' : '缺失'),
           };
         });
 
-      setEmissionSources(filteredNodes as EmissionSource[]); // Add type assertion
+      // 更新排放源数据
+      setEmissionSources(filteredNodes as any);
     }
   }, [nodes, selectedStage]);
 
@@ -422,6 +452,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           dataRisk: data.dataRisk || undefined,
           backgroundDataSourceTab: data.backgroundDataSourceTab || 'database',
           evidenceFiles: Array.isArray(data.evidenceFiles) ? data.evidenceFiles : [],
+          // 读取证明材料验证状态，如果不存在则根据evidenceFiles动态生成
+          evidenceVerificationStatus: data.evidenceVerificationStatus || 
+            (Array.isArray(data.evidenceFiles) && data.evidenceFiles.length > 0 ? '完整、未校验' : '缺失'),
         };
       });
       setAllEmissionSourcesForAIModal(allSources as EmissionSource[]);
@@ -589,349 +622,78 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
    };
 
    const handleSaveEmissionSource = (values: any) => {
-     console.log('Saving emission source:', values);
-     // 从表单值获取选择的生命周期阶段，并映射到 nodeType
-     const selectedStageName = values.lifecycleStage;
-     const selectedNodeType = lifecycleStageToNodeTypeMap[selectedStageName] || 'product'; // 默认为 product
+    if (!editingEmissionSource || !nodes) return;
 
-     if (editingEmissionSource) {
-       // --- 更新已有排放源 ---
-       // 更新本地狀態
-       setEmissionSources(prev => prev.map(item => 
-         item.id === editingEmissionSource.id 
-           ? { 
-                // 更新本地 emissionSources 状态时也使用正确的映射
-                id: item.id,
-                name: values.name,
-                category: values.category, 
-                activityData: values.activityData, // Form data is likely number
-                activityUnit: values.activityUnit, 
-                conversionFactor: values.conversionFactor, 
-                factorName: values.factorName,
-                factorUnit: values.factorUnit,
-                emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 保存 emissionFactorGeographicalRepresentativeness
-                factorSource: values.factorSource,
-                updatedAt: new Date().toISOString(), 
-                updatedBy: 'User',
-                factorMatchStatus: editingEmissionSource.factorMatchStatus, // 保留原有的因子匹配状态
-                supplementaryInfo: values.supplementaryInfo || '', // 更新补充信息
-                dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
-                backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab
-                evidenceFiles: drawerEvidenceFiles,
-             } 
-           : item
-       ));
+    // 找到当前编辑的节点
+    const nodeToUpdate = nodes.find(node => node.id === editingEmissionSource.id);
+    if (!nodeToUpdate || !nodeToUpdate.data) {
+      console.error(`Node with ID ${editingEmissionSource.id} not found!`);
+      return;
+    }
 
-       // 同步更新 store 中的節點
-       if (nodes && setStoreNodes) {
-         const updatedNodes = nodes.map(node => {
-           if (node.id === editingEmissionSource.id) {
-             // 獲取現有節點數據
-             const currentNodeData = { ...node.data };
-             const originalNodeType = node.type; // 保留原始类型以便检查是否需要重建data
+    try {
+      // 保存文件关联 - 拿当前drawer中的evidenceFiles而不是从values中获取
+      // 确保我们使用的是最新的drawerEvidenceFiles状态
+      const evidenceFilesToSave = drawerEvidenceFiles;
 
-             // --- 更新通用字段保存逻辑 (使用 as any 绕过类型检查) --- 
-             const dataToUpdate: any = currentNodeData; // 将 currentNodeData 断言为 any
+      // 更新节点数据
+      const nodeData = nodeToUpdate.data as any;
 
-             dataToUpdate.label = values.name;
-             dataToUpdate.nodeName = values.name;
-             dataToUpdate.emissionType = values.category; // 保存类别
-             dataToUpdate.quantity = String(values.activityData); // 保存活动数据为 string
-             dataToUpdate.activityUnit = values.activityUnit; // 保存活动数据单位
-             dataToUpdate.carbonFactor = String(typeof currentNodeData.carbonFactor !== 'undefined' ? currentNodeData.carbonFactor : 0); // 保留已有的排放因子数值或设为0, 转为string
-             dataToUpdate.carbonFactorName = values.factorName; // 保存因子名称
-             dataToUpdate.carbonFactorUnit = values.factorUnit; // 保存因子单位
-             dataToUpdate.emissionFactorGeographicalRepresentativeness = values.emissionFactorGeographicalRepresentativeness || ''; // 保存排放因子地理代表性
-             dataToUpdate.activitydataSource = values.factorSource; // 保存因子来源
-             dataToUpdate.lifecycleStage = selectedStageName;
-             dataToUpdate.supplementaryInfo = values.supplementaryInfo || ''; // 保存补充信息到节点数据
-             dataToUpdate.unitConversion = String(values.conversionFactor ?? 1); // 新增/修正：正确保存单位转换系数
-             dataToUpdate.hasEvidenceFiles = drawerEvidenceFiles.length > 0; // 更新证明材料状态
-             dataToUpdate.dataRisk = editingEmissionSource.dataRisk; // 保留数据风险
-             dataToUpdate.backgroundDataSourceTab = backgroundDataActiveTabKey as ('database' | 'manual'); // 更新：保存当前选择的tab到节点
-             // --- 结束更新通用字段保存逻辑 ---
+      // 转换填写的数值（支持逗号分隔的千位格式）
+      const safeParseFloat = (val: any): number | undefined => {
+        if (val === undefined || val === null || val === '') return undefined;
+        // 移除千位分隔符（逗号）
+        const strVal = String(val).replace(/,/g, '');
+        const num = parseFloat(strVal);
+        return isNaN(num) ? undefined : num;
+      };
 
-             let finalNodeData = dataToUpdate; // 使用更新后的 dataToUpdate
+      // 更新证明材料验证状态
+      let evidenceVerificationStatus: string = '缺失';
+      if (Array.isArray(evidenceFilesToSave) && evidenceFilesToSave.length > 0) {
+        evidenceVerificationStatus = '完整、未校验';
+      }
 
-             // 如果生命周期阶段（即节点类型）改变了，我们需要创建匹配新类型的数据结构
-             if (originalNodeType !== selectedNodeType) {
-                console.log(`节点 ${editingEmissionSource.id} 类型从 ${originalNodeType} 变为 ${selectedNodeType}，重新构建数据结构。`);
-                // 基于新类型创建数据对象，并尽可能保留通用字段
-                const commonData = {
-                    label: values.name,
-                    nodeName: values.name,
-                    lifecycleStage: selectedStageName, 
-                    emissionType: values.category, 
-                    activitydataSource: values.factorSource, // 因子来源
-                    activityScore: finalNodeData.activityScore || 0,
-                    verificationStatus: finalNodeData.verificationStatus || '未驗證',
-                    carbonFootprint: String(finalNodeData.carbonFootprint || 0),
-                    quantity: String(values.activityData), // 活动数据
-                    activityUnit: values.activityUnit, // 活动数据单位
-                    carbonFactor: String(typeof finalNodeData.carbonFactor !== 'undefined' ? finalNodeData.carbonFactor : 0), // 保留已有的排放因子数值, 转为string
-                    carbonFactorName: values.factorName, // 因子名称
-                    carbonFactorUnit: values.factorUnit, // 因子单位
-                    emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 排放因子地理代表性
-                    unitConversion: String(values.conversionFactor ?? 1), // 正确设置单位转换系数
-                    supplementaryInfo: values.supplementaryInfo || '', // 通用数据中加入补充信息
-                    hasEvidenceFiles: drawerEvidenceFiles.length > 0, // 更新证明材料状态
-                    dataRisk: editingEmissionSource.dataRisk, // 保留数据风险
-                    backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab到commonData
-                };
+      // 更新节点数据
+      const updates = {
+        label: values.name,
+        emissionType: values.category,
+        quantity: safeParseFloat(values.activityData),
+        activityUnit: values.activityUnit,
+        unitConversion: safeParseFloat(values.conversionFactor),
+        carbonFactorName: values.factorName,
+        carbonFactorUnit: values.factorUnit,
+        emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness,
+        activitydataSource: values.factorSource,
+        updatedAt: new Date().toISOString(),
+        updatedBy: 'User', // 可以从上下文获取实际用户
+        supplementaryInfo: values.supplementaryInfo,
+        dataRisk: values.dataRisk,
+        backgroundDataSourceTab: values.backgroundDataSourceTab || 'database',
+        evidenceFiles: evidenceFilesToSave,
+        evidenceVerificationStatus: evidenceVerificationStatus,
+      };
+      
+      // 应用更新
+      Object.assign(nodeData, updates);
 
-                // 根据新的 selectedNodeType 创建特定数据结构
-                switch (selectedNodeType) {
-                    case 'product':
-                        finalNodeData = { ...commonData, material: values.category, weight_per_unit: '', isRecycled: false, recycledContent: '', recycledContentPercentage: 0, sourcingRegion: '', SourceLocation: '', weight: 0, supplier: '' }; break;
-                    case 'manufacturing':
-                        finalNodeData = { ...commonData, ElectricityAccountingMethod: '', ElectricityAllocationMethod: '', EnergyConsumptionMethodology: '', EnergyConsumptionAllocationMethod: '', chemicalsMaterial: '', MaterialAllocationMethod: '', WaterUseMethodology: '', WaterAllocationMethod: '', packagingMaterial: '', direct_emission: '', WasteGasTreatment: '', WasteDisposalMethod: '', WastewaterTreatment: '', energyConsumption: 0, energyType: '', processEfficiency: 0, wasteGeneration: 0, waterConsumption: 0, recycledMaterialPercentage: 0, productionCapacity: 0, machineUtilization: 0, qualityDefectRate: 0, processTechnology: '', manufacturingStandard: '', automationLevel: '', manufacturingLocation: '', byproducts: '', emissionControlMeasures: '' }; break;
-                    case 'distribution':
-                        finalNodeData = { ...commonData, transportationMode: '', transportationDistance: 0, startPoint: '', endPoint: '', vehicleType: '', fuelType: '', fuelEfficiency: 0, loadFactor: 0, refrigeration: false, packagingMaterial: '', packagingWeight: 0, warehouseEnergy: 0, storageTime: 0, storageConditions: '', distributionNetwork: '' }; break;
-                    case 'usage':
-                        finalNodeData = { ...commonData, lifespan: 0, energyConsumptionPerUse: 0, waterConsumptionPerUse: 0, consumablesUsed: '', consumablesWeight: 0, usageFrequency: 0, maintenanceFrequency: 0, repairRate: 0, userBehaviorImpact: 0, efficiencyDegradation: 0, standbyEnergyConsumption: 0, usageLocation: '', usagePattern: '' }; break;
-                    case 'disposal':
-                        finalNodeData = { ...commonData, recyclingRate: 0, landfillPercentage: 0, incinerationPercentage: 0, compostPercentage: 0, reusePercentage: 0, hazardousWasteContent: 0, biodegradability: 0, disposalEnergyRecovery: 0, transportToDisposal: 0, disposalMethod: '', endOfLifeTreatment: '', recyclingEfficiency: 0, dismantlingDifficulty: '' }; break;
-                    default: // 假设 'finalProduct' 或其他未知类型，使用基础结构
-                        finalNodeData = { ...commonData, finalProductName: values.name, totalCarbonFootprint: 0, certificationStatus: '未認證', environmentalImpact: '', sustainabilityScore: 0, productCategory: values.category, marketSegment: '', targetRegion: '', complianceStatus: '', carbonLabel: '' }; break;
-                }
-             }
+      // 更新全局节点状态
+      setStoreNodes([...nodes]);
 
-             return {
-               ...node,
-               type: selectedNodeType, // 更新节点的类型
-               data: finalNodeData // 使用最终的数据对象
-             };
-           }
-           return node;
-         });
-         
-         setStoreNodes(updatedNodes);
-         
-         // 觸發事件，通知其他組件數據已更新
-         window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
-           detail: { action: 'UPDATE_NODE', nodeId: editingEmissionSource.id }
-         }));
-         
-         message.success('排放源已更新');
-+        refreshEmissionSourcesForStage(selectedStage);
-       } else {
-         message.success('排放源已更新（本地）');
-       }
-     } else {
-       // --- 添加新排放源 ---
+      // 重置Drawer状态
+      setEditingEmissionSource(null);
+      setIsEmissionDrawerVisible(false);
+      setDrawerEvidenceFiles([]);
 
-       // 根据用户在表单中选择的生命周期阶段确定节点类型
-       const nodeType = selectedNodeType; // 直接使用上面映射得到的类型
+      // 更新显示的排放源数据
+      refreshEmissionSourcesForStage(selectedStage);
 
-       // 創建新的排放源
-       const newSourceId = Date.now().toString();
-       const newSource: EmissionSource = {
-         ...values,
-         id: newSourceId,
-         updatedAt: new Date().toISOString(),
-         updatedBy: 'User',
-         factorMatchStatus: '未配置因子', // 新增因子匹配状态
-         supplementaryInfo: values.supplementaryInfo || '', // 新增时保存补充信息
-         evidenceFiles: drawerEvidenceFiles,
-         dataRisk: undefined, // 新增时默认为 undefined
-         backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 新增：保存当前选择的tab
-       };
-       console.log('[Save] 新增排放源对象', newSource);
-       
-       // 更新本地狀態
-       setEmissionSources(prev => [...prev, newSource]);
-       
-       // 創建對應的 Flow 節點並更新 store
-       if (setStoreNodes) {
-         // 計算新節點位置（可以基於現有節點或使用默認位置）
-         let position = { x: 100, y: 100 };
-         const existingNodesOfSameType = nodes?.filter(n => n.type === nodeType) || [];
-         if (existingNodesOfSameType.length > 0) {
-           const lastNode = existingNodesOfSameType[existingNodesOfSameType.length - 1];
-           position = {
-             x: lastNode.position.x + 150,
-             y: lastNode.position.y + 50
-           };
-         }
-         
-         // 根據節點類型創建正確的節點數據對象
-         let nodeData: NodeData;
-         const commonData = { // 提取通用数据创建逻辑
-             label: values.name,
-             nodeName: values.name,
-             lifecycleStage: selectedStageName, 
-             emissionType: values.category, 
-             activitydataSource: values.factorSource, // 因子来源
-             activityScore: 0,
-             verificationStatus: '未驗證',
-             carbonFootprint: String(0),
-             quantity: String(values.activityData), // 活动数据
-             activityUnit: values.activityUnit, // 活动数据单位
-             carbonFactor: String(0), // 新增排放源时，排放因子数值默认为0 (string), 待后续匹配
-             carbonFactorName: values.factorName, // 因子名称
-             carbonFactorUnit: values.factorUnit, // 因子单位
-             emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '', // 保存排放因子地理代表性
-             unitConversion: String(values.conversionFactor ?? 1), // 正确保存单位转换系数
-             supplementaryInfo: values.supplementaryInfo || '', // 新节点数据中加入补充信息
-             hasEvidenceFiles: drawerEvidenceFiles.length > 0,
-             evidenceFiles: drawerEvidenceFiles,
-             dataRisk: undefined, // 新增时默认为 undefined
-             backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 新增：保存当前选择的tab到nodeData
-         };
-
-         switch (nodeType) {
-           case 'product':
-             nodeData = {
-                ...commonData,
-               material: values.category,
-               weight_per_unit: '',
-               isRecycled: false,
-               recycledContent: '',
-               recycledContentPercentage: 0,
-               sourcingRegion: '',
-               SourceLocation: '',
-               weight: 0,
-               supplier: ''
-             };
-             break;
-           
-           case 'manufacturing':
-             nodeData = {
-                ...commonData,
-               ElectricityAccountingMethod: '',
-               ElectricityAllocationMethod: '',
-               EnergyConsumptionMethodology: '',
-               EnergyConsumptionAllocationMethod: '',
-               chemicalsMaterial: '',
-               MaterialAllocationMethod: '',
-               WaterUseMethodology: '',
-               WaterAllocationMethod: '',
-               packagingMaterial: '',
-               direct_emission: '',
-               WasteGasTreatment: '',
-               WasteDisposalMethod: '',
-               WastewaterTreatment: '',
-               energyConsumption: 0,
-               energyType: '',
-               processEfficiency: 0,
-               wasteGeneration: 0,
-               waterConsumption: 0,
-               recycledMaterialPercentage: 0,
-               productionCapacity: 0,
-               machineUtilization: 0,
-               qualityDefectRate: 0,
-               processTechnology: '',
-               manufacturingStandard: '',
-               automationLevel: '',
-               manufacturingLocation: '',
-               byproducts: '',
-               emissionControlMeasures: ''
-             };
-             break;
-           
-           case 'distribution':
-             nodeData = {
-                ...commonData,
-               transportationMode: '',
-               transportationDistance: 0,
-               startPoint: '',
-               endPoint: '',
-               vehicleType: '',
-               fuelType: '',
-               fuelEfficiency: 0,
-               loadFactor: 0,
-               refrigeration: false,
-               packagingMaterial: '',
-               packagingWeight: 0,
-               warehouseEnergy: 0,
-               storageTime: 0,
-               storageConditions: '',
-               distributionNetwork: ''
-             };
-             break;
-           
-           case 'usage':
-             nodeData = {
-                ...commonData,
-               lifespan: 0,
-               energyConsumptionPerUse: 0,
-               waterConsumptionPerUse: 0,
-               consumablesUsed: '',
-               consumablesWeight: 0,
-               usageFrequency: 0,
-               maintenanceFrequency: 0,
-               repairRate: 0,
-               userBehaviorImpact: 0,
-               efficiencyDegradation: 0,
-               standbyEnergyConsumption: 0,
-               usageLocation: '',
-               usagePattern: ''
-             };
-             break;
-           
-           case 'disposal':
-             nodeData = {
-                ...commonData,
-               recyclingRate: 0,
-               landfillPercentage: 0,
-               incinerationPercentage: 0,
-               compostPercentage: 0,
-               reusePercentage: 0,
-               hazardousWasteContent: 0,
-               biodegradability: 0,
-               disposalEnergyRecovery: 0,
-               transportToDisposal: 0,
-               disposalMethod: '',
-               endOfLifeTreatment: '',
-               recyclingEfficiency: 0,
-               dismantlingDifficulty: ''
-             };
-             break;
-           
-           default:
-             nodeData = {
-                ...commonData,
-               finalProductName: values.name,
-               totalCarbonFootprint: 0,
-               certificationStatus: '未認證',
-               environmentalImpact: '',
-               sustainabilityScore: 0,
-               productCategory: values.category,
-               marketSegment: '',
-               targetRegion: '',
-               complianceStatus: '',
-               carbonLabel: ''
-             };
-         }
-         
-         const newNode: Node<NodeData> = {
-           id: newSourceId,
-           type: nodeType,
-           position,
-           data: nodeData,
-           width: 180,
-           height: 40,
-           selected: false,
-           positionAbsolute: position,
-           dragging: false
-         };
-         
-         setStoreNodes([...(nodes || []), newNode]);
-         
-         // 觸發事件，通知其他組件數據已更新
-         window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
-           detail: { action: 'ADD_NODE', nodeId: newSourceId, nodeType }
-         }));
-         
-         message.success('排放源已添加');
-+        refreshEmissionSourcesForStage(selectedStage);
-       } else {
-         message.success('排放源已添加（本地）');
-       }
-     }
-     
-     handleCloseEmissionDrawer();
-   };
+      message.success('保存成功');
+    } catch (error) {
+      console.error('Error saving emission source:', error);
+      message.error('保存失败');
+    }
+  };
 
    // --- File Upload Handlers (Placeholders) ---
    const handleFileUpload = (info: any) => {
@@ -1365,9 +1127,16 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         dataIndex: 'evidenceMaterialStatus',
         key: 'evidenceMaterialStatus',
         render: (_: any, record: EmissionSource) => {
-          // "完整，验证未通过" 状态暂不实现，默认上传即验证通过
+          // 使用枚举："缺失"，"完整、未校验"，"完整、AI校验未通过"，"完整、AI校验通过"，"完整、第三方校验通过"
+          // 如果已经有状态，则使用已有状态
+          if (record.evidenceVerificationStatus) {
+            const statusClass = record.evidenceVerificationStatus === '缺失' ? 'status-missing' : 'status-complete';
+            return <span className={statusClass}>{record.evidenceVerificationStatus}</span>;
+          }
+          
+          // 否则根据文件情况判断
           if (Array.isArray(record.evidenceFiles) && record.evidenceFiles.length > 0) {
-            return <span className="status-complete">完整</span>;
+            return <span className="status-complete">完整、未校验</span>;
           }
           return <span className="status-missing">缺失</span>;
         },
@@ -2008,6 +1777,52 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     */
   };
 
+  // 抽取方法: beforeUpload (用于 Upload 组件的 beforeUpload 属性)
+  const beforeUpload = async (file: RcFile): Promise<false> => {
+    console.log('[BeforeUpload] 开始处理文件:', file.name);
+    
+    // 如果有节点ID（在 drawer 中编辑时）
+    if (editingEmissionSource) {
+      try {
+        console.log('[BeforeUpload] 正在为节点上传文件:', editingEmissionSource.id);
+        const result = await uploadEvidenceFile(file, editingEmissionSource.id);
+        console.log('[BeforeUpload] 上传结果:', result);
+        
+        if (result) {
+          message.success(`上传成功: ${file.name}`);
+          // 手动更新 drawerEvidenceFiles 状态，触发重新渲染
+          setDrawerEvidenceFiles(prev => {
+            // 检查是否已存在，避免重复
+            if (prev.find(f => f.id === result.id)) {
+              console.log('[BeforeUpload] 文件已存在，不添加');
+              return prev;
+            }
+            console.log('[BeforeUpload] 添加文件到 drawerEvidenceFiles');
+            return [...prev, result];
+          });
+          
+          // 立即刷新分数 - 强制触发一个事件，确保 AISummary 重新计算
+          setTimeout(() => {
+            console.log('[BeforeUpload] 手动派发更新事件以刷新评分');
+            window.dispatchEvent(new CustomEvent('force-refresh-ai-summary'));
+          }, 500);
+        }
+      } catch (err) {
+        console.error('[BeforeUpload] 上传错误:', err);
+        message.error(`上传失败: ${err}`);
+      }
+    } else {
+      // 在创建新节点时，将文件添加到 pendingEvidenceFiles，等待节点创建后再上传
+      console.log('[BeforeUpload] 添加到待处理文件（新节点）');
+      setPendingEvidenceFiles(prev => [...prev, file]);
+      // 显示通知
+      message.info(`文件 ${file.name} 已添加到待处理列表，将在节点创建后上传`);
+    }
+    
+    // 返回 false 阻止默认上传行为，因为我们使用自定义上传逻辑
+    return false;
+  };
+
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
       {/* Wrapper for Card Rows to manage height distribution */}
@@ -2252,31 +2067,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 listType="text"
                 maxCount={5}
                 multiple
-                beforeUpload={async (file) => {
-                  console.log('[Upload] beforeUpload (真实上传到 Supabase)', file);
-                  if (!editingEmissionSource) {
-                    message.warning('请先保存排放源，再上传证明文件');
-                    return false;
-                  }
-                  const uploaded = await uploadEvidenceFile(file as File, editingEmissionSource.id);
-                  if (uploaded) {
-                    setDrawerEvidenceFiles(prev => [...prev, uploaded]);
-                    // 同步到节点
-                    if (editingEmissionSource) {
-                      const target = nodes.find(n => n.id === editingEmissionSource.id);
-                      if (target) {
-                        (target.data as any).evidenceFiles = [
-                          ...((target.data as any).evidenceFiles ?? []),
-                          uploaded,
-                        ];
-                        setStoreNodes([...nodes]);
-                      }
-                    }
-                    refreshEmissionSourcesForStage(selectedStage);
-                  }
-                  // return false to stop default upload list behavior (we handle list ourselves)
-                  return false;
-                }}
+                beforeUpload={beforeUpload}
                 onRemove={(file) => {
                   console.log('[Upload] onRemove', file);
                   setDrawerEvidenceFiles(prev => {
@@ -2960,642 +2751,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           </div>
         </Modal>
       </Modal>
-    </div>
-  );
-}
-
-// 在文件末尾添加 CSS 样式
-const customStyles = `
-/* Set explicit dark background for the table */
-.emission-source-table .ant-table {
-  background: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Explicit dark background */
-}
-
-.emission-source-table .ant-table-thead > tr > th {
-  background: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Match table background */
-  color: var(--bolt-elements-textSecondary) !important;
-  border-bottom: 1px solid var(--bolt-elements-borderColor) !important;
-}
-
-.emission-source-table .ant-table-tbody > tr > td {
-  background: transparent !important; /* Keep cell background transparent to inherit from row */
-  border-bottom: 1px solid var(--bolt-elements-borderColor) !important;
-  color: var(--bolt-elements-textPrimary) !important;
-}
-
-/* Target potential inner cell wrappers */
-.emission-source-table .ant-table-cell {
-    background: inherit !important; /* Inherit from td/th */
-}
-
-/* Row background - set here so cells inherit */
-.emission-source-table .ant-table-tbody > tr {
-    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-}
-
-/* Fix for fixed column background overlap */
-.emission-source-table .ant-table-thead > tr > th.ant-table-cell-fix-right,
-.emission-source-table .ant-table-tbody > tr > td.ant-table-cell-fix-right,
-.emission-source-table .ant-table-thead > tr > th.ant-table-cell-fix-left,
-.emission-source-table .ant-table-tbody > tr > td.ant-table-cell-fix-left {
-    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Keep base background same as row */
-}
-
-/* Ensure fixed column hover is OPAQUE */
-.emission-source-table .ant-table-tbody > tr:hover > td.ant-table-cell-fix-right,
-.emission-source-table .ant-table-tbody > tr:hover > td.ant-table-cell-fix-left {
-    background: var(--bolt-elements-background-depth-1, #2a2a2a) !important; /* Use a slightly lighter opaque color */
-}
-
-/* 悬停和选中行的背景色 - Apply to the row (Non-fixed columns can be semi-transparent) */
-.emission-source-table .ant-table-tbody > tr:hover > td {
-    background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important;
-}
-
-/* Ensure pagination elements match the theme */
-.emission-source-table .ant-pagination {
-    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-    padding: 8px;
-    border-radius: 4px;
-    margin-top: 16px !important; /* Add some space */
-}
-.emission-source-table .ant-pagination-item a,
-.emission-source-table .ant-pagination-item-link,
-.emission-source-table .ant-pagination-item-ellipsis {
-    color: var(--bolt-elements-textSecondary) !important;
-}
-.emission-source-table .ant-pagination-item-active a {
-    color: var(--bolt-primary, #5165f9) !important;
-    /* background: var(--bolt-primary-background, rgba(81, 101, 249, 0.1)) !important; */
-    border-color: var(--bolt-primary, #5165f9) !important;
-}
-.emission-source-table .ant-pagination-item-active {
-    border-color: var(--bolt-primary, #5165f9) !important;
-}
-.emission-source-table .ant-pagination-disabled .ant-pagination-item-link {
-    color: var(--bolt-elements-textDisabled) !important;
-}
-.emission-source-table .ant-select-selector {
-    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-    border-color: var(--bolt-elements-borderColor) !important;
-    color: var(--bolt-elements-textPrimary) !important;
-}
-.emission-source-table .ant-select-arrow {
-    color: var(--bolt-elements-textSecondary) !important;
-}
-
-/* 空状态的样式 */
-.emission-source-table .ant-empty-description {
-    color: var(--bolt-elements-textSecondary) !important;
-}
-
-/* --- Dark Scrollbar Styles --- */
-/* Class added to the scrollable container div */
-.emission-source-table-scroll-container::-webkit-scrollbar {
-  width: 8px;  /* Width of vertical scrollbar */
-  height: 8px; /* Height of horizontal scrollbar */
-}
-
-.emission-source-table-scroll-container::-webkit-scrollbar-track {
-  background: var(--bolt-elements-background-depth-1, #2a2a2a); /* Track color slightly lighter than deep background */
-  border-radius: 4px;
-}
-
-.emission-source-table-scroll-container::-webkit-scrollbar-thumb {
-  background-color: var(--bolt-elements-textDisabled, #555); /* Thumb color */
-  border-radius: 4px;
-  border: 2px solid var(--bolt-elements-background-depth-1, #2a2a2a); /* Creates padding around thumb */
-}
-
-.emission-source-table-scroll-container::-webkit-scrollbar-thumb:hover {
-  background-color: var(--bolt-elements-textSecondary, #777); /* Thumb color on hover */
-}
-
-/* Firefox Scrollbar Styles */
-.emission-source-table-scroll-container {
-  scrollbar-width: thin; /* "auto" or "thin" */
-  scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a); /* thumb color track color */
-}
-
-/* --- Filter Control Height Adjustment & Hover Glow --- */
-
-/* Base styles + transition for smooth effect */
-.filter-controls .ant-input-affix-wrapper,
-.filter-controls .ant-select-selector,
-.filter-controls .ant-btn {
-    height: 32px !important; /* Standard Antd default height */
-    display: flex !important; /* Helps vertical alignment */
-    align-items: center !important;
-    box-sizing: border-box !important;
-    border-color: var(--bolt-elements-borderColor) !important; /* Consistent border color */
-    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important; /* Consistent background */
-    color: var(--bolt-elements-textPrimary) !important; /* Consistent text color for input/select */
-    transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out !important; /* Added transition */
-}
-
-/* Ensure the select dropdown in filter controls has a minimum width */
-.filter-controls .ant-select-selector {
-    min-width: 120px !important;
-}
-
-/* Hover State for Input/Select */
-.filter-controls .ant-input-affix-wrapper:hover,
-.filter-controls .ant-select-selector:hover {
-    border-color: var(--bolt-primary, #5165f9) !important;
-    /* Added Glow Effect */
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
-}
-
-/* Hover State for Buttons in Filter Controls */
-.filter-controls .ant-btn:hover {
-    border-color: var(--bolt-primary, #5165f9) !important;
-     /* Added Glow Effect - Adjust color/opacity slightly for buttons if desired */
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
-    /* Optional: Slightly brighten background on hover for default buttons */
-    /* background-color: var(--bolt-hover-background) !important; */
-}
-/* Keep primary button background on hover, but apply glow */
-.filter-controls .ant-btn-primary:hover {
-    /* background-color: var(--bolt-primary-hover, #4155e7) !important; /* Antd might handle this */
-    border-color: var(--bolt-primary-hover, #4155e7) !important; /* Darker border for primary */
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.7) !important; /* Slightly stronger glow */
-}
-
-/* Focus State for Input/Select (Keep existing focus ring style) */
-.filter-controls .ant-input-affix-wrapper-focused,
-.filter-controls .ant-select-focused .ant-select-selector {
-    border-color: var(--bolt-primary, #5165f9) !important;
-    box-shadow: 0 0 0 2px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.2) !important; /* Consistent focus ring */
-}
-
-/* --- Glow Effect for Top Buttons --- */
-
-/* Base transition for top buttons */
-.p-4 > .ant-row:first-child .ant-btn {
-    transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out, background-color 0.2s ease-out !important;
-}
-
-/* Hover state for top buttons */
-.p-4 > .ant-row:first-child .ant-btn:hover {
-    border-color: var(--bolt-primary, #5165f9) !important;
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
-}
-
-/* Adjust primary top button hover if needed */
-.p-4 > .ant-row:first-child .ant-btn-primary:hover {
-    border-color: var(--bolt-primary-hover, #4155e7) !important;
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.7) !important;
-}
-
-/* --- Drawer Dark Theme Styles --- */
-
-.ant-drawer-content-wrapper {
-  /* Match card background */
-  background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-}
-
-.ant-drawer-header {
-  background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-  border-bottom: 1px solid var(--bolt-elements-borderColor, #333) !important;
-}
-
-.ant-drawer-title {
-  color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-
-.ant-drawer-close {
-  color: var(--bolt-elements-textSecondary, #ccc) !important;
-}
-.ant-drawer-close:hover {
-  color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-
-.ant-drawer-body {
-  background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-  color: var(--bolt-elements-textPrimary, #fff) !important; /* Default text color in body */
-}
-
-/* Style form elements within the drawer */
-.ant-drawer-body .ant-form-item-l abel > label,
-.ant-drawer-body .ant-form-item-label {
-    color: var(--bolt-elements-textSecondary, #ccc) !important; /* Lighter label color */
-    border-bottom: none !important; /* Attempt to remove any bottom border on the label container */
-    padding-bottom: 2px !important; /* Further reduced padding, was 4px */
-    line-height: 1.2em !important; /* Adjust line-height if label text itself has large internal spacing, use em for relative sizing */
-}
-
-/* Reduce margin below the entire form item to tighten up rows */
-.ant-drawer-body .ant-form-item {
-  margin-bottom:15px !important; /* Further reduced from 12px, adjust as needed */
-}
-
-/* Target the control wrapper to see if it has top padding creating a gap */
-.ant-drawer-body .ant-form-item-control {
-  padding-top: 0px !important; /* Attempt to remove any top padding on the control wrapper */
-  /* Adding min-height to ensure control itself doesn't collapse if it was relying on padding */
-  min-height: auto !important; /* Or set to a specific value like 32px if inputs have fixed height */ 
-}
-
-/* Force styling on ALL relevant input/select elements within the drawer's form items */
-.ant-drawer-body .ant-form-item .ant-input,
-.ant-drawer-body .ant-form-item .ant-input-affix-wrapper,
-.ant-drawer-body .ant-form-item .ant-input-number,
-.ant-drawer-body .ant-form-item .ant-select-selector {
-    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-    border-color: var(--bolt-elements-borderColor, #333) !important;
-    color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-/* Ensure the input element *inside* the affix wrapper also gets the styles */
-.ant-drawer-body .ant-form-item .ant-input-affix-wrapper input.ant-input {
-    background-color: transparent !important; /* Let wrapper handle background */
-    color: var(--bolt-elements-textPrimary, #fff) !important;
-    border: none !important; /* Remove border as wrapper has it */
-}
-
-/* Placeholders */
-.ant-drawer-body .ant-form-item .ant-input-affix-wrapper input::placeholder, /* Specificity for placeholder in wrapper */
-.ant-drawer-body .ant-input-number::placeholder,
-.ant-drawer-body .ant-select-selection-placeholder {
-    color: var(--bolt-elements-textDisabled, #555) !important; /* Dimmer placeholder */
-}
-
-/* Style buttons in the drawer footer area (even if footer is null, the Form.Item acts like one) */
-.ant-drawer-body .ant-form-item:last-child {
-     /* You might need a specific class if this isn't always the last item */
-    background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Match drawer body */
-    margin-top: 24px; /* Add some space above buttons */
-    padding-top: 10px; /* Padding like a footer */
-    /* border-top: 1px solid var(--bolt-elements-borderColor, #333) !important; */ /* Separator line REMOVED */
-}
-
-.ant-drawer-body .ant-btn {
-     /* Standard button styling */
-}
-.ant-drawer-body .ant-btn-primary {
-     /* Primary button styling (might inherit theme) */
-}
-.ant-drawer-body .ant-btn-default {
-     background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-     border-color: var(--bolt-elements-borderColor, #333) !important;
-     color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-.ant-drawer-body .ant-btn-default:hover {
-    border-color: var(--bolt-primary, #5165f9) !important;
-    color: var(--bolt-primary, #5165f9) !important;
-}
-
-/* --- File Upload Card Styles (Add if needed) --- */
-.file-upload-card .file-upload-table .ant-table {
-    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-}
-.file-upload-card .file-upload-table .ant-table-thead > tr > th {
-  background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-  color: var(--bolt-elements-textSecondary) !important;
-  border-bottom: 1px solid var(--bolt-elements-borderColor) !important;
-}
-.file-upload-card .file-upload-table .ant-table-tbody > tr > td {
-  background: transparent !important;
-  border-bottom: 1px solid var(--bolt-elements-borderColor) !important;
-  color: var(--bolt-elements-textPrimary) !important;
-}
-.file-upload-card .file-upload-table .ant-table-cell {
-    background: inherit !important;
-}
-.file-upload-card .file-upload-table .ant-table-tbody > tr {
-    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-}
-.file-upload-card .file-upload-table .ant-table-tbody > tr:hover > td {
-  background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important;
-}
-/* Add similar styles for pagination, empty state, scrollbar if needed */
-.file-upload-table-container::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.file-upload-table-container::-webkit-scrollbar-track {
-  background: var(--bolt-elements-background-depth-1, #2a2a2a);
-  border-radius: 4px;
-}
-.file-upload-table-container::-webkit-scrollbar-thumb {
-  background-color: var(--bolt-elements-textDisabled, #555);
-  border-radius: 4px;
-  border: 2px solid var(--bolt-elements-background-depth-1, #2a2a2a);
-}
-.file-upload-table-container::-webkit-scrollbar-thumb:hover {
-  background-color: var(--bolt-elements-textSecondary, #777);
-}
-.file-upload-table-container {
-  scrollbar-width: thin;
-  scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a);
-}
-
-/* Pagination styles for file-upload-table */
-.file-upload-table .ant-pagination {
-    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Overall pagination container */
-    padding: 8px;
-    border-radius: 4px;
-    margin-top: 16px !important;
-    display: flex;
-    justify-content: flex-end;
-}
-
-.file-upload-table .ant-pagination ul { /* In case AntD wraps LIs in a UL */
-    display: flex;
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-/* Common styles for all pagination list items (numbers, prev/next arrows, jump arrows) */
-.file-upload-table .ant-pagination-item,
-.file-upload-table .ant-pagination-prev,
-.file-upload-table .ant-pagination-next,
-.file-upload-table .ant-pagination-jump-prev,
-.file-upload-table .ant-pagination-jump-next {
-    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-    border: 1px solid var(--bolt-elements-borderColor, #333) !important;
-    border-radius: 2px !important; /* Consistent border-radius */
-    min-width: 32px; /* AntD default min-width for items */
-    height: 32px; /* AntD default height */
-    line-height: 30px; /* AntD default line-height */
-    text-align: center;
-    margin-right: 8px; /* Default spacing */
-    display: inline-block; /* Ensure they behave as blocks for sizing */
-    vertical-align: middle;
-}
-
-/* Hover styles for non-disabled pagination list items */
-.file-upload-table .ant-pagination-item:not(.ant-pagination-disabled):hover,
-.file-upload-table .ant-pagination-prev:not(.ant-pagination-disabled):hover,
-.file-upload-table .ant-pagination-next:not(.ant-pagination-disabled):hover,
-.file-upload-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover,
-.file-upload-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover {
-    background-color: var(--bolt-elements-background-depth-0, #333) !important;
-    border-color: var(--bolt-primary, #5165f9) !important;
-}
-
-/* Links and icons inside pagination items */
-.file-upload-table .ant-pagination-item a, /* For numbered items */
-.file-upload-table .ant-pagination-item-link, /* For prev/next/jump arrows */
-.file-upload-table .ant-pagination-item-ellipsis { /* For ellipsis */
-    color: var(--bolt-elements-textSecondary) !important;
-    background-color: transparent !important; /* Links/icons must be transparent */
-    display: block; /* Fill the parent LI */
-    height: 100%;
-    width: 100%;
-}
-
-/* Text/icon color on hover for links/icons inside hovered LIs */
-.file-upload-table .ant-pagination-item:not(.ant-pagination-disabled):hover a,
-.file-upload-table .ant-pagination-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
-.file-upload-table .ant-pagination-next:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
-.file-upload-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
-.file-upload-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
-.file-upload-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-ellipsis, /* Ellipsis hover icon color */
-.file-upload-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover .ant-pagination-item-ellipsis {
-    color: var(--bolt-primary, #5165f9) !important;
-}
-
-/* Active state for numbered pagination items (LI has .ant-pagination-item-active) */
-.file-upload-table .ant-pagination-item-active {
-    background-color: var(--bolt-primary, #5165f9) !important;
-    border-color: var(--bolt-primary, #5165f9) !important;
-}
-.file-upload-table .ant-pagination-item-active a {
-    color: var(--bolt-primary-contrast-text, #fff) !important;
-}
-
-/* Disabled state for any pagination item (LI has .ant-pagination-disabled) */
-.file-upload-table .ant-pagination-disabled {
-    background-color: var(--bolt-elements-background-disabled, #222) !important;
-    border-color: var(--bolt-elements-borderColor) !important; /* Keep border consistent */
-    cursor: not-allowed;
-}
-.file-upload-table .ant-pagination-disabled .ant-pagination-item-link,
-.file-upload-table .ant-pagination-disabled a, /* For disabled numbered items if any */
-.file-upload-table .ant-pagination-disabled .ant-pagination-item-ellipsis {
-    color: var(--bolt-elements-textDisabled) !important;
-    background-color: transparent !important; /* Link is still transparent */
-    cursor: not-allowed;
-}
-/* No hover effect change for disabled items */
-.file-upload-table .ant-pagination-disabled:hover {
-    background-color: var(--bolt-elements-background-disabled, #222) !important;
-    border-color: var(--bolt-elements-borderColor) !important;
-}
-.file-upload-table .ant-pagination-disabled:hover .ant-pagination-item-link,
-.file-upload-table .ant-pagination-disabled:hover a,
-.file-upload-table .ant-pagination-disabled:hover .ant-pagination-item-ellipsis {
-    color: var(--bolt-elements-textDisabled) !important;
-}
-
-/* Ellipsis specific text styling (if not an icon) */
-.file-upload-table li.ant-pagination-jump-prev .ant-pagination-item-ellipsis,
-.file-upload-table li.ant-pagination-jump-next .ant-pagination-item-ellipsis {
-    letter-spacing: 2px;
-}
-
-/* Select for page size changer (if present) */
-.file-upload-table .ant-pagination-options .ant-select-selector {
-    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-    border-color: var(--bolt-elements-borderColor) !important;
-    color: var(--bolt-elements-textPrimary) !important;
-}
-.file-upload-table .ant-pagination-options .ant-select-arrow {
-    color: var(--bolt-elements-textSecondary) !important;
-}
-
-/* Empty state description in table */
-.file-upload-table .ant-empty-description {
-    color: var(--bolt-elements-textSecondary) !important;
-}
-
-
-/* --- Upload Modal Dark Styles --- */
-.ant-modal-content {
-    background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-}
-.ant-modal-header {
-    background-color: transparent !important; /* Set to transparent */
-    border-bottom: 1px solid var(--bolt-elements-borderColor, #333) !important;
-}
-.ant-modal-title {
-    color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-.ant-modal-close {
-    color: var(--bolt-elements-textSecondary, #ccc) !important;
-}
-.ant-modal-close:hover {
-    color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-.ant-modal-body {
-    /* Inherits from content */
-}
-.ant-modal-footer {
-     background-color: transparent !important; /* Set to transparent */
-     border-top: 1px solid var(--bolt-elements-borderColor, #333) !important;
-}
-
-/* Style form elements within the modal */
-.ant-modal-body .ant-form-item-label > label {
-    color: var(--bolt-elements-textSecondary, #ccc) !important;
-}
-.ant-modal-body .upload-modal-select .ant-select-selector, /* Target specific select */
-.ant-modal-body .ant-select-dropdown {
-    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-    border-color: var(--bolt-elements-borderColor, #333) !important;
-    color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-.ant-modal-body .upload-modal-select .ant-select-selection-placeholder {
-    color: var(--bolt-elements-textDisabled, #555) !important;
-}
-.ant-modal-body .upload-modal-select .ant-select-arrow {
-     color: var(--bolt-elements-textSecondary, #ccc) !important;
-}
-
-/* Style Upload Dragger */
-.ant-modal-body .upload-modal-dragger,
-.ant-modal-body .upload-modal-dragger .ant-upload.ant-upload-drag {
-    background: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-    border: 1px dashed var(--bolt-elements-borderColor, #555) !important;
-}
-.ant-modal-body .upload-modal-dragger:hover .ant-upload.ant-upload-drag {
-    border-color: var(--bolt-primary, #5165f9) !important;
-}
-.ant-modal-body .upload-modal-dragger .ant-upload-drag-icon .anticon {
-    color: var(--bolt-primary, #5165f9) !important;
-}
-.ant-modal-body .upload-modal-dragger .ant-upload-text {
-    color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-.ant-modal-body .upload-modal-dragger .ant-upload-hint {
-    color: var(--bolt-elements-textSecondary, #ccc) !important;
-}
-
-/* Style Upload List Items (basic) */
-.ant-modal-body .ant-upload-list-item {
-    color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-.ant-modal-body .ant-upload-list-item-error .ant-upload-list-item-name,
-.ant-modal-body .ant-upload-list-item-error .ant-upload-list-item-card-actions .anticon {
-    color: var(--bolt-danger, #f5222d) !important;
-}
-
-
-/* Style Modal Footer Buttons */
-.ant-modal-footer .ant-btn-primary {
-    /* Primary button styles (usually themed) */
-}
-.ant-modal-footer .ant-btn-default {
-     background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-     border-color: var(--bolt-elements-borderColor, #333) !important;
-     color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-.ant-modal-footer .ant-btn-default:hover {
-    border-color: var(--bolt-primary, #5165f9) !important;
-    color: var(--bolt-primary, #5165f9) !important;
-}
-
-/* --- Ant Design Message (Toast) Dark Theme Styles --- */
-.ant-message-notice-content {
-    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important; /* Darker background */
-    color: var(--bolt-elements-textPrimary, #fff) !important;
-    border: 1px solid var(--bolt-elements-borderColor, #444) !important; /* Subtle border */
-    box-shadow: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 9px 28px 8px rgba(0, 0, 0, 0.25) !important; /* Adjusted shadow for dark */
-    border-radius: 4px !important;
-}
-
-.ant-message-success .anticon {
-    color: var(--bolt-success, #52c41a) !important; /* Use a success variable or fallback */
-}
-
-.ant-message-error .anticon {
-    color: var(--bolt-danger, #ff4d4f) !important; /* Use danger variable or fallback (antd default red) */
-}
-
-.ant-message-info .anticon {
-    color: var(--bolt-primary, #5165f9) !important; /* Use primary variable or fallback */
-}
-
-.ant-message-warning .anticon {
-    color: var(--bolt-warning, #faad14) !important; /* Use warning variable or fallback */
-}
-
-.ant-message-loading .anticon {
-    color: var(--bolt-primary, #5165f9) !important; /* Use primary for loading too */
-}
-/* --- End Toast Styles --- */
-
-/* --- Upload Modal Spacing Fix --- */
-.upload-modal-upload-item {
-    margin-top: 16px !important; /* Add space above the upload section */
-}
-
-/* Adjust position of file type error message */
-.upload-modal-filetype-item .ant-form-item-explain {
-    margin-top: 14px !important; /* Adjusted value to 14px */
-}
-
-/* Ensure all form validation errors are red */
-.ant-form-item-explain-error {
-    color: var(--bolt-danger, #ff4d4f) !important; /* Use danger variable or Antd default red */
-}
-
-/* Reduce font size in file upload table in main panel */
-.file-upload-table .ant-table-tbody > tr > td {
-    font-size: 12px !important; /* Smaller font size */
-}
-
-/* Reduce font size in emission source table */
-.emission-source-table .ant-table-tbody > tr > td {
-    font-size: 12px !important; /* Smaller font size */
-}
-
-/* Styles for the table within the upload modal */
-.upload-modal-file-table .ant-table-tbody > tr > td {
-  font-size: 12px; /* Consistent small font */
-  padding: 8px !important; /* Adjust padding for Select */
-}
-
-.upload-modal-file-table .ant-table-tbody > tr > td:nth-child(2) > .ant-select {
-  margin-left: 18px !important; /* 轻微向右推移 */
-}
-
-.upload-modal-file-table .ant-select-selector {
-  height: 30px !important; /* Ensure select fits well */
-  font-size: 12px;
-  width: 90px !important; /* Explicit fixed width */
-  min-width: 90px !important; /* Ensure it doesn't shrink further */
-  box-sizing: border-box !important; /* Ensure padding/border are included in width */
-}
-.upload-modal-file-table .ant-select-selection-item,
-.upload-modal-file-table .ant-select-selection-placeholder {
-  line-height: 28px !important; /* Adjust line height for vertical centering */
-}
-
-/* Ensure Tabs component in Drawer has no bottom border for the nav/header part */
-.ant-drawer-body .ant-tabs-nav {
-    border-bottom: none !important;
-    margin-bottom: 8px !important; /* Slightly reduced from 12px */
-}
-.ant-drawer-body .ant-tabs-tab {
-    padding-top: 2px !important; /* Further reduced from 4px */
-    padding-bottom: 6px !important; /* Further reduced from 8px */
-}
-
-/* Status color classes */
-.status-complete {
-  color: #00ff7f !important;
-  background-color: rgba(0, 255, 127, 0.15) !important;
-  padding: 2px 10px !important;
-  border-radius: 12px !important;
-  font-size: 12px !important;
-  display: inline-block !important;
-  border: 1px solid rgba(0, 255, 127, 0.3) !important;
-  box-shadow: 0 0 6px rgba(0, 255, 127, 0.4) !important;
-  text-shadow: 0 0 5px rgba(0, 255, 127, 0.5) !important;
-}
-.status-missing {
+      <style jsx>{`
+        .status-missing {
+          color: #ff4d4f;
+        }
   color: #ff4d4f !important;
   background-color: rgba(255, 77, 79, 0.15) !important;
   padding: 2px 10px !important;

@@ -120,6 +120,8 @@ export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISumm
       };
     }
 
+    console.log('[AISummary] 重新计算评分，节点数量:', currentNodes.length);
+    
     const lifecycle = ['原材料获取', '生产制造', '分销和储存', '产品使用', '废弃处置'];
     // Use mapped stage names for calculating existing stages
     const existingStages = new Set(
@@ -325,13 +327,15 @@ export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISumm
     currentNodes.forEach((node) => {
       if (!node.data) return;
       totalTraceableNodeNumber++;
-      if (node.data.carbonFactordataSource?.includes('数据库匹配')) {
+      const hasDbMatch = node.data.carbonFactordataSource?.includes('数据库匹配');
+      const hasEvidence = Array.isArray(node.data.evidenceFiles) && node.data.evidenceFiles.length > 0;
+      if (hasDbMatch || hasEvidence) {
         dataOkTraceableNodeNumber++;
       } else {
         traceableIncompleteNodes.push({
           id: node.id,
           label: node.data.label || `Node ${node.id}`,
-          missingFields: ['碳足迹因子数据来源'],
+          missingFields: ['碳足迹因子数据来源或证明材料'],
         });
       }
     });
@@ -407,7 +411,27 @@ export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISumm
     };
   }, [aiReport.isExpanded, aiReport.expandedSection]); 
 
+  // 监听强制刷新事件
   useEffect(() => {
+    console.log('[AISummary] 设置事件监听器: force-refresh-ai-summary');
+    
+    const handleForceRefresh = () => {
+      console.log('[AISummary] 收到强制刷新事件');
+      const summary = calculateAiSummaryInternal(nodes);
+      setAiReport(summary);
+      setStoreAiSummary(summary);
+    };
+    
+    window.addEventListener('force-refresh-ai-summary', handleForceRefresh);
+    
+    return () => {
+      window.removeEventListener('force-refresh-ai-summary', handleForceRefresh);
+    };
+  }, [nodes, calculateAiSummaryInternal, setStoreAiSummary]);
+  
+  // 标准的节点变化监听
+  useEffect(() => {
+    console.log('[AISummary] 节点变化，重新计算评分');
     const summary = calculateAiSummaryInternal(nodes);
     setAiReport(summary);
     setStoreAiSummary(summary);
