@@ -1731,8 +1731,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       children: [
         { title: '数值', dataIndex: 'activityData', width: 90, align: 'center', render: (v: any, r: any) => v !== undefined && v !== null ? <span>{v}{r.activityData_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
         { title: '单位', dataIndex: 'activityUnit', width: 80, align: 'center', render: (v: any, r: any) => v ? <span>{v}{r.activityUnit_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
-        { title: '运输-起点地址', dataIndex: 'startPoint', width: 120, align: 'center', render: () => '-' },
-        { title: '运输-终点地址', dataIndex: 'endPoint', width: 120, align: 'center', render: () => '-' },
+        { title: '运输-起点地址', dataIndex: 'startPoint', width: 120, align: 'center', render: (_: any, record: any) => record.startPoint || '-' },
+        { title: '运输-终点地址', dataIndex: 'endPoint', width: 120, align: 'center', render: (_: any, record: any) => record.endPoint || '-' },
         { title: '运输方式', dataIndex: 'transportType', width: 90, align: 'center', render: () => '-' },
         { title: '证据文件', dataIndex: 'evidenceFiles', width: 90, align: 'center', render: (_: any, r: any) => r.hasEvidenceFiles ? '有' : '无' },
       ]
@@ -2646,8 +2646,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 // 检查是否运输类型
                 if (item.category !== '运输') {
                   failed.push({id: item.id, reason: '排放源类型非运输类型'});
-                } else if (!item.transportStart || !item.transportEnd || !item.transportType) {
-                  failed.push({id: item.id, reason: '缺少必要的前置数据'});
+                } else if (!item.startPoint || !item.endPoint /* || !item.transportType */) { // 暂时不检查 transportType，因为它当前没有值
+                  failed.push({id: item.id, reason: '缺少起点或终点数据'});
                 } else if (item.activityData !== undefined && item.activityData !== null && item.activityData !== '') {
                   failed.push({id: item.id, reason: '已填写活动数据数值'});
                 } else {
