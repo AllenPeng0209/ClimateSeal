@@ -38,7 +38,7 @@ import {
   TeamOutlined,
 } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
-import type { VendorTask } from '~/types/dashboard';
+import type { VendorDataTask } from '~/types';
 import './VendorDataSection.css';
 
 const { Title, Text, Paragraph } = Typography;
@@ -47,9 +47,9 @@ const { Search } = Input;
 const { Option } = Select;
 
 interface VendorDataSectionProps {
-  vendorTasks: VendorTask[];
-  onAddTask: (task: Omit<VendorTask, 'id'>) => void;
-  onEditTask: (id: string, task: Partial<VendorTask>) => void;
+  vendorTasks: VendorDataTask[];
+  onAddTask: (task: Omit<VendorDataTask, 'id'>) => void;
+  onEditTask: (id: string, task: Partial<VendorDataTask>) => void;
   onDeleteTask: (id: string) => void;
 }
 
@@ -61,7 +61,7 @@ const VendorDataSection: React.FC<VendorDataSectionProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [isModalVisible, setIsModalVisible] = React.useState(false);
-  const [editingTask, setEditingTask] = React.useState<VendorTask | null>(null);
+  const [editingTask, setEditingTask] = React.useState<VendorDataTask | null>(null);
   const [searchText, setSearchText] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
   const [activeTab, setActiveTab] = React.useState('1');
@@ -79,7 +79,7 @@ const VendorDataSection: React.FC<VendorDataSectionProps> = ({
       title: '供应商',
       dataIndex: 'vendor',
       key: 'vendor',
-      render: (text: string, record: VendorTask) => (
+      render: (text: string, record: VendorDataTask) => (
         <Space>
           <Text strong>{text}</Text>
           <Tooltip title="查看详情">
@@ -108,8 +108,8 @@ const VendorDataSection: React.FC<VendorDataSectionProps> = ({
     },
     {
       title: '截止日期',
-      dataIndex: 'dueDate',
-      key: 'dueDate',
+      dataIndex: 'deadline',
+      key: 'deadline',
       render: (date: string) => (
         <Space>
           <Text>{date}</Text>
@@ -120,20 +120,14 @@ const VendorDataSection: React.FC<VendorDataSectionProps> = ({
       ),
     },
     {
-      title: '负责人',
-      dataIndex: 'assignedTo',
-      key: 'assignedTo',
-      render: (text: string) => (
-        <Space>
-          <TeamOutlined />
-          <Text>{text}</Text>
-        </Space>
-      ),
+      title: '产品',
+      dataIndex: 'product',
+      key: 'product',
     },
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: VendorTask) => (
+      render: (_: any, record: VendorDataTask) => (
         <Space size="middle">
           <Tooltip title="编辑">
             <Button
@@ -168,13 +162,13 @@ const VendorDataSection: React.FC<VendorDataSectionProps> = ({
     setIsModalVisible(true);
   };
 
-  const handleEdit = (task: VendorTask) => {
+  const handleEdit = (task: VendorDataTask) => {
     setEditingTask(task);
     form.setFieldsValue(task);
     setIsModalVisible(true);
   };
 
-  const handleDelete = (record: VendorTask) => {
+  const handleDelete = (record: VendorDataTask) => {
     Modal.confirm({
       title: '确认删除',
       content: `确定要删除供应商 ${record.vendor} 吗？`,
@@ -211,12 +205,12 @@ const VendorDataSection: React.FC<VendorDataSectionProps> = ({
     message.success('刷新成功');
   };
 
-  const handleViewDetails = (record: VendorTask) => {
+  const handleViewDetails = (record: VendorDataTask) => {
     // TODO: 实现查看详情功能
     console.log('查看详情:', record);
   };
 
-  const handleDownloadTemplate = (record: VendorTask) => {
+  const handleDownloadTemplate = (record: VendorDataTask) => {
     // TODO: 实现下载模板功能
     message.success('模板下载成功');
   };
@@ -235,8 +229,8 @@ const VendorDataSection: React.FC<VendorDataSectionProps> = ({
       }
     },
     beforeUpload(file) {
-      const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-                      file.type === 'application/vnd.ms-excel';
+      const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        file.type === 'application/vnd.ms-excel';
       if (!isExcel) {
         message.error('只能上传Excel文件!');
         return false;
@@ -307,7 +301,7 @@ const VendorDataSection: React.FC<VendorDataSectionProps> = ({
               type="primary"
               icon={<PlusOutlined />}
               onClick={handleAdd}
-              style={{ 
+              style={{
                 backgroundColor: 'var(--carbon-green-primary)',
                 borderColor: 'var(--carbon-green-dark)'
               }}
@@ -390,18 +384,11 @@ const VendorDataSection: React.FC<VendorDataSectionProps> = ({
             </Select>
           </Form.Item>
           <Form.Item
-            name="dueDate"
+            name="deadline"
             label="截止日期"
             rules={[{ required: true, message: '请选择截止日期' }]}
           >
             <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
-            name="assignedTo"
-            label="负责人"
-            rules={[{ required: true, message: '请输入负责人' }]}
-          >
-            <Input placeholder="请输入负责人姓名" />
           </Form.Item>
         </Form>
       </Modal>
