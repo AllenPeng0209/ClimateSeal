@@ -124,6 +124,7 @@ export class CarbonFlowActionHandler {
       'calculate',
       'file_parser',
       'carbon_factor_match',
+      'ai_autofill_transport_data',
     ];
 
     if (!validOperations.includes(action.operation)) {
@@ -159,6 +160,9 @@ export class CarbonFlowActionHandler {
           break;
         case 'file_parser':
           await this._handleFileParseAndCreateNodes(action);
+          break;
+        case 'ai_autofill_transport_data':
+          await this._handleAIAutoFillTransportData(action);
           break;
         default: {
           // Use type assertion for exhaustive check
@@ -1797,6 +1801,101 @@ export class CarbonFlowActionHandler {
         `Cannot convert unit from '${sourceUnit}' (mapped to '${sUnit}') to '${targetUnit}' (mapped to '${tUnit}') using 'convert-units'. Error: ${(error as Error).message}. Defaulting to conversion factor 1.`,
       );
       return 1;
+    }
+  }
+
+  /**
+   * AI一键补全运输数据
+   * @param action CarbonFlowAction，需包含 nodeId（逗号分隔的id字符串）
+   */
+  private async _handleAIAutoFillTransportData(action: CarbonFlowAction): Promise<void> {
+    if (!action.nodeId) return;
+    const nodeIds = action.nodeId.split(',').map(id => id.trim()).filter(Boolean);
+    if (!nodeIds.length) return;
+    const nodesToFill = this._nodes.filter(n => nodeIds.includes(n.id));
+    if (!nodesToFill.length) return;
+
+    // 构造请求体，增加 nodeType 和 category
+    const requestBody = nodesToFill.map(node => ({
+      nodeId: node.id,
+      startPoint: (node.data as any).startPoint,
+      endPoint: (node.data as any).endPoint,
+      name: node.data.label || node.data.nodeName || '',
+      nodeType: node.type,
+      category: (node.data as any).emissionType || '',
+    }));
+
+    let aiResult: any[] = [];
+    try {
+      const response = await fetch('/api/ai-autofill-transport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodes: requestBody }),
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+        if (
+          errorBody &&
+          typeof errorBody === 'object' &&
+          errorBody !== null &&
+          'message' in errorBody &&
+          typeof errorBody.message === 'string'
+        ) {
+          throw new Error(`API Error (${response.status}): ${errorBody.message}`);
+        } else {
+          throw new Error(`API Error (${response.status}): ${response.statusText}`);
+        }
+      }
+      aiResult = await response.json();
+    } catch (error) {
+      console.error('调用 /api/ai-autofill-transport 失败:', error);
+      window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
+        detail: { success: [], failed: nodeIds, logs: [`AI补全运输数据API调用失败: ${error instanceof Error ? error.message : String(error)}`] },
+      }));
+      return;
+    }
+
+    // aiResult: [{ nodeId, transportType, distance, distanceUnit, notes }]
+    const success: string[] = [];
+    const failed: string[] = [];
+    const logs: string[] = [];
+    const updatedNodes = this._nodes.map(node => {
+      const ai = aiResult.find(r => r.nodeId === node.id);
+      if (!ai) return node;
+      try {
+        // 更新节点数据
+        const newData = {
+          ...node.data,
+          transportType: ai.transportType,
+          distance: ai.distance,
+          distanceUnit: ai.distanceUnit,
+          notes: ai.notes,
+        };
+        success.push(node.id);
+        logs.push(`节点${node.id}补全成功: ${ai.transportType}, ${ai.distance}${ai.distanceUnit}`);
+        return { ...node, data: newData };
+      } catch (e) {
+        failed.push(node.id);
+        logs.push(`节点${node.id}补全失败: ${(e as Error).message}`);
+        return node;
+      }
+    });
+    // 统计未返回的节点为失败
+    nodeIds.forEach(id => {
+      if (!success.includes(id) && !failed.includes(id)) {
+        failed.push(id);
+        logs.push(`节点${id}未返回AI补全结果`);
+      }
+    });
+    // 更新节点
+    this._setNodes(updatedNodes);
+    window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
+      detail: { success, failed, logs },
+    }));
+    if (success.length > 0) {
+      window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
+        detail: { action: 'AI_AUTOFILL_TRANSPORT', nodeIds: success },
+      }));
     }
   }
 }

@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI from 'openai';
 
 /**
  * Defines the structure for each item parsed by the CsvParsingAgent.
@@ -35,7 +35,7 @@ interface CsvParsingAgentOptions {
 export async function parseCsvWithLlmAgent({
   csvContent,
   apiKey = process.env.DASHSCOPE_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1", // Default baseURL from example
+  baseURL = 'https://dashscope.aliyuncs.com/compatible-mode/v1', // Default baseURL from example
   model = 'qwen-plus',
 }: CsvParsingAgentOptions): Promise<CsvParseResultItem[]> {
   console.log(`[CsvParsingAgent] Starting CSV parsing using official OpenAI SDK compatible API...`);

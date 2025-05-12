@@ -45,7 +45,8 @@ export interface CarbonFlowAction extends BaseAction {
     | 'layout'
     | 'calculate'
     | 'file_parser'
-    | 'carbon_factor_match';
+    | 'carbon_factor_match'
+    | 'ai_autofill_transport_data';
   nodeId?: string;
   nodeType?: string;
   source?: string;

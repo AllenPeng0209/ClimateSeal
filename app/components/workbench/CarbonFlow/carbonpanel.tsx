@@ -34,7 +34,6 @@ import {
   EditOutlined,
   InboxOutlined,
   ClearOutlined,
-  AimOutlined,
   DatabaseOutlined,
   FileOutlined,
 } from '@ant-design/icons';
@@ -297,7 +296,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           return {
             id: node.id,
             name: data.label || '未命名节点',
-            category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
+            category: node.type === 'distribution' ? '运输' : (typeof data.emissionType === 'string' ? data.emissionType : '未分类'),
             activityData: safeParseFloat(data.quantity), // 读取 quantity 并转为 number or undefined
             activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '', // 读取 activityUnit
             conversionFactor: safeParseFloat(data.unitConversion), // Modified: Read unitConversion, use safeParseFloat
@@ -314,6 +313,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
             startPoint: typeof data.startPoint === 'string' ? data.startPoint : '', // 新增：从节点数据获取起点
             endPoint: typeof data.endPoint === 'string' ? data.endPoint : '', // 新增：从节点数据获取终点
+            transportType: typeof data.transportType === 'string' ? data.transportType : '', // 新增：从节点数据获取运输方式
+            distance: typeof data.distance === 'number' ? data.distance : 0, // 新增：从节点数据获取运输距离
+            distanceUnit: typeof data.distanceUnit === 'string' ? data.distanceUnit : '', // 新增：从节点数据获取运输距离单位
           };
         });
 
@@ -334,7 +336,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         return {
           id: node.id,
           name: data.label || '未命名节点',
-          category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
+          category: node.type === 'distribution' ? '运输' : (typeof data.emissionType === 'string' ? data.emissionType : '未分类'),
           activityData: safeParseFloat(data.quantity),
           activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '',
           conversionFactor: safeParseFloat(data.unitConversion),
@@ -351,6 +353,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           backgroundDataSourceTab: data.backgroundDataSourceTab || 'database',
           startPoint: typeof data.startPoint === 'string' ? data.startPoint : '', // 新增：从节点数据获取起点
           endPoint: typeof data.endPoint === 'string' ? data.endPoint : '', // 新增：从节点数据获取终点
+          transportType: typeof data.transportType === 'string' ? data.transportType : '', // 新增：从节点数据获取运输方式
+          distance: typeof data.distance === 'number' ? data.distance : 0, // 新增：从节点数据获取运输距离
+          distanceUnit: typeof data.distanceUnit === 'string' ? data.distanceUnit : '', // 新增：从节点数据获取运输距离单位
         };
       });
       setAllEmissionSourcesForAIModal(allSources as EmissionSource[]);
@@ -372,7 +377,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       const source: EmissionSource = {
         id: node.id,
         name: data.label || '未命名节点',
-        category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
+        category: node.type === 'distribution' ? '运输' : (typeof data.emissionType === 'string' ? data.emissionType : '未分类'),
         activityData: safeParseFloat(data.quantity),
         activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '',
         conversionFactor: data.unitConversion ? safeParseFloat(data.unitConversion) : 1, // 修正：从unitConversion读取，默认为1
@@ -390,6 +395,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         backgroundDataSourceTab: data.backgroundDataSourceTab || 'database', // 新增：从节点读取，默认为database
         startPoint: typeof data.startPoint === 'string' ? data.startPoint : '', // 新增：从节点数据获取起点
         endPoint: typeof data.endPoint === 'string' ? data.endPoint : '', // 新增：从节点数据获取终点
+        transportType: typeof data.transportType === 'string' ? data.transportType : '', // 新增：从节点数据获取运输方式
+        distance: typeof data.distance === 'number' ? data.distance : 0, // 新增：从节点数据获取运输距离
+        distanceUnit: typeof data.distanceUnit === 'string' ? data.distanceUnit : '', // 新增：从节点数据获取运输距离单位
+        
       };
       return source;
     });
@@ -520,6 +529,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab
                 startPoint: typeof values.startPoint === 'string' ? values.startPoint : '', // 新增：从节点数据获取起点
                 endPoint: typeof values.endPoint === 'string' ? values.endPoint : '', // 新增：从节点数据获取终点
+                transportType: typeof values.transportType === 'string' ? values.transportType : '', // 新增：从节点数据获取运输方式
+                distance: typeof values.distance === 'number' ? values.distance : 0, // 新增：从节点数据获取运输距离
+                distanceUnit: typeof values.distanceUnit === 'string' ? values.distanceUnit : '', // 新增：从节点数据获取运输距离单位
              } 
            : item
        ));
@@ -552,7 +564,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
              dataToUpdate.dataRisk = editingEmissionSource.dataRisk; // 保留数据风险
              dataToUpdate.backgroundDataSourceTab = backgroundDataActiveTabKey as ('database' | 'manual'); // 更新：保存当前选择的tab到节点
              dataToUpdate.startPoint = typeof values.startPoint === 'string' ? values.startPoint : ''; // 新增：从节点数据获取起点
-             dataToUpdate.endPoint = typeof values.endPoint === 'string' ? values.endPoint : ''; // 新增：从节点数据获取终点
+             dataToUpdate.endPoint = typeof values.endPoint === 'string' ? values.endPoint : ''; // 新增：从节点数据获取终点  
+             dataToUpdate.transportType = typeof values.transportType === 'string' ? values.transportType : ''; // 新增：从节点数据获取运输方式
+             dataToUpdate.distance = typeof values.distance === 'number' ? values.distance : 0; // 新增：从节点数据获取运输距离
+             dataToUpdate.distanceUnit = typeof values.distanceUnit === 'string' ? values.distanceUnit : ''; // 新增：从节点数据获取运输距离单位
 
              // --- 结束更新通用字段保存逻辑 ---
 
@@ -584,6 +599,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'), // 更新：保存当前选择的tab到commonData
                     startPoint: typeof values.startPoint === 'string' ? values.startPoint : '', // 新增：从节点数据获取起点
                     endPoint: typeof values.endPoint === 'string' ? values.endPoint : '', // 新增：从节点数据获取终点
+                    transportType: typeof values.transportType === 'string' ? values.transportType : '', // 新增：从节点数据获取运输方式
+                    distance: typeof values.distance === 'number' ? values.distance : 0, // 新增：从节点数据获取运输距离
+                    distanceUnit: typeof values.distanceUnit === 'string' ? values.distanceUnit : '', // 新增：从节点数据获取运输距离单位
+                    
                 };
 
                 // 根据新的 selectedNodeType 创建特定数据结构
@@ -1410,7 +1429,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         return {
           id: node.id,
           name: data.label || '未命名节点',
-          category: typeof data.emissionType === 'string' ? data.emissionType : '未分类',
+          category: node.type === 'distribution' ? '运输' : (typeof data.emissionType === 'string' ? data.emissionType : '未分类'),
           activityData: safeParseFloat(data.quantity), // 读取 quantity 并转为 number
           activityUnit: typeof data.activityUnit === 'string' ? data.activityUnit : '', // 读取 activityUnit
           conversionFactor: data.unitConversion ? safeParseFloat(data.unitConversion) : 1, // 修正：从unitConversion读取，默认为1
@@ -1733,7 +1752,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         { title: '单位', dataIndex: 'activityUnit', width: 80, align: 'center', render: (v: any, r: any) => v ? <span>{v}{r.activityUnit_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
         { title: '运输-起点地址', dataIndex: 'startPoint', width: 120, align: 'center', render: (_: any, record: any) => record.startPoint || '-' },
         { title: '运输-终点地址', dataIndex: 'endPoint', width: 120, align: 'center', render: (_: any, record: any) => record.endPoint || '-' },
-        { title: '运输方式', dataIndex: 'transportType', width: 90, align: 'center', render: () => '-' },
+        { title: '运输方式', dataIndex: 'transportType', width: 90, align: 'center', render: (_: any, record: any) => record.transportType || '-' },
+        { title: '运输距离', dataIndex: 'distance', width: 90, align: 'center', render: (_: any, record: any) => record.distance || '-' },
         { title: '证据文件', dataIndex: 'evidenceFiles', width: 90, align: 'center', render: (_: any, r: any) => r.hasEvidenceFiles ? '有' : '无' },
       ]
     },
@@ -1795,6 +1815,17 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     }
     return true;
   });
+
+  // 在组件内部添加 useEffect 监听 AI 补全结果
+  useEffect(() => {
+    const handler = (event: any) => {
+      const { success, failed, logs } = event.detail;
+      setAiAutoFillResult({ success, failed: failed.map(id => ({ id, reason: logs?.find(l => l.includes(id)) || '补全失败' })) });
+      // 可选：这里可以刷新 emissionSources 或 nodes
+    };
+    window.addEventListener('carbonflow-autofill-results', handler);
+    return () => window.removeEventListener('carbonflow-autofill-results', handler);
+  }, []);
 
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
@@ -2624,40 +2655,28 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           open={!!aiAutoFillConfirmType}
           title={aiAutoFillConfirmType === 'conversion' ? '确认补全单位转换系数' : '确认补全运输数据'}
           onCancel={() => setAiAutoFillConfirmType(null)}
-          onOk={() => {
-            // 模拟AI补全逻辑
-            const selected = filteredAIAutoFillSources.filter(item => aiAutoFillSelectedRowKeys.includes(item.id));
-            let success: string[] = [];
-            let failed: {id: string, reason: string}[] = [];
-            if (aiAutoFillConfirmType === 'conversion') {
-              selected.forEach(item => {
-                // 检查是否缺少必要前置数据
-                if (!item.name || !item.activityUnit || !item.factorName || !item.factorUnit) {
-                  failed.push({id: item.id, reason: '缺少必要的前置数据'});
-                } else if (item.conversionFactor !== undefined && item.conversionFactor !== null && item.conversionFactor !== '') {
-                  failed.push({id: item.id, reason: '已填写单位转换系数'});
-                } else {
-                  // 模拟AI算出
-                  success.push(item.id);
-                }
-              });
-            } else if (aiAutoFillConfirmType === 'transport') {
-              selected.forEach(item => {
-                // 检查是否运输类型
-                if (item.category !== '运输') {
-                  failed.push({id: item.id, reason: '排放源类型非运输类型'});
-                } else if (!item.startPoint || !item.endPoint /* || !item.transportType */) { // 暂时不检查 transportType，因为它当前没有值
-                  failed.push({id: item.id, reason: '缺少起点或终点数据'});
-                } else if (item.activityData !== undefined && item.activityData !== null && item.activityData !== '') {
-                  failed.push({id: item.id, reason: '已填写活动数据数值'});
-                } else {
-                  // 模拟AI算出
-                  success.push(item.id);
-                }
-              });
+          onOk={async () => {
+            if (aiAutoFillConfirmType === 'transport') {
+              const selected = filteredAIAutoFillSources.filter(item => aiAutoFillSelectedRowKeys.includes(item.id));
+              // category 包含"运输"或 nodeType 为 distribution
+              const transportNodes = selected.filter(item => (item.category && item.category.includes('运输')) || item.nodeType === 'distribution');
+              if (transportNodes.length === 0) {
+                message.warning('请选择运输类型的排放源');
+                setAiAutoFillConfirmType(null);
+                return;
+              }
+              const nodeIds = transportNodes.map(item => item.id).join(',');
+              const action: CarbonFlowAction = {
+                type: 'carbonflow',
+                operation: 'ai_autofill_transport_data',
+                nodeId: nodeIds,
+                content: 'AI一键补全运输数据',
+              };
+              window.dispatchEvent(new CustomEvent('carbonflow-action', {
+                detail: { action }
+              }));
+              setAiAutoFillConfirmType(null);
             }
-            setAiAutoFillResult({success, failed});
-            setAiAutoFillConfirmType(null);
           }}
           okText="确认"
           cancelText="取消"
@@ -2669,7 +2688,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
               const hasFilled = selected.some(item => item.conversionFactor !== undefined && item.conversionFactor !== null && item.conversionFactor !== '');
               return hasFilled ? '检测到已填写单位转换系数数据，AI补全将覆盖原有数据，是否继续？' : '是否对所选排放源进行AI补全单位转换系数？';
             } else if (aiAutoFillConfirmType === 'transport') {
-              const hasFilled = selected.some(item => item.activityData !== undefined && item.activityData !== null && item.activityData !== '');
+              const hasFilled = selected.some(item => item.transportationDistance !== undefined && item.activityData !== null && item.activityData !== '');
               return hasFilled ? '检测到已填写活动数据数值的数据，AI补全将覆盖原有数据，是否继续？' : '是否对所选排放源进行AI补全运输数据？';
             }
             return null;
