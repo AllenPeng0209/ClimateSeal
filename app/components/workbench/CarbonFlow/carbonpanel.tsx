@@ -66,7 +66,6 @@ interface WorkflowFileRecord {
   file_id: string;
   files: FileRecord; // Assuming files is a single object, not an array. If it's an array, this needs to be FileRecord[]
 }
-import type { CarbonFlowAction } from '~/types/actions';  // 修正导入路径
 
 // Placeholder data types (replace with actual types later)
 type SceneInfoType = {
@@ -2296,40 +2295,56 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                   console.log('[Upload] beforeUpload (真实上传到 Supabase)', file);
                   if (!editingEmissionSource) {
                     message.warning('请先保存排放源，再上传证明文件');
-                    return false;
+                    return Upload.LIST_IGNORE; // 阻止默认列表渲染
                   }
                   const uploaded = await uploadEvidenceFile(file as File, editingEmissionSource.id);
                   if (uploaded) {
-                    setDrawerEvidenceFiles(prev => [...prev, uploaded]);
+                    setDrawerEvidenceFiles(prev => {
+                      // 去重：只要 id 或 name 有一个重复就不加
+                      if (prev.some(f => f.id === uploaded.id || f.name === uploaded.name)) return prev;
+                      return [...prev, uploaded];
+                    });
                     // 同步到节点
-                    if (editingEmissionSource) {
-                      const target = nodes.find(n => n.id === editingEmissionSource.id);
-                      if (target) {
-                        (target.data as any).evidenceFiles = [
-                          ...((target.data as any).evidenceFiles ?? []),
-                          uploaded,
-                        ];
+                    const target = nodes.find(n => n.id === editingEmissionSource.id);
+                    if (target) {
+                      const existingFiles: UploadedFile[] = (target.data as any).evidenceFiles ?? [];
+                      // 仅当节点中尚未存在该文件时再 push，避免重复
+                      if (!existingFiles.some(f => f.id === uploaded.id || f.name === uploaded.name)) {
+                        (target.data as any).evidenceFiles = [...existingFiles, uploaded];
                         setStoreNodes([...nodes]);
                       }
                     }
                     refreshEmissionSourcesForStage(selectedStage);
                   }
                   // return false to stop default upload list behavior (we handle list ourselves)
-                  return false;
+                  return Upload.LIST_IGNORE;
                 }}
-                onRemove={(file) => {
-                  console.log('[Upload] onRemove', file);
-                  setDrawerEvidenceFiles(prev => {
-                    const updated = prev.filter(f => f.id !== file.uid);
-                    console.log('[Upload] drawerEvidenceFiles after remove', updated);
-                    return updated;
-                  });
-                  return true;
+                onRemove={async (file) => {
+                  try {
+                    // 1) 先调用通用删除函数，清理 Supabase Storage 及数据库记录
+                    await handleDeleteFile(file.uid as string);
+
+                    // 2) 更新 Drawer 本地状态
+                    setDrawerEvidenceFiles(prev => prev.filter(f => f.id !== file.uid));
+
+                    // 3) 同步更新节点数据中的 evidenceFiles
+                    const target = nodes.find(n => n.id === (editingEmissionSource?.id || ''));
+                    if (target) {
+                      (target.data as any).evidenceFiles = ((target.data as any).evidenceFiles || []).filter((f: UploadedFile) => f.id !== file.uid);
+                      setStoreNodes([...nodes]);
+                    }
+
+                    // 4) 刷新排放源清单
+                    refreshEmissionSourcesForStage(selectedStage);
+
+                    message.success('文件已删除');
+                  } catch (err) {
+                    console.error('delete evidence file error', err);
+                    message.error('删除文件失败');
+                  }
+                  return true; // 告诉 Upload 组件移除列表项
                 }}
-                onChange={(info) => {
-                  console.log('[Upload] onChange status', info.file.status, info.file);
-                  handleEvidenceUploadChange(info);
-                }}
+                onChange={() => { /* 只做 UI 状态同步，不再 push 文件 */ }}
                 fileList={drawerEvidenceFiles.map(f => ({
                   uid: f.id,
                   name: f.name,
