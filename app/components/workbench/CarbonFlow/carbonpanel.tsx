@@ -50,6 +50,7 @@ import type { UploadFileResponse } from '~/types/file';
 import { CarbonFlowActionHandler } from './CarbonFlowActions';
 import { supabase } from '~/lib/supabase';
 import type { UploadChangeParam } from 'antd/es/upload';
+import type { RcFile } from 'antd/es/upload';
 
 interface FileRecord {
   id: string;
@@ -107,6 +108,7 @@ type EmissionSource = {
   dataRisk?: string; // 数据风险
   backgroundDataSourceTab?: 'database' | 'manual'; // 新增：记录背景数据源选择的tab
   evidenceFiles?: UploadedFile[]; // 新增: 关联证据文件
+  evidenceVerificationStatus?: '缺失' | '完整、未校验' | '完整、AI校验未通过' | '完整、AI校验通过' | '完整、第三方校验通过'; // 新增：证明材料校验状态
 };
 
 // New type for Uploaded Files
@@ -292,6 +294,28 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         size: file.size,
         mimeType: file.type,
       };
+      // 重要：立即更新 nodes 以触发 aiSummary 重新计算
+      if (nodeId && nodes) {
+        const targetNode = nodes.find(n => n.id === nodeId);
+        if (targetNode) {
+          // 更新节点的 evidenceFiles 数组
+          (targetNode.data as any).evidenceFiles = [
+            ...((targetNode.data as any).evidenceFiles || []),
+            uploaded
+          ];
+
+          // 设置证明材料验证状态为"完整、未校验"
+          (targetNode.data as any).evidenceVerificationStatus = '完整、未校验';
+
+          // 更新全局节点状态，会触发 aiSummary 更新
+          setStoreNodes([...nodes]);
+
+          // 触发事件，通知其他组件数据已更新
+          window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
+            detail: { action: 'UPDATE_NODE', nodeId: nodeId }
+          }));
+        }
+      }
       return uploaded;
     } catch (err: any) {
       console.error('uploadEvidenceFile error', err);
@@ -391,6 +415,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             distance: typeof data.distance === 'number' ? data.distance : 0, // 新增：从节点数据获取运输距离
             distanceUnit: typeof data.distanceUnit === 'string' ? data.distanceUnit : '', // 新增：从节点数据获取运输距离单位
             evidenceFiles: Array.isArray(data.evidenceFiles) ? data.evidenceFiles : [],
+            // 读取证明材料验证状态，如果不存在则根据evidenceFiles动态生成
+            evidenceVerificationStatus: data.evidenceVerificationStatus || 
+            (Array.isArray(data.evidenceFiles) && data.evidenceFiles.length > 0 ? '完整、未校验' : '缺失'),
           };
         });
 
@@ -431,6 +458,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           distance: typeof data.distance === 'number' ? data.distance : 0, // 新增：从节点数据获取运输距离
           distanceUnit: typeof data.distanceUnit === 'string' ? data.distanceUnit : '', // 新增：从节点数据获取运输距离单位
           evidenceFiles: Array.isArray(data.evidenceFiles) ? data.evidenceFiles : [],
+          // 读取证明材料验证状态，如果不存在则根据evidenceFiles动态生成
+          evidenceVerificationStatus: data.evidenceVerificationStatus || 
+            (Array.isArray(data.evidenceFiles) && data.evidenceFiles.length > 0 ? '完整、未校验' : '缺失'),
         };
       });
       setAllEmissionSourcesForAIModal(allSources as EmissionSource[]);
@@ -1397,8 +1427,15 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         key: 'evidenceMaterialStatus',
         render: (_: any, record: EmissionSource) => {
           // "完整，验证未通过" 状态暂不实现，默认上传即验证通过
+                    // 使用枚举："缺失"，"完整、未校验"，"完整、AI校验未通过"，"完整、AI校验通过"，"完整、第三方校验通过"
+          // 如果已经有状态，则使用已有状态
+          if (record.evidenceVerificationStatus) {
+            const statusClass = record.evidenceVerificationStatus === '缺失' ? 'status-missing' : 'status-complete';
+            return <span className={statusClass}>{record.evidenceVerificationStatus}</span>;
+          }
+
           if (Array.isArray(record.evidenceFiles) && record.evidenceFiles.length > 0) {
-            return <span className="status-complete">完整</span>;
+            return <span className="status-complete">完整、未校验</span>;
           }
           return <span className="status-missing">缺失</span>;
         },
