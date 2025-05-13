@@ -11,6 +11,10 @@ export interface BaseNodeData {
   activityScore: number;
   activityScorelevel?: string;
   verificationStatus?: string;
+  supplementaryInfo?: string;
+  hasEvidenceFiles?: boolean;
+  dataRisk?: string;
+  backgroundDataSourceTab?: 'database' | 'manual';
 
   // carbon footprint
   carbonFootprint: string;
@@ -21,6 +25,15 @@ export interface BaseNodeData {
   carbonFactorUnit?: string;
   unitConversion?: string;
   carbonFactordataSource?: string;
+  emissionFactorGeographicalRepresentativeness?: string;
+  emissionFactorTemporalRepresentativeness?: string;
+  activityUUID?: string;
+  carbonfactorImportDate?: string;
+  factorMatchStatus?: '未配置因子' | 'AI匹配失败' | 'AI匹配成功' | '已手动配置因子';
+  activityData_aiGenerated?: boolean;
+  activityUnit_aiGenerated?: boolean;
+  conversionFactor_aiGenerated?: boolean;
+  nodeType?: string;
 }
 
 // 产品节点数据
@@ -102,8 +115,7 @@ export interface DistributionNodeData extends BaseNodeData {
   lastMileDelivery?: string;
   distributionMode?: string;
   distributionDistance?: number;
-  distributionStartPoint?: string;
-  distributionEndPoint?: string;
+  distributionDistanceUnit?: number;
   distributionTransportationMode?: string;
   distributionTransportationDistance?: number;
 }
