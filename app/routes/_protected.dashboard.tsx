@@ -1,5 +1,5 @@
 import { type MetaFunction } from "@remix-run/node";
-import { Navigate, Outlet, useLocation, useNavigate } from "@remix-run/react";
+import { Navigate, Outlet, useLocation, useNavigate, Link } from "@remix-run/react";
 import React, { useState, useEffect } from "react";
 import { Modal, message, Layout, Menu, Button, Typography, Space, Dropdown, Avatar } from "antd";
 import { ensureUUID } from "~/utils/uuid";
@@ -97,62 +97,11 @@ export default function Dashboard() {
     }
   };
 
-
-  const handleMenuClick = ({ key }: { key: string }) => {
-    // 处理子菜单项
-    if (key.startsWith('dashboard:')) {
-      const section = key.split(':')[1];
-
-      // Map menu key to route path
-      let path = '/dashboard';
-      switch (section) {
-        case 'dashboard':
-          path = '/dashboard/overview';
-          break;
-        case 'workbench-main':
-          path = '/dashboard/workbench';
-          break;
-        case 'vendor-data':
-          path = '/dashboard/vendor-data';
-          break;
-        case 'carbon-factor-search':
-          path = '/dashboard/carbon-factor-search';
-          break;
-        case 'vendor-information':
-          path = '/dashboard/vendor-information';
-          break;
-        case 'vendor-purchase-goods':
-          path = '/dashboard/vendor-purchase-goods';
-          break;
-        case 'vendor-data-info':
-          path = '/dashboard/vendor-data-info';
-          break;
-        case 'enterprise-knowledge':
-          path = '/dashboard/enterprise-knowledge';
-          break;
-        case 'industry-knowledge':
-          path = '/dashboard/industry-knowledge';
-          break;
-        case 'policy-knowledge':
-          path = '/dashboard/policy-knowledge';
-          break;
-        case 'settings':
-          path = '/dashboard/settings';
-          break;
-        default:
-          path = '/dashboard';
-      }
-
-      navigate(path);
-      return;
-    }
-  };
-
   const menuItems = [
     {
       key: 'dashboard:dashboard',
       icon: <DashboardOutlined />,
-      label: '仪表盘',
+      label: <Link to="/dashboard/overview">仪表盘</Link>,
     },
     {
       key: 'workbench',
@@ -161,15 +110,15 @@ export default function Dashboard() {
       children: [
         {
           key: 'dashboard:workbench-main',
-          label: '产品碳足迹管理',
+          label: <Link to="/dashboard/workbench">产品碳足迹管理</Link>,
         },
         {
           key: 'dashboard:vendor-data',
-          label: '供应商数据收集',
+          label: <Link to="/dashboard/vendor-data">供应商数据收集</Link>,
         },
         {
           key: 'dashboard:carbon-factor-search',
-          label: '碳排因子搜索',
+          label: <Link to="/dashboard/carbon-factor-search">碳排因子搜索</Link>,
         }
       ]
     },
@@ -180,15 +129,15 @@ export default function Dashboard() {
       children: [
         {
           key: 'dashboard:vendor-information',
-          label: '供应商信息管理',
+          label: <Link to="/dashboard/vendor-information">供应商信息管理</Link>,
         },
         {
           key: 'dashboard:vendor-purchase-goods',
-          label: '采购商品管理',
+          label: <Link to="/dashboard/vendor-purchase-goods">采购商品管理</Link>,
         },
         {
           key: 'dashboard:vendor-data-info',
-          label: '供应商数据',
+          label: <Link to="/dashboard/vendor-data-info">供应商数据</Link>,
         }
       ]
     },
@@ -199,22 +148,22 @@ export default function Dashboard() {
       children: [
         {
           key: 'dashboard:enterprise-knowledge',
-          label: '企业知识库',
+          label: <Link to="/dashboard/enterprise-knowledge">企业知识库</Link>,
         },
         {
           key: 'dashboard:industry-knowledge',
-          label: '行业知识库',
+          label: <Link to="/dashboard/industry-knowledge">行业知识库</Link>,
         },
         {
           key: 'dashboard:policy-knowledge',
-          label: '政策法规库',
+          label: <Link to="/dashboard/policy-knowledge">政策法规库</Link>,
         }
       ]
     },
     {
       key: 'dashboard:settings',
       icon: <SettingOutlined />,
-      label: '设置',
+      label: <Link to="/dashboard/settings">设置</Link>,
     },
   ];
 
@@ -222,14 +171,12 @@ export default function Dashboard() {
     {
       key: 'profile',
       icon: <UserOutlined />,
-      label: '个人资料',
-      onClick: () => navigate('/dashboard/settings'),
+      label: <Link to="/dashboard/settings">个人资料</Link>,
     },
     {
       key: 'settings',
       icon: <SettingOutlined />,
-      label: '账号设置',
-      onClick: () => navigate('/dashboard/settings'),
+      label: <Link to="/dashboard/settings">账号设置</Link>,
     },
     {
       key: 'logout',
@@ -276,7 +223,6 @@ export default function Dashboard() {
           selectedKeys={[`dashboard:${selectedKey}`]}
           defaultOpenKeys={['workbench', 'knowledge', 'vendor']}
           items={menuItems}
-          onClick={handleMenuClick}
         />
       </Layout.Sider>
       <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'all 0.2s' }}>
