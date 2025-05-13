@@ -94,11 +94,11 @@ const initialAiSummaryReport: AISummaryReport = {
 };
 
 interface CarbonFlowAISummaryProps {
-  nodes: Node<NodeData>[];
   setSelectedNode: (node: Node<NodeData> | null) => void;
 }
 
-export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISummaryProps) => {
+export const CarbonFlowAISummary = ({ setSelectedNode }: CarbonFlowAISummaryProps) => {
+  const nodes = useCarbonFlowStore(state => state.nodes);
   const [aiReport, setAiReport] = useState<AISummaryReport>(initialAiSummaryReport);
   const { setAiSummary: setStoreAiSummary } = useCarbonFlowStore();
 
@@ -325,7 +325,7 @@ export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISumm
     currentNodes.forEach((node) => {
       if (!node.data) return;
       totalTraceableNodeNumber++;
-      if (node.data.carbonFactordataSource?.includes('数据库匹配')) {
+      if (node.data.carbonFactordataSource?.includes('ecoinvent')) {
         dataOkTraceableNodeNumber++;
       } else {
         traceableIncompleteNodes.push({
@@ -347,9 +347,27 @@ export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISumm
     currentNodes.forEach((node) => {
       if (!node.data) return;
       totalValidationNodeNumber++;
-      const verificationStatus = node.data.verificationStatus;
+      
+      // 修改验证状态检查逻辑，使用evidenceFiles数组而不是直接使用
+      // const evidenceFiles = node.data.evidenceFiles;
+      // let isVerified = false;
+      
+      // if (Array.isArray(evidenceFiles) && evidenceFiles.length > 0) {
+      //   // 检查是否有已验证的证据文件
+      //   isVerified = evidenceFiles.some(file => 
+      //     file && ['verified', 'approved'].includes(file.status)
+      //   );
+      // }
+      
+      
+      //先改成有东西上传 就认为验证通过
+      let isVerified = false;  // 默认设置为false
+      
+      if (node.data.evidenceFiles && Array.isArray(node.data.evidenceFiles) && node.data.evidenceFiles.length > 0) {
+        isVerified = true;  // 只有当evidenceFiles存在且不为空时才设置为true
+      }
 
-      if (verificationStatus === '未验证') {
+      if (!isVerified) {
         validationIncompleteNodes.push({
           id: node.id,
           label: node.data.label || `Node ${node.id}`,
@@ -407,7 +425,27 @@ export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISumm
     };
   }, [aiReport.isExpanded, aiReport.expandedSection]); 
 
+  // 监听强制刷新事件
   useEffect(() => {
+    console.log('[AISummary] 设置事件监听器: force-refresh-ai-summary');
+    
+    const handleForceRefresh = () => {
+      console.log('[AISummary] 收到强制刷新事件');
+      const summary = calculateAiSummaryInternal(nodes);
+      setAiReport(summary);
+      setStoreAiSummary(summary);
+    };
+    
+    window.addEventListener('force-refresh-ai-summary', handleForceRefresh);
+    
+    return () => {
+      window.removeEventListener('force-refresh-ai-summary', handleForceRefresh);
+    };
+  }, [nodes, calculateAiSummaryInternal, setStoreAiSummary]);
+  
+  // 标准的节点变化监听
+  useEffect(() => {
+    console.log('[AISummary] 节点变化，重新计算评分');
     const summary = calculateAiSummaryInternal(nodes);
     setAiReport(summary);
     setStoreAiSummary(summary);
@@ -605,7 +643,7 @@ export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISumm
                 </div>
                  {dataTraceability.incompleteNodes.length > 0 ? (
                   <div className="optimization-nodes">
-                    <Typography.Title level={5}>需要优化的节点 (数据来源非数据库匹配)</Typography.Title>
+                    <Typography.Title level={5}>需要优化的节点 (缺少有效证据文件或非数据库来源)</Typography.Title>
                     {dataTraceability.incompleteNodes.map((node) => (
                       <div
                         key={node.id}
@@ -621,13 +659,16 @@ export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISumm
                           <Tag color="warning">{node.label}</Tag>
                         </div>
                         <div className="node-details">
-                          <div>缺失字段:</div>
+                          <div>建议操作:</div>
                           <div className="missing-fields">
                             {node.missingFields.map((field) => (
                               <Tag key={field} color="error">
                                 {field}
                               </Tag>
                             ))}
+                            <div style={{ marginTop: '4px', fontSize: '12px', color: '#666' }}>
+                              请上传活动数据证据文件，或配置数据库匹配的碳足迹因子
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -659,7 +700,7 @@ export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISumm
                 </div>
                 {validation.incompleteNodes.length > 0 ? (
                   <div className="optimization-nodes">
-                    <Typography.Title level={5}>需要优化的节点 (未验证)</Typography.Title>
+                    <Typography.Title level={5}>需要优化的节点 (缺少已验证证据文件)</Typography.Title>
                     {validation.incompleteNodes.map((node) => (
                       <div
                         key={node.id}
@@ -675,13 +716,16 @@ export const CarbonFlowAISummary = ({ nodes, setSelectedNode }: CarbonFlowAISumm
                           <Tag color="warning">{node.label}</Tag>
                         </div>
                         <div className="node-details">
-                          <div>缺失字段:</div>
+                          <div>建议操作:</div>
                           <div className="missing-fields">
                             {node.missingFields.map((field) => (
                               <Tag key={field} color="error">
                                 {field}
                               </Tag>
                             ))}
+                            <div style={{ marginTop: '4px', fontSize: '12px', color: '#666' }}>
+                              请确保上传的证据文件已经通过验证或审批流程
+                            </div>
                           </div>
                         </div>
                       </div>

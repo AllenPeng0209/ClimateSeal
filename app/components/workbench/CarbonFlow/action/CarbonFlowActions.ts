@@ -1463,7 +1463,7 @@ export class CarbonFlowActionHandler {
                 carbonFactorName: updateInfo.activityName,
                 carbonFactorUnit: apiFactorActivityUnit, // The unit of activity for which carbonFactor is specified
                 unitConversion: String(conversionMultiplier), // Multiplier to convert node's activityUnit to carbonFactorUnit
-                activitydataSource: updateInfo.dataSource || '数据库匹配', // Use API's dataSource, fallback to default text
+                carbonFactordataSource: updateInfo.dataSource || '数据库匹配', // Use API's dataSource, fallback to default text
                 emissionFactorGeographicalRepresentativeness: updateInfo.geography, // 使用API返回的地理位置
                 emissionFactorTemporalRepresentativeness: updateInfo.importDate, // 使用API返回的导入日期
                 activityUUID: updateInfo.activityUUID, // Store activityUUID from API
