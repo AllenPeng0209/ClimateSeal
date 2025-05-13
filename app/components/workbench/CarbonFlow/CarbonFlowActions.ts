@@ -1445,6 +1445,7 @@ export class CarbonFlowActionHandler {
         const updatedNodesMap = currentNodes.map((node) => {
           const updateInfo = nodesToUpdate.find((u) => u.node.id === node.id);
           if (updateInfo) {
+            console.log('[CarbonFactorMatch] Update info for node:', node.id, updateInfo); // <--- ADD THIS LOG
             updated = true;
             const nodeActivityUnit = node.data.activityUnit;
             const apiFactorActivityUnit = updateInfo.unit;
@@ -1458,10 +1459,10 @@ export class CarbonFlowActionHandler {
                 carbonFactorName: updateInfo.activityName,
                 carbonFactorUnit: apiFactorActivityUnit, // The unit of activity for which carbonFactor is specified
                 unitConversion: String(conversionMultiplier), // Multiplier to convert node's activityUnit to carbonFactorUnit
-                carbonFactordataSource: updateInfo.dataSource || '数据库匹配', // 使用API返回的数据源，或默认为'数据库匹配'
+                activitydataSource: updateInfo.dataSource || '数据库匹配', // Use API's dataSource, fallback to default text
                 emissionFactorGeographicalRepresentativeness: updateInfo.geography, // 使用API返回的地理位置
                 emissionFactorTemporalRepresentativeness: updateInfo.importDate, // 使用API返回的导入日期
-                activityUUID: updateInfo.activityUUID, // 暂不存储UUID到节点数据
+                activityUUID: updateInfo.activityUUID, // Store activityUUID from API
               } as NodeData, // 确保类型正确
             };
           }
@@ -1564,9 +1565,9 @@ export class CarbonFlowActionHandler {
           activityName: bestMatch.activity_name || '',
           unit: bestMatch.reference_product_unit || 'kg', // Activity unit for the factor
           geography: bestMatch.geography, // 新增
-          activityUUID: bestMatch.activity_uuid_product_uuid, // 新增
-          dataSource: bestMatch.data_source, // 新增
-          importDate: bestMatch.import_date, // 新增
+          activityUUID: bestMatch.activity_uuid_product_uuid || undefined, // Use activity_uuid_product_uuid, fallback to undefined
+          dataSource: bestMatch.data_source || undefined, // Use data_source, fallback to undefined
+          importDate: bestMatch.import_date || undefined, // Use import_date, fallback to undefined
         };
       } else {
         console.warn('Climateseal API没有返回匹配结果');

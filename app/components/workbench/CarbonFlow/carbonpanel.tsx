@@ -34,7 +34,6 @@ import {
   EditOutlined,
   InboxOutlined,
   ClearOutlined,
-  DatabaseOutlined,
   FileOutlined,
 } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
@@ -1204,7 +1203,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         { title: '时间代表性', dataIndex: ['data', 'emissionFactorTemporalRepresentativeness'], key: 'temporal', width: 90, align: 'center', render: (v: any) => v || '-' },
         { title: '数据库名称', dataIndex: ['data', 'activitydataSource'], key: 'factorSource', width: 110, align: 'center', render: (v: any) => v || '-' },
         // { title: 'UUID', dataIndex: ['data', 'factorUUID'], key: 'factorUUID', width: 120, align: 'center', render: (v: any) => v || '-' }, // Assuming UUID is not directly in NodeData yet
-         { title: 'UUID', key: 'factorUUID', width: 120, align: 'center', render: () => '-' },
+         { title: 'UUID', dataIndex: ['data', 'activityUUID'], key: 'activityUUID', width: 120, align: 'center', render: (v: any) => v || '-' },
       ]
     },
     {
@@ -1465,6 +1464,46 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     };
   }, [selectedStage]); // Removed refreshEmissionSourcesForStage from dependencies
 
+  // 新增：AI一键补全碳因子匹配的处理函数
+  const handleAIAutofillCarbonFactorMatch = async () => {
+    console.log('AI Autofill Carbon Factor Match invoked for sources:', aiAutoFillSelectedRowKeys);
+
+    if (!aiAutoFillSelectedRowKeys || aiAutoFillSelectedRowKeys.length === 0) {
+      message.warning('请选择至少一个排放源进行匹配');
+      return;
+    }
+
+    if (loadingMessageRef.current) {
+      loadingMessageRef.current();
+      loadingMessageRef.current = null;
+    }
+
+    try {
+      loadingMessageRef.current = message.loading('正在进行碳因子匹配，请稍候...', 0);
+      const action: CarbonFlowAction = {
+        type: 'carbonflow',
+        operation: 'carbon_factor_match',
+        content: 'AI一键补全碳因子匹配',
+        nodeId: aiAutoFillSelectedRowKeys.map(id => String(id)).join(',')
+      };
+
+      window.dispatchEvent(new CustomEvent('carbonflow-action', {
+        detail: { action }
+      }));
+
+      console.log("AI Autofill 碳因子匹配请求已发送，等待事件回调...");
+      // Loading message will be handled by 'carbonflow-match-results' event listener or catch block.
+
+    } catch (error) {
+      if (loadingMessageRef.current) {
+        loadingMessageRef.current();
+        loadingMessageRef.current = null;
+      }
+      console.error('执行 AI Autofill 碳因子匹配请求派发时出错:', error);
+      message.error('发送 AI Autofill 碳因子匹配请求失败，请查看控制台');
+    }
+  };
+
   // 在组件内部添加 useEffect 监听 AI 补全结果
   useEffect(() => {
     const handler = (event: any) => {
@@ -1586,7 +1625,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                <Card title={`排放源清单${selectedStage === '全部' ? '' : ` - ${selectedStage}`}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space> {/* Buttons for the left side */}
-                            <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button>
+                            {/* <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button> */} {/* Removed old button */}
                             <Button icon={<ExperimentOutlined />} onClick={() => setIsAIAutoFillModalVisible(true)} type="default">AI补全数据</Button>
                         </Space>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
@@ -2305,6 +2344,14 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             onClick={() => setAiAutoFillConfirmType('transport')}
           >
             一键补全运输数据
+          </Button>
+          <Button
+            type="primary"
+            disabled={aiAutoFillSelectedRowKeys.length === 0}
+            style={{marginLeft: 12}}
+            onClick={handleAIAutofillCarbonFactorMatch} // Call the new handler
+          >
+            一键补全碳因子匹配
           </Button>
         </div>
         {/* 二次确认弹窗 */}
