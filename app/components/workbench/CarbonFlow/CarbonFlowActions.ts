@@ -17,6 +17,10 @@ type CarbonFactorResult = {
   factor: number; // Should be in kgCO2e / unit
   activityName: string;
   unit: string; // The unit of the activity for which the factor is provided
+  geography?: string; // 新增: 地理位置
+  activityUUID?: string; // 新增: 活动UUID
+  dataSource?: string; // 新增: 数据来源
+  importDate?: string; // 新增: 导入日期
 };
 
 type NodeType = 'product' | 'manufacturing' | 'distribution' | 'usage' | 'disposal' | 'finalProduct';
@@ -1339,6 +1343,10 @@ export class CarbonFlowActionHandler {
       factor: number; // kgCO2e / unit
       activityName: string;
       unit: string; // activity unit for the factor
+      geography?: string; // 新增: 地理位置
+      activityUUID?: string; // 新增: 活动UUID
+      dataSource?: string; // 新增: 数据来源
+      importDate?: string; // 新增: 导入日期
     };
 
     const nodesToUpdate: NodeUpdateInfo[] = [];
@@ -1371,6 +1379,10 @@ export class CarbonFlowActionHandler {
               factor: climatiqResult.factor,
               activityName: climatiqResult.activityName,
               unit: climatiqResult.unit,
+              geography: climatiqResult.geography,
+              activityUUID: climatiqResult.activityUUID,
+              dataSource: climatiqResult.dataSource,
+              importDate: climatiqResult.importDate,
             });
 
             matchResults.success.push(node.id);
@@ -1399,6 +1411,10 @@ export class CarbonFlowActionHandler {
               factor: climatesealResult.factor,
               activityName: climatesealResult.activityName,
               unit: climatesealResult.unit,
+              geography: climatesealResult.geography,
+              activityUUID: climatesealResult.activityUUID,
+              dataSource: climatesealResult.dataSource,
+              importDate: climatesealResult.importDate,
             });
 
             matchResults.success.push(node.id);
@@ -1442,8 +1458,11 @@ export class CarbonFlowActionHandler {
                 carbonFactorName: updateInfo.activityName,
                 carbonFactorUnit: apiFactorActivityUnit, // The unit of activity for which carbonFactor is specified
                 unitConversion: String(conversionMultiplier), // Multiplier to convert node's activityUnit to carbonFactorUnit
-                carbonFactordataSource: '数据库匹配',
-              },
+                carbonFactordataSource: updateInfo.dataSource || '数据库匹配', // 使用API返回的数据源，或默认为'数据库匹配'
+                emissionFactorGeographicalRepresentativeness: updateInfo.geography, // 使用API返回的地理位置
+                emissionFactorTemporalRepresentativeness: updateInfo.importDate, // 使用API返回的导入日期
+                activityUUID: updateInfo.activityUUID, // 暂不存储UUID到节点数据
+              } as NodeData, // 确保类型正确
             };
           }
           return node;
@@ -1527,6 +1546,10 @@ export class CarbonFlowActionHandler {
             kg_co2eq: number; // This is the factor value in kgCO2e per reference_product_unit
             activity_name: string;
             reference_product_unit: string; // This is the activity unit for the factor
+            geography: string; // 新增
+            activity_uuid_product_uuid: string; // 新增
+            data_source: string; // 新增
+            import_date: string; // 新增
             [key: string]: any;
           }>;
           error: string | null;
@@ -1540,6 +1563,10 @@ export class CarbonFlowActionHandler {
           factor: bestMatch.kg_co2eq, // Factor in kgCO2e / reference_product_unit
           activityName: bestMatch.activity_name || '',
           unit: bestMatch.reference_product_unit || 'kg', // Activity unit for the factor
+          geography: bestMatch.geography, // 新增
+          activityUUID: bestMatch.activity_uuid_product_uuid, // 新增
+          dataSource: bestMatch.data_source, // 新增
+          importDate: bestMatch.import_date, // 新增
         };
       } else {
         console.warn('Climateseal API没有返回匹配结果');
