@@ -129,6 +129,7 @@ export class CarbonFlowActionHandler {
       'file_parser',
       'carbon_factor_match',
       'ai_autofill_transport_data',
+      'ai_autofill_conversion_data',
     ];
 
     if (!validOperations.includes(action.operation)) {
@@ -167,6 +168,9 @@ export class CarbonFlowActionHandler {
           break;
         case 'ai_autofill_transport_data':
           await this._handleAIAutoFillTransportData(action);
+          break;
+        case 'ai_autofill_conversion_data': // New operation
+          await this._handleAIAutoFillConversionData(action);
           break;
         default: {
           // Use type assertion for exhaustive check
@@ -1941,4 +1945,155 @@ export class CarbonFlowActionHandler {
       }));
     }
   }
+
+
+
+
+  private async _handleAIAutoFillConversionData(action: CarbonFlowAction): Promise<void> {
+    if (!action.nodeId) {
+      console.warn('AI AutoFill Conversion Data: 操作中缺少 nodeId。');
+      window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
+        detail: { success: [], failed: [], logs: ['AI补全转换数据失败: 操作缺少nodeId'] },
+      }));
+      return;
+    }
+
+    const nodeIds = action.nodeId.split(',').map(id => id.trim()).filter(Boolean);
+    if (!nodeIds.length) {
+      console.warn('AI AutoFill Conversion Data: 未提供有效的 nodeId。');
+      window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
+        detail: { success: [], failed: [], logs: ['AI补全转换数据失败: 未提供有效的nodeId'] },
+      }));
+      return;
+    }
+
+    const nodesToFill = this._nodes.filter(n => nodeIds.includes(n.id));
+    if (!nodesToFill.length) {
+      console.warn('AI AutoFill Conversion Data: 未找到与提供的 ID 匹配的节点。');
+      window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
+        detail: { success: [], failed: nodeIds, logs: ['AI补全转换数据失败: 未找到与ID匹配的节点'] },
+      }));
+      return;
+    }
+
+    const requestBody = nodesToFill.map(node => ({
+      nodeId: node.id,
+      name: node.data.label || node.data.nodeName || '',
+      nodeType: node.type,
+      category: (node.data as any).emissionType || '', // 使用 any 以简化，后续可考虑更严格的类型
+      currentQuantity: node.data.quantity,
+      currentActivityUnit: node.data.activityUnit,
+      carbonFactorUnit: node.data.carbonFactorUnit, // AI 可能需要碳因子的单位作为参考
+    }));
+
+    let aiResults: Array<{
+      nodeId: string;
+      unitConversion?: string; // 单位转换的乘数
+      targetUnit?: string;     // 碳因子实际对应的单位或应转换到的目标单位
+      // convertedQuantity?: string; // AI也可能直接返回转换后的活动量 (较少见)
+      notes?: string;          // AI返回的备注信息
+    }> = [];
+
+    try {
+      const response = await fetch('/api/ai-autofill-conversion', { // 新的API端点
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodes: requestBody }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: '无法解析错误响应' }));
+        const errorMessage = (typeof errorBody === 'object' && errorBody !== null && 'message' in errorBody && typeof errorBody.message === 'string')
+          ? errorBody.message
+          : response.statusText;
+        throw new Error(`API 错误 (${response.status}): ${errorMessage}`);
+      }
+      aiResults = await response.json();
+      console.log('AI AutoFill Conversion Data - API Response:', aiResults);
+    } catch (error) {
+      console.error('调用 /api/ai-autofill-conversion 失败:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
+        detail: { success: [], failed: nodeIds, logs: [`AI补全转换数据API调用失败: ${errorMessage}`] },
+      }));
+      return;
+    }
+
+    const success: string[] = [];
+    const failed: string[] = [];
+    const logs: string[] = [];
+    let nodesActuallyChangedInThisCall = false;
+
+    this._setNodes(currentNodes => {
+      let internalChanges = false;
+      const updatedNodes = currentNodes.map(node => {
+        const aiData = aiResults.find(r => r.nodeId === node.id);
+        if (!aiData) return node; // 没有此节点的AI数据
+
+        try {
+          const newData = { ...node.data };
+          let nodeChangedThisIteration = false;
+
+          if (aiData.unitConversion !== undefined) {
+            newData.unitConversion = String(aiData.unitConversion);
+            logs.push(`节点 ${node.id} (${newData.label}): 单位转换因子已更新为 ${aiData.unitConversion}. ${aiData.notes || ''}`);
+            nodeChangedThisIteration = true;
+          }
+
+          if (aiData.targetUnit !== undefined && 'carbonFactorUnit' in newData) {
+            (newData as any).carbonFactorUnit = aiData.targetUnit;
+            logs.push(`节点 ${node.id} (${newData.label}): 碳因子单位已更新为 ${aiData.targetUnit}.`);
+            nodeChangedThisIteration = true;
+          }
+          
+          // 如果AI还提供了其他可以更新的字段，可以在这里添加逻辑
+          // 例如: newData.someOtherField = aiData.someOtherField;
+
+          if (nodeChangedThisIteration) {
+            if (!success.includes(node.id)) success.push(node.id);
+            internalChanges = true;
+            nodesActuallyChangedInThisCall = true; // 更新顶层作用域的标志
+            return { ...node, data: newData as NodeData };
+          }
+          return node;
+
+        } catch (e) {
+          if (!failed.includes(node.id)) failed.push(node.id);
+          logs.push(`节点 ${node.id} (${node.data.label || 'N/A'}) AI数据应用失败: ${(e as Error).message}`);
+          return node;
+        }
+      });
+
+      // 将请求处理但未收到有效AI结果的节点标记为失败
+      nodeIds.forEach(id => {
+        if (!success.includes(id) && !failed.includes(id)) {
+          const targetNode = currentNodes.find(n => n.id === id);
+          const nodeLabelInfo = targetNode ? `${targetNode.data.label || targetNode.id}` : id;
+          failed.push(id);
+          logs.push(`节点 ${nodeLabelInfo}: AI未返回有效补全结果或处理失败。`);
+        }
+      });
+      
+      return internalChanges ? updatedNodes : currentNodes;
+    });
+
+    window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
+      detail: { success, failed, logs },
+    }));
+
+    if (nodesActuallyChangedInThisCall) {
+      console.log(`AI AutoFill Conversion Data: 成功更新 ${success.length} 个节点。`);
+      this._handleCalculate({
+        type: 'carbonflow',
+        operation: 'calculate',
+        content: 'AI自动填充转换数据后重新计算',
+      });
+      window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
+        detail: { action: 'AI_AUTOFILL_CONVERSION_DATA', nodeIds: success },
+      }));
+    } else {
+      console.log('AI AutoFill Conversion Data: AI未更新任何节点。');
+    }
+  } 
+
 }

@@ -2382,6 +2382,23 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 detail: { action }
               }));
               setAiAutoFillConfirmType(null);
+            } else if (aiAutoFillConfirmType === 'conversion') {
+              if (!aiAutoFillSelectedRowKeys || aiAutoFillSelectedRowKeys.length === 0) {
+                message.warning('请选择至少一个排放源进行单位转换系数补全');
+                setAiAutoFillConfirmType(null);
+                return;
+              }
+              const nodeIds = aiAutoFillSelectedRowKeys.map(id => String(id)).join(',');
+              const action: CarbonFlowAction = {
+                type: 'carbonflow',
+                operation: 'ai_autofill_conversion_data', // 新的操作类型
+                nodeId: nodeIds,
+                content: 'AI一键补全单位转换系数',
+              };
+              window.dispatchEvent(new CustomEvent('carbonflow-action', {
+                detail: { action }
+              }));
+              setAiAutoFillConfirmType(null);
             }
           }}
           okText="确认"
