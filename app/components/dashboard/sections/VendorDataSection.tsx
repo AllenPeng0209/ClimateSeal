@@ -245,11 +245,12 @@ const VendorDataSection: React.FC<VendorDataSectionProps> = ({
     },
   };
 
-  const filteredTasks = vendorTasks.filter(task => {
-    const matchesSearch = task.vendor.toLowerCase().includes(searchText.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredTasks = vendorTasks;
+  // .filter(task => {
+  //   const matchesSearch = task.vendor.toLowerCase().includes(searchText.toLowerCase());
+  //   const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
+  //   return matchesSearch && matchesStatus;
+  // });
 
   return (
     <div className="vendor-data-section">
