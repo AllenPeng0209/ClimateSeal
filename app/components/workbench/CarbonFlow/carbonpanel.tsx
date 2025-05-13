@@ -2297,12 +2297,29 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     message.warning('请先保存排放源，再上传证明文件');
                     return Upload.LIST_IGNORE; // 阻止默认列表渲染
                   }
+                  // 先把临时文件对象加入列表，标记为 uploading 以便立即显示
+                  setDrawerEvidenceFiles(prev => {
+                    if (prev.some(f => f.id === file.uid)) return prev; // 避免重复
+                    const temp: UploadedFile = {
+                      id: file.uid,
+                      name: file.name,
+                      type: '证据文件',
+                      uploadTime: new Date().toISOString(),
+                      status: 'pending',
+                    };
+                    return [...prev, temp];
+                  });
+
                   const uploaded = await uploadEvidenceFile(file as File, editingEmissionSource.id);
                   if (uploaded) {
                     setDrawerEvidenceFiles(prev => {
-                      // 去重：只要 id 或 name 有一个重复就不加
-                      if (prev.some(f => f.id === uploaded.id || f.name === uploaded.name)) return prev;
-                      return [...prev, uploaded];
+                      // 用上传前的 uid 找到临时记录并替换，确保 spinner 结束
+                      const withReplaced = prev.map(f => (f.id === file.uid ? uploaded : f));
+                      // 若意外没有找到临时记录，则追加
+                      if (!withReplaced.some(f => f.id === uploaded.id)) {
+                        return [...withReplaced, uploaded];
+                      }
+                      return withReplaced;
                     });
                     // 同步到节点
                     const target = nodes.find(n => n.id === editingEmissionSource.id);
@@ -2348,7 +2365,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 fileList={drawerEvidenceFiles.map(f => ({
                   uid: f.id,
                   name: f.name,
-                  status: 'done',
+                  status: (f.status === 'pending' || f.status === 'parsing') ? 'uploading' : (f.status === 'failed' ? 'error' : 'done'),
                   url: f.url,
                 }))}
               >
