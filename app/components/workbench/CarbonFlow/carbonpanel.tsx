@@ -46,7 +46,7 @@ import type { FilterDropdownProps } from 'antd/es/table/interface';
 import { useLoaderData } from '@remix-run/react';
 import type { CarbonFlowAction } from '~/types/actions';
 import type { UploadFileResponse } from '~/types/file';
-import { CarbonFlowActionHandler } from './CarbonFlowActions';
+import { CarbonFlowActionHandler } from './action/CarbonFlowActions';
 import { supabase } from '~/lib/supabase';
 
 interface FileRecord {

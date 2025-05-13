@@ -16,7 +16,7 @@ import type {
   // UsageNodeData, // Not explicitly used in calc, but good to have for future
   // DisposalNodeData, // Not explicitly used in calc, but good to have for future
 } from '~/types/nodes';
-import { useCarbonFlowStore } from './CarbonFlowBridge';
+import { useCarbonFlowStore } from '../CarbonFlowBridge';
 // It's good practice to create a dedicated CSS file for the component.
 // Ensure styles from CarbonFlow.css related to AI summary are moved here or new styles are created.
 import './AISummary.css'; 

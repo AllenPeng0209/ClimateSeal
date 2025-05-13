@@ -27,9 +27,9 @@ import { ManufacturingNode } from './CarbonFlow/nodes/ManufacturingNode';
 import { DistributionNode } from './CarbonFlow/nodes/DistributionNode';
 import { UsageNode } from './CarbonFlow/nodes/UsageNode';
 import { DisposalNode } from './CarbonFlow/nodes/DisposalNode';
-import { NodeProperties, type NodePropertiesProps } from './CarbonFlow/NodeProperties';
+import { NodeProperties, type NodePropertiesProps } from './CarbonFlow/nodes/NodeProperties';
 import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
-import { CarbonFlowActionHandler } from './CarbonFlow/CarbonFlowActions';
+import { CarbonFlowActionHandler } from './CarbonFlow/action/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
 import {
   message,
@@ -73,7 +73,7 @@ import type {
 import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowBridge';
 import { supabase } from '~/lib/supabase';
 import { CarbonCalculatorPanelClient } from './CarbonFlow/carbonpanel';
-import { CarbonFlowAISummary } from './CarbonFlow/AISummary';
+import { CarbonFlowAISummary } from './CarbonFlow/score/AISummary';
 
 const { darkAlgorithm } = theme;
 
