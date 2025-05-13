@@ -1,0 +1,67 @@
+/**
+ * 面板容器样式
+ */
+.carbon-panel-container {
+  height: 100%;
+  overflow: auto;
+  padding: 16px;
+  background-color: #f5f5f5;
+}
+
+/**
+ * 面板卡片样式
+ */
+.panel-card {
+  margin-bottom: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/**
+ * 场景信息卡片样式
+ */
+.scenario-info-card {
+  background-color: #fff;
+}
+
+/**
+ * 表格容器样式
+ */
+.table-container {
+  margin-top: 16px;
+  background-color: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/**
+ * 按钮组样式
+ */
+.button-group {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+  gap: 8px;
+}
+
+/**
+ * 搜索输入框样式
+ */
+.search-input {
+  width: 200px;
+  margin-bottom: 8px;
+}
+
+/**
+ * 表单项样式
+ */
+.form-item {
+  margin-bottom: 16px;
+}
+
+/**
+ * 模态框样式
+ */
+.ant-modal-content {
+  border-radius: 8px;
+} 
