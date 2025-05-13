@@ -292,8 +292,17 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     const stage = nodeToEdit ? nodeTypeToLifecycleStageMap[nodeToEdit.type || ''] || selectedStage : selectedStage;
     const activeTab = (nodeToEdit.data as any).backgroundDataSourceTab || 'database';
     setBackgroundDataActiveTabKey(activeTab);
+        
+    // 确保使用label字段作为排放源名称
+    const nodeName = nodeToEdit.data.label || (nodeToEdit.data as any).name || '';
+    
     // Construct initial values directly from node data
-    setDrawerInitialValues({ ...(nodeToEdit.data as any), lifecycleStage: stage, backgroundDataSourceTab: activeTab });
+    setDrawerInitialValues({ 
+      ...(nodeToEdit.data as any), 
+      label: nodeName, // 确保表单中使用label字段
+      lifecycleStage: stage, 
+      backgroundDataSourceTab: activeTab 
+    });
     setIsEmissionDrawerVisible(true);
   };
 
@@ -359,31 +368,42 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
              // --- Simplified data update logic (needs verification against NodeData types) ---
              const dataToUpdate: Partial<NodeData> = { // Use Partial<NodeData> for safety
-               label: values.name,
-               nodeName: values.name,
+               label: values.label,
+               nodeName: values.label,
                emissionType: values.category,
-               quantity: String(values.activityData ?? ''), // Ensure string or empty
+               quantity: String(values.quantity ?? ''), // 修改这里：使用values.quantity替代values.activityData
                activityUnit: values.activityUnit || '',
                // Keep existing carbon factor or default? Needs clarification. Assuming keep for now.
                carbonFactor: String(currentNodeData.carbonFactor ?? 0),
-               carbonFactorName: values.factorName || '',
-               carbonFactorUnit: values.factorUnit || '',
+               carbonFactorName: values.carbonFactorName || '',
+               carbonFactorUnit: values.carbonFactorUnit || '',
                emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '',
                emissionFactorTemporalRepresentativeness: values.emissionFactorTemporalRepresentativeness || '',
-               activitydataSource: values.factorSource || '',
+               activitydataSource: values.activitydataSource || '',
                lifecycleStage: selectedStageName,
                supplementaryInfo: values.supplementaryInfo || '',
-               unitConversion: String(values.conversionFactor ?? 1),
+               unitConversion: String(values.unitConversion ?? 1),
                hasEvidenceFiles: (currentNodeData as any).hasEvidenceFiles || false, // Retain existing value
                dataRisk: (currentNodeData as any).dataRisk, // Retain existing value
                backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'),
                // Transport fields - Add if they exist in NodeData, otherwise remove
                startPoint: values.startPoint || '',
                endPoint: values.endPoint || '',
-               transportType: values.transportType || '',
-               distance: values.distance ?? 0,
-               distanceUnit: values.distanceUnit || '',
+               transportationMode: values.transportType || '',  // 修改为transportationMode
+               transportationDistance: values.distance ?? 0,    // 修改为transportationDistance
+               distributionDistance: values.distance ?? 0,      // 同时添加distributionDistance
              };
+
+             // 如果有transportType字段，映射到正确的属性名
+             if (values.transportType) {
+               (dataToUpdate as any).transportationMode = values.transportType;
+             }
+
+             // 如果有distance字段，映射到正确的属性名
+             if (values.distance !== undefined) {
+               (dataToUpdate as any).transportationDistance = values.distance;
+               (dataToUpdate as any).distributionDistance = values.distance;
+             }
 
              let finalNodeData = { ...currentNodeData, ...dataToUpdate }; // Merge updates
 
@@ -400,7 +420,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     case 'product':
                         finalNodeData = {
                             ...commonData,
-                            label: commonData.label || values.name, // Ensure label is string
+                            label: commonData.label || values.label, // Ensure label is string
                             material: values.category, // Example: map category to material
                             // Ensure all required fields from ProductNodeData are present
                             weight_per_unit: (finalNodeData as ProductNodeData)?.weight_per_unit ?? '',
@@ -418,8 +438,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                         // Example for finalProduct
                          finalNodeData = {
                             ...commonData,
-                            label: commonData.label || values.name, // Ensure label is string
-                            finalProductName: values.name,
+                            label: commonData.label || values.label, // Ensure label is string
+                            finalProductName: values.label,
                             // Ensure all required fields from FinalProductNodeData are present
                             totalCarbonFootprint: (finalNodeData as FinalProductNodeData)?.totalCarbonFootprint ?? 0,
                             certificationStatus: (finalNodeData as FinalProductNodeData)?.certificationStatus ?? '未認證',
@@ -473,34 +493,53 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
          }
 
          // --- Simplified nodeData creation (needs verification against NodeData types) ---
-         const commonData: Partial<NodeData> = { // Use Partial<NodeData>
-             label: values.name,
-             nodeName: values.name,
-             lifecycleStage: selectedStageName,
-             emissionType: values.category,
-             activitydataSource: values.factorSource || '',
-             activityScore: 0,
-             verificationStatus: '未驗證',
-             carbonFootprint: String(0),
-             quantity: String(values.activityData ?? ''),
-             activityUnit: values.activityUnit || '',
-             carbonFactor: String(0), // Default for new node
-             carbonFactorName: values.factorName || '',
-             carbonFactorUnit: values.factorUnit || '',
-             emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '',
-             emissionFactorTemporalRepresentativeness: values.emissionFactorTemporalRepresentativeness || '',
-             unitConversion: String(values.conversionFactor ?? 1),
-             supplementaryInfo: values.supplementaryInfo || '',
-             hasEvidenceFiles: false,
-             dataRisk: undefined,
-             backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'),
-             // Transport fields
-             startPoint: values.startPoint || '',
-             endPoint: values.endPoint || '',
-             transportType: values.transportType || '',
-             distance: values.distance ?? 0,
-             distanceUnit: values.distanceUnit || '',
+         const commonData: Partial<NodeData> = {
+           label: values.label,
+           nodeName: values.label,
+           lifecycleStage: selectedStageName,
+           emissionType: values.category,
+           activitydataSource: values.activitydataSource || '',
+           activityScore: 0,
+           verificationStatus: '未驗證',
+           carbonFootprint: String(0),
+           quantity: String(values.quantity ?? ''),
+           activityUnit: values.activityUnit || '',
+           carbonFactor: String(0),
+           carbonFactorName: values.carbonFactorName || '',
+           carbonFactorUnit: values.carbonFactorUnit || '',
+           emissionFactorGeographicalRepresentativeness: values.emissionFactorGeographicalRepresentativeness || '',
+           emissionFactorTemporalRepresentativeness: values.emissionFactorTemporalRepresentativeness || '',
+           unitConversion: String(values.unitConversion ?? 1),
+           supplementaryInfo: values.supplementaryInfo || '',
+           hasEvidenceFiles: false,
+           dataRisk: undefined,
+           backgroundDataSourceTab: backgroundDataActiveTabKey as ('database' | 'manual'),
+           // 运输字段 - 只使用基础结构
+           startPoint: values.startPoint || '',
+           endPoint: values.endPoint || '',
          };
+
+         // 如果有transportType字段，映射到正确的属性名
+         if (values.transportType) {
+           (commonData as any).transportationMode = values.transportType;
+         }
+
+         // 如果有distance字段，映射到正确的属性名
+         if (values.distance !== undefined) {
+           (commonData as any).transportationDistance = values.distance;
+           (commonData as any).distributionDistance = values.distance;
+         }
+
+         // 如果是手动填写背景数据模式，更新相关字段
+         if (backgroundDataActiveTabKey === 'manual') {
+           commonData.carbonFactorName = values.carbonFactorName || '';
+           commonData.carbonFactor = String(values.carbonFactor ?? 0);
+           commonData.carbonFactorUnit = values.carbonFactorUnit || '';
+           commonData.emissionFactorGeographicalRepresentativeness = values.emissionFactorGeographicalRepresentativeness || '';
+           commonData.emissionFactorTemporalRepresentativeness = values.emissionFactorTemporalRepresentativeness || '';
+           commonData.activitydataSource = values.activitydataSource || '';
+           commonData.activityUUID = values.activityUUID || '';
+         }
 
          let nodeData: NodeData;
          // Rebuild data based on node type (Keep this logic, but verify NodeData fields)
@@ -510,7 +549,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             case 'product':
                 nodeData = {
                     ...commonData, // Spread common data first
-                    label: commonData.label || values.name, // Ensure label is string
+                    label: commonData.label || values.label, // Ensure label is string
                     material: values.category, // Map category
                     // Provide defaults for all other *required* fields in ProductNodeData
                     weight_per_unit: '',
@@ -528,8 +567,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             default: // Example for finalProduct
                 nodeData = {
                     ...commonData,
-                    label: commonData.label || values.name, // Ensure label is string
-                    finalProductName: values.name,
+                    label: commonData.label || values.label, // Ensure label is string
+                    finalProductName: values.label,
                     // Provide defaults for required fields
                     totalCarbonFootprint: 0,
                     certificationStatus: '未認證',
@@ -957,7 +996,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       {
         title: '排放源名称',
         dataIndex: ['data', 'label'], // Access nested data
-        key: 'name',
+        key: 'label', // 修改这里，将key从'name'改为'label'，保持一致性
         filterDropdown: (props: FilterDropdownProps) => {
           // ... (keep existing filter dropdown logic, but adapt record access if needed) ...
            const { setSelectedKeys, selectedKeys, confirm, clearFilters } = props;
@@ -984,7 +1023,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         },
         filterIcon: (filtered: boolean) => <SearchOutlined style={{ color: filtered ? '#1890ff' : undefined }} />,
         onFilter: (value, record) =>
-          (record.data?.label ?? '').toString().toLowerCase().includes((value as string).toLowerCase()), // Adjust record access
+          (record.data?.label ?? '').toString().toLowerCase().includes((value as string).toLowerCase()), // 确保使用label字段进行过滤
       },
       {
         title: '活动水平数据状态',
@@ -1126,12 +1165,12 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     { title: '排放源补充信息', dataIndex: ['data', 'supplementaryInfo'], key: 'supplementaryInfo', render: (text?: string) => text || '-' },
     { title: '活动数据数值', dataIndex: ['data', 'quantity'], key: 'activityData', render: (text?: string) => text || '-' },
     { title: '活动数据单位', dataIndex: ['data', 'activityUnit'], key: 'activityUnit', render: (text?: string) => text || '-' },
-    { title: '因子名称', dataIndex: ['data', 'carbonFactorName'], key: 'factorName', render: (text?: string) => text || '-' },
+    { title: '因子名称', dataIndex: ['data', 'carbonFactorName'], key: 'carbonFactorName', render: (text?: string) => text || '-' },
     { title: '因子数值', dataIndex: ['data', 'carbonFactor'], key: 'carbonFactor', render: (text?: string) => text || '-' },
-    { title: '因子单位', dataIndex: ['data', 'carbonFactorUnit'], key: 'factorUnit', render: (text?: string) => text || '-' },
+    { title: '因子单位', dataIndex: ['data', 'carbonFactorUnit'], key: 'carbonFactorUnit', render: (text?: string) => text || '-' },
     { title: '地理代表性', dataIndex: ['data', 'emissionFactorGeographicalRepresentativeness'], key: 'emissionFactorGeographicalRepresentativeness', render: (text?: string) => text || '-' },
     { title: '时间代表性', dataIndex: ['data', 'emissionFactorTemporalRepresentativeness'], key: 'emissionFactorTemporalRepresentativeness', render: (text?: string) => text || '-' },
-    { title: '单位转换系数', dataIndex: ['data', 'unitConversion'], key: 'conversionFactor', render: (text?: string) => text || '-' },
+    { title: '单位转换系数', dataIndex: ['data', 'unitConversion'], key: 'unitConversion', render: (text?: string) => text || '-' },
     {
       title: '匹配状态',
       key: 'factorMatchStatus',
@@ -1196,12 +1235,12 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     {
       title: <div>背景数据</div>,
       children: [
-        { title: '名称', dataIndex: ['data', 'carbonFactorName'], key: 'factorName', width: 120, align: 'center', render: (v: any) => v || '-' },
+        { title: '名称', dataIndex: ['data', 'carbonFactorName'], key: 'carbonFactorName', width: 120, align: 'center', render: (v: any) => v || '-' },
         { title: '数值(kgCO2e)', dataIndex: ['data', 'carbonFactor'], key: 'carbonFactor', width: 110, align: 'center', render: (v: any) => v || '-' },
-        { title: '单位', dataIndex: ['data', 'carbonFactorUnit'], key: 'factorUnit', width: 80, align: 'center', render: (v: any) => v || '-' },
-        { title: '地理代表性', dataIndex: ['data', 'emissionFactorGeographicalRepresentativeness'], key: 'geo', width: 100, align: 'center', render: (v: any) => v || '-' },
-        { title: '时间代表性', dataIndex: ['data', 'emissionFactorTemporalRepresentativeness'], key: 'temporal', width: 90, align: 'center', render: (v: any) => v || '-' },
-        { title: '数据库名称', dataIndex: ['data', 'activitydataSource'], key: 'factorSource', width: 110, align: 'center', render: (v: any) => v || '-' },
+        { title: '单位', dataIndex: ['data', 'carbonFactorUnit'], key: 'carbonFactorUnit', width: 80, align: 'center', render: (v: any) => v || '-' },
+        { title: '地理代表性', dataIndex: ['data', 'emissionFactorGeographicalRepresentativeness'], key: 'emissionFactorGeographicalRepresentativeness', width: 100, align: 'center', render: (v: any) => v || '-' },
+        { title: '时间代表性', dataIndex: ['data', 'emissionFactorTemporalRepresentativeness'], key: 'emissionFactorTemporalRepresentativeness', width: 90, align: 'center', render: (v: any) => v || '-' },
+        { title: '数据库名称', dataIndex: ['data', 'activitydataSource'], key: 'activitydataSource', width: 110, align: 'center', render: (v: any) => v || '-' },
         // { title: 'UUID', dataIndex: ['data', 'factorUUID'], key: 'factorUUID', width: 120, align: 'center', render: (v: any) => v || '-' }, // Assuming UUID is not directly in NodeData yet
          { title: 'UUID', dataIndex: ['data', 'activityUUID'], key: 'activityUUID', width: 120, align: 'center', render: (v: any) => v || '-' },
       ]
@@ -1209,7 +1248,19 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     {
       title: <div>单位转换</div>,
       children: [
-        { title: '系数', dataIndex: ['data', 'unitConversion'], key: 'conversionFactor', width: 80, align: 'center', render: (v: any, r: Node<NodeData>) => v ? <span>{v}{(r.data as any).conversionFactor_aiGenerated && <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>}</span> : '-' },
+        { title: '系数', 
+          dataIndex: ['data', 'unitConversion'], 
+          key: 'unitConversion', 
+          width: 80, 
+          align: 'center', 
+          render: (v: any, r: Node<NodeData>) => v ? 
+            <span>
+              {v}
+              {(r.data as any).unitConversion_aiGenerated && 
+                <span style={{color:'#1890ff',marginLeft:4,fontSize:12}}>AI</span>
+              }
+            </span> : '-' 
+        },
       ]
     },
     {
@@ -1826,7 +1877,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
               </Tabs.TabPane>
               <Tabs.TabPane tab="手动填写" key="manual">
                 <Form.Item 
-                  name="factorNameManual" 
+                  name="carbonFactorName" 
                   label="排放因子名称" 
                   rules={[{ 
                     required: backgroundDataActiveTabKey === 'manual', 
@@ -1838,7 +1889,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Item 
-                      name="backgroundData_factorValueManual" 
+                      name="carbonFactor" 
                       label="排放因子数值 (kgCO2e)" 
                       rules={[
                         { 
@@ -1857,7 +1908,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                   </Col>
                   <Col span={12}>
                     <Form.Item 
-                      name="factorUnitManual" 
+                      name="carbonFactorUnit" 
                       label="排放因子分母单位" 
                       rules={[{ 
                         required: backgroundDataActiveTabKey === 'manual', 
@@ -1871,10 +1922,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Item 
-                      name="emissionFactorGeographicalRepresentativenessManual" 
+                      name="emissionFactorGeographicalRepresentativeness" 
                       label="地理代表性" 
                       rules={[{ 
-                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        required: backgroundDataActiveTabKey === 'manual',
                         message: '请输入地理代表性' 
                       }]}
                     >
@@ -1883,10 +1934,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                   </Col>
                   <Col span={12}>
                     <Form.Item 
-                      name="factorPublicationDateManual" 
+                      name="emissionFactorTemporalRepresentativeness" 
                       label="发布时间" 
                       rules={[{ 
-                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        required: backgroundDataActiveTabKey === 'manual',
                         message: '请输入发布时间' 
                       }]}
                     >
@@ -1897,10 +1948,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Item 
-                      name="factorSourceManual" 
+                      name="activitydataSource" 
                       label="数据库名称" 
                       rules={[{ 
-                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        required: backgroundDataActiveTabKey === 'manual',
                         message: '请输入数据库名称' 
                       }]}
                     >
@@ -1909,10 +1960,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                   </Col>
                   <Col span={12}>
                     <Form.Item 
-                      name="factorUUIDManual" 
+                      name="activityUUID" 
                       label="因子UUID" 
                       rules={[{ 
-                        required: backgroundDataActiveTabKey === 'manual', // Assuming this should also be conditional
+                        required: backgroundDataActiveTabKey === 'manual',
                         message: '请输入因子UUID' 
                       }]}
                     >
@@ -1938,9 +1989,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                   对应
                 </Typography.Text>
                 <Form.Item
-                  name="conversionFactor"
+                  name="unitConversion"
                   rules={[
-                    // No required rule here, it's already not required
                     {
                       transform: value => {
                         const trimmedValue = String(value).trim();
