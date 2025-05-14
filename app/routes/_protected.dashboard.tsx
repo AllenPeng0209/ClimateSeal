@@ -42,7 +42,7 @@ const pathToMenuKeyMap: Record<string, string> = {
 };
 
 export default function Dashboard() {
-  const { user } = useAuthContext();
+  const { user, logout } = useAuthContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -61,8 +61,9 @@ export default function Dashboard() {
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = async () => {
-    // TODO: Implement logout logic
     console.log("Logging out");
+    await logout();
+    navigate("/");
   };
 
   const menuItems = [
