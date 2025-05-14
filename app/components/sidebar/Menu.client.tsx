@@ -5,7 +5,21 @@ import { Dialog, DialogButton, DialogDescription, DialogRoot, DialogTitle } from
 // import { ThemeSwitch } from '~/components/ui/ThemeSwitch';
 import { ControlPanel } from '~/components/@settings/core/ControlPanel';
 import { SettingsButton } from '~/components/ui/SettingsButton';
-import { db, deleteById, getAll, chatId, type ChatHistoryItem, useChatHistory } from '~/lib/persistence';
+import { useAuthContext } from '~/contexts/AuthContext';
+import {
+  db,
+  deleteById,
+  getAll,
+  chatId,
+  type ChatHistoryItem,
+  useChatHistory,
+  createChatFromMessages,
+  setMessages,
+  getMessages,
+  description as chatDescription,
+  chatMetadata,
+  getUrlId,
+} from '~/lib/persistence';
 import { cubicEasingFn } from '~/utils/easings';
 import { logger } from '~/utils/logger';
 import { HistoryItem } from './HistoryItem';
@@ -14,6 +28,10 @@ import { useSearchFilter } from '~/lib/hooks/useSearchFilter';
 import { classNames } from '~/utils/classNames';
 import { useStore } from '@nanostores/react';
 import { profileStore } from '~/lib/stores/profile';
+import { useNavigate } from '@remix-run/react';
+import { supabase } from '~/lib/supabase';
+import { chatMessagesStore } from '~/lib/stores/chatMessagesStore';
+import { chatStore } from '~/lib/stores/chat';
 
 const menuVariants = {
   closed: {
@@ -68,6 +86,8 @@ export const Menu = () => {
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const profile = useStore(profileStore);
+  const { user } = useAuthContext();
+
 
   const { filteredItems: filteredList, handleSearchChange } = useSearchFilter({
     items: list,
@@ -157,6 +177,117 @@ export const Menu = () => {
     setIsSettingsOpen(false);
   };
 
+
+  const displayName = user?.name || user?.email || 'Guest User';
+
+  const handleStartNewChat = useCallback(
+    async (event: React.UIEvent | React.MouseEvent) => {
+      event.preventDefault();
+
+      if (!db) {
+        toast.error('Chat persistence is unavailable');
+        return;
+      }
+
+      try {
+        // 1. 保存当前会话
+        const currentId = chatId.get();
+        if (currentId) {
+          try {
+            // 获取已有记录，确保 urlId / description 不丢失
+            const currentChat = await getMessages(db, currentId);
+            let currUrlId = currentChat?.urlId;
+            if (!currUrlId) {
+              currUrlId = await getUrlId(db, currentId);
+            }
+            const currDescription =
+              currentChat?.description?.trim() || `Chat ${new Date().toLocaleString()}`;
+
+            await setMessages(
+              db,
+              currentId,
+              chatMessagesStore.get(),
+              currUrlId,
+              currDescription,
+              currentChat?.timestamp,
+              currentChat?.metadata,
+            );
+          } catch (err) {
+            console.error('Failed to persist current chat before starting new one:', err);
+          }
+        }
+
+        // 2. 创建新会话
+        const newUrlId = await createChatFromMessages(db, '', []);
+
+        // 3. 清空前端状态
+        chatMessagesStore.set([]);
+        chatId.set(newUrlId);
+        chatStore.setKey('started', false);
+
+        // 通知 Chat 组件更新
+        window.dispatchEvent(new CustomEvent('chatHistoryUpdated', { detail: { messages: [] } }));
+
+        // 刷新侧边栏列表，确保历史立即可见
+        loadEntries();
+
+        // 4. 关闭侧边栏
+        setOpen(false);
+      } catch (error) {
+        toast.error('Failed to start a new chat');
+        console.error('Error creating new chat:', error);
+      }
+    },
+    [],
+  );
+
+
+  const switchChat = useCallback(
+    async (item: ChatHistoryItem) => {
+      if (chatId.get() === item.id) {
+        // already active
+        setOpen(false);
+        return;
+      }
+
+      if (!db) {
+        toast.error('Chat persistence is unavailable');
+        return;
+      }
+
+      try {
+        const chat = await getMessages(db, item.id);
+        if (!chat) {
+          toast.error('Failed to load chat');
+          return;
+        }
+
+        chatMessagesStore.set(chat.messages);
+        chatId.set(chat.id);
+        chatDescription.set(chat.description);
+        chatMetadata.set(chat.metadata);
+
+        chatStore.setKey('started', true);
+
+        // Notify Chat component
+        window.dispatchEvent(
+          new CustomEvent('chatHistoryUpdated', { detail: { messages: chat.messages } }),
+        );
+
+        // Update address bar without redirect
+        const url = new URL(window.location.href);
+        url.pathname = `/chat/${item.urlId}`;
+        window.history.replaceState({}, '', url);
+
+        setOpen(false);
+      } catch (error) {
+        console.error(error);
+        toast.error('Failed to switch chat');
+      }
+    },
+    [],
+  );
+
   return (
     <>
       <motion.div
@@ -176,7 +307,7 @@ export const Menu = () => {
           <div className="text-gray-900 dark:text-white font-medium"></div>
           <div className="flex items-center gap-3">
             <span className="font-medium text-sm text-gray-900 dark:text-white truncate">
-              {profile?.username || 'Guest User'}
+              {displayName}
             </span>
             <div className="flex items-center justify-center w-[32px] h-[32px] overflow-hidden bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-500 rounded-full shrink-0">
               {profile?.avatar ? (
@@ -196,13 +327,13 @@ export const Menu = () => {
         <CurrentDateTime />
         <div className="flex-1 flex flex-col h-full w-full overflow-hidden">
           <div className="p-4 space-y-3">
-            <a
-              href="/"
-              className="flex gap-2 items-center bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-lg px-4 py-2 transition-colors"
+            <button
+              onClick={handleStartNewChat}
+              className="flex gap-2 items-center bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-lg px-4 py-2 transition-colors w-full text-left"
             >
               <span className="inline-block i-lucide:message-square h-4 w-4" />
               <span className="text-sm font-medium">Start new chat</span>
-            </a>
+            </button>
             <div className="relative w-full">
               <div className="absolute left-3 top-1/2 -translate-y-1/2">
                 <span className="i-lucide:search h-4 w-4 text-gray-400 dark:text-gray-500" />
@@ -237,6 +368,7 @@ export const Menu = () => {
                         exportChat={exportChat}
                         onDelete={(event) => handleDeleteClick(event, item)}
                         onDuplicate={() => handleDuplicate(item.id)}
+                        onSelect={() => switchChat(item)}
                       />
                     ))}
                   </div>
