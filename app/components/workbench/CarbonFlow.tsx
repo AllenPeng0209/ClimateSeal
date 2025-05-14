@@ -128,10 +128,7 @@ const CarbonFlowInner = () => {
   const { project, fitView } = useReactFlow();
   const isDraggingRef = useRef(false);
 
-  const [viewMode, setViewMode] = useState<'flow' | 'panel'>('flow');
-  const toggleViewMode = () => {
-    setViewMode((prevMode) => (prevMode === 'flow' ? 'panel' : 'flow'));
-  };
+  const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'check'>('panel');
 
   const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
   const [checkpointName, setCheckpointName] = useState('');
@@ -1002,21 +999,36 @@ const CarbonFlowInner = () => {
           top: '10px',
           right: '10px',
           zIndex: 1000,
+          display: 'flex',
+          gap: '12px',
         }}
       >
         <MyButton
-          onClick={toggleViewMode}
+          onClick={() => setViewMode('panel')}
           className="view-toggle-button"
-          style={{
-            backgroundColor: '#1890ff',
-            color: 'white',
-          }}
         >
-          {viewMode === 'flow' ? '切换到面板视图' : '切换到流程图视图'}
+          数据操作台面板
+        </MyButton>
+        <MyButton
+          onClick={() => setViewMode('flow')}
+          className="view-toggle-button"
+        >
+          流程图面板
+        </MyButton>
+        <MyButton
+          onClick={() => setViewMode('check')}
+          className="view-toggle-button"
+        >
+          数据查验面板
         </MyButton>
       </div>
 
-      {viewMode === 'flow' ? (
+      {viewMode === 'panel' && (
+        <div className="carbon-panel-container" style={{ height: '100vh', width: '100%' }}>
+          <CarbonCalculatorPanelClient />
+        </div>
+      )}
+      {viewMode === 'flow' && (
         <div className="editor-layout">
           <div className="editor-header">
             <div className="header-left">
@@ -1316,9 +1328,12 @@ const CarbonFlowInner = () => {
             />
           </Modal>
         </div>
-      ) : (
-        <div className="carbon-panel-container" style={{ height: '100vh', width: '100%' }}>
-          <CarbonCalculatorPanelClient />
+      )}
+      {viewMode === 'check' && (
+        <div className="carbon-panel-container flex items-center justify-center" style={{ height: '100vh', width: '100%' }}>
+          <div style={{ fontSize: 22, color: '#aaa', textAlign: 'center' }}>
+            数据查验面板开发中...
+          </div>
         </div>
       )}
     </div>
