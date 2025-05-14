@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { json, useLoaderData } from "@remix-run/react";
+import { json, useLoaderData, useNavigate } from "@remix-run/react";
 import WorkbenchSection from "~/components/dashboard/sections/WorkbenchSection";
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import type { Workflow } from "~/types/dashboard";
+import { message } from "antd";
+import { ensureUUID } from "~/utils/uuid";
 
 export async function loader({ request }: LoaderFunctionArgs) {
     const url = new URL(request.url);
@@ -90,6 +92,9 @@ export default function DashboardWorkbench() {
     const [searchQuery, setSearchQuery] = useState("");
     const [industryFilter, setIndustryFilter] = useState("");
     const { workflows } = useLoaderData<typeof loader>();
+    const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+    const [workflowToDelete, setWorkflowToDelete] = useState<Workflow | null>(null);
+    const navigate = useNavigate();
 
     const handleSearch = (value: string) => {
         setSearchQuery(value);
@@ -103,14 +108,28 @@ export default function DashboardWorkbench() {
         console.log("Filtering by industry:", value);
     };
 
-    const navigateToWorkflow = (id: string, route: "workflow" | "report" = "workflow") => {
-        // TODO: Implement navigation
-        console.log(`Navigating to workflow ${id} via ${route}`);
+    const navigateToWorkflow = (id: string, route: "workflow" | "report") => {
+        // 如果是创建新工作流，直接导航
+        if (id === "new") {
+            navigate(`/${route}/new`);
+            return;
+        }
+
+        // 对于其他情况，验证UUID格式
+        const formattedId = ensureUUID(id);
+        if (!formattedId) {
+            message.error("无效的工作流ID格式");
+            return;
+        }
+
+        navigate(`/${route}/${formattedId}`);
     };
+
 
     const showDeleteModal = (workflow: Workflow) => {
         // TODO: Implement delete modal
-        console.log("Showing delete modal for workflow:", workflow.id);
+        setWorkflowToDelete(workflow);
+        setDeleteModalVisible(true);
     };
 
     return (
