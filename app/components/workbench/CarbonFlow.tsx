@@ -75,6 +75,7 @@ import { supabase } from '~/lib/supabase';
 // import { CarbonCalculatorPanelClient } from './CarbonFlow/panel';
 import { CarbonCalculatorPanelClient } from './CarbonFlow/carbonpanel';
 import { CarbonFlowAISummary } from './CarbonFlow/score/AISummary';
+import { VisualizationAnalysis } from './VisualizationAnalysis';
 
 const { darkAlgorithm } = theme;
 
@@ -145,6 +146,8 @@ const CarbonFlowInner = () => {
   } = useCarbonFlowStore();
 
   const supabaseState = useStore(supabaseConnection);
+
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   useEffect(() => {
     if (storeNodes) {
@@ -995,331 +998,353 @@ const CarbonFlowInner = () => {
 
   return (
     <>
-      <div
-        className="view-toggle-container"
-        style={{
-          position: 'fixed',
-          top: '10px',
-          right: '10px',
-          zIndex: 1000,
-        }}
-      >
-        <MyButton
-          onClick={toggleViewMode}
-          className="view-toggle-button"
-          style={{
-            backgroundColor: '#1890ff',
-            color: 'white',
-          }}
-        >
-          {viewMode === 'flow' ? '切换到面板视图' : '切换到流程图视图'}
-        </MyButton>
-      </div>
-
-      {viewMode === 'flow' ? (
-        <div className="editor-layout">
-          <div className="editor-header">
-            <div className="header-left">
-              <h2 className="workflow-title">{workflowTitle}</h2>
-            </div>
-            <div className="header-right">
-              <MyButton onClick={triggerFileInput}>上传文件</MyButton>
-              <MyButton onClick={handleCarbonFactorMatch}>碳因子匹配</MyButton>
-              <MyButton onClick={deleteSelectedNode} variant="destructive" disabled={!selectedNode}>
-                删除节点
-              </MyButton>
-              <MyButton onClick={autoLayout}>自动布局</MyButton>
-              <MyButton
-                onClick={autoCompleteMissingFields}
-                style={{
-                  backgroundColor: '#52c41a',
-                  color: 'white',
-                  marginLeft: '8px',
-                }}
-              >
-                一键AI补全
-              </MyButton>
-              <MyButton
-                onClick={() => {
-                  message.info('报告生成功能待实现');
-                }}
-                style={{
-                  backgroundColor: '#1890ff',
-                  color: 'white',
-                  marginLeft: 'auto',
-                }}
-              >
-                生成报告
-              </MyButton>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                style={{ display: 'none' }}
-                accept=".csv,.txt,.pdf,.json"
-              />
-              <AntButton
-                icon={<HistoryOutlined />}
-                onClick={() => setIsCheckpointModalVisible(true)}
-                style={{ marginLeft: '8px' }}
-              >
-                检查点管理
-              </AntButton>
-            </div>
-          </div>
-          <div className="main-content">
-            <div className="editor-sider" style={{ width: siderWidth }}>
-              <div className="file-manager">
-                <h3>节点类型</h3>
-                <div className="node-types">
-                  {Object.entries(nodeTypeLabels).map(([type, label]) => (
-                    <div
-                      key={type}
-                      className="draggable-file"
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('application/carbonflow', label);
-                      }}
-                    >
-                      {label}
-                      <span className="drag-hint">拖拽到画布</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="resizer" onMouseDown={handleResizeStart} role="separator" aria-label="Resize panel">
-                <div className="resizer-handle" />
-              </div>
-            </div>
-            <div className="ai-summary-floating-container">
-              <CarbonFlowAISummary setSelectedNode={setSelectedNode} />
-            </div>
-            <div className="editor-content">
-              <div className="reactflow-wrapper">
-                <ReactFlow
-                  nodes={nodes}
-                  edges={edges}
-                  onNodesChange={onNodesChange}
-                  onEdgesChange={onEdgesChange}
-                  onConnect={onConnect}
-                  onNodeClick={onNodeClick}
-                  onDragOver={onDragOver}
-                  onDrop={onDrop}
-                  onInit={onInit}
-                  onPaneClick={handlePaneClick}
-                  nodeTypes={nodeTypes}
-                  fitView
-                  minZoom={0.1}
-                  maxZoom={2}
-                  defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-                  onNodeDragStart={handleNodeDragStart}
-                  onNodeDragStop={handleNodeDragStop}
-                >
-                  <Background />
-                  <Controls />
-                  <MiniMap />
-
-                  {selectedNode && (
-                    <Panel position="top-center">
-                      <NodeProperties
-                        node={selectedNode}
-                        selectedNode={selectedNode}
-                        onClose={() => setSelectedNode(null)}
-                        setNodes={setNodes as Dispatch<SetStateAction<Node<NodeData>[]>>}
-                        setSelectedNode={setSelectedNode}
-                        updateAiSummary={() => { /* Define or pass actual update function if needed */ }}
-                        onUpdate={() => {
-                          /* Placeholder */
-                        }}
-                      />
-                    </Panel>
-                  )}
-                </ReactFlow>
-              </div>
-            </div>
-          </div>
-          <Modal
-            title="检查点管理"
-            open={isCheckpointModalVisible}
-            onCancel={() => setIsCheckpointModalVisible(false)}
-            footer={null}
-            width={800}
-            bodyStyle={{
-              backgroundColor: '#1f1f1f',
-              color: '#e0e0e0',
-              padding: '24px',
-              maxHeight: '70vh',
-              overflowY: 'auto',
-            }}
-            styles={{
-              header: {
-                backgroundColor: '#1f1f1f',
-                color: '#e0e0e0',
-                borderBottom: '1px solid #303030',
-              },
-              content: {
-                backgroundColor: '#1f1f1f',
-              },
-              mask: {
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-              },
+      {showAnalysis ? (
+        <VisualizationAnalysis
+          onBack={() => setShowAnalysis(false)}
+          workflowName={workflowTitle}
+        />
+      ) : (
+        <>
+          <div
+            className="view-toggle-container"
+            style={{
+              position: 'fixed',
+              top: '10px',
+              right: '10px',
+              zIndex: 1000,
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
-            <Row gutter={[16, 16]}>
-              <Col span={16}>
-                <Input
-                  placeholder="输入检查点名称"
-                  value={checkpointName}
-                  onChange={(e) => setCheckpointName(e.target.value)}
-                  style={{
-                    backgroundColor: '#2a2a2a',
-                    color: '#e0e0e0',
-                    borderColor: '#444',
-                  }}
-                />
-              </Col>
-              <Col span={8}>
-                <AntButton
-                  type="primary"
-                  onClick={handleSaveCheckpoint}
-                  icon={<SaveOutlined />}
-                  block
-                  loading={isSaving}
-                  disabled={isSaving || !checkpointName.trim()}
-                >
-                  {isSaving ? '保存中...' : '保存当前状态'}
-                </AntButton>
-              </Col>
-            </Row>
+            <MyButton
+              onClick={() => setShowAnalysis(true)}
+              style={{
+                backgroundColor: '#faad14',
+                color: 'white',
+              }}
+            >
+              可视化分析
+            </MyButton>
+            <MyButton
+              onClick={toggleViewMode}
+              className="view-toggle-button"
+              style={{
+                backgroundColor: '#1890ff',
+                color: 'white',
+              }}
+            >
+              {viewMode === 'flow' ? '切换到面板视图' : '切换到流程图视图'}
+            </MyButton>
+          </div>
 
-            <Row gutter={[16, 16]} style={{ marginTop: '20px' }}>
-              <Col span={8}>
-                <Upload
-                  accept=".json"
-                  showUploadList={false}
-                  beforeUpload={handleImportAntdUpload}
-                  customRequest={({ onSuccess }) => {
-                    setTimeout(() => {
-                      if (onSuccess) {
-                        onSuccess('ok');
-                      }
-                    }, 0);
-                  }}
-                >
-                  <AntButton
-                    icon={<UploadOutlined />}
-                    block
+          {viewMode === 'flow' ? (
+            <div className="editor-layout">
+              <div className="editor-header">
+                <div className="header-left">
+                  <h2 className="workflow-title">{workflowTitle}</h2>
+                </div>
+                <div className="header-right">
+                  <MyButton onClick={triggerFileInput}>上传文件</MyButton>
+                  <MyButton onClick={handleCarbonFactorMatch}>碳因子匹配</MyButton>
+                  <MyButton onClick={deleteSelectedNode} variant="destructive" disabled={!selectedNode}>
+                    删除节点
+                  </MyButton>
+                  <MyButton onClick={autoLayout}>自动布局</MyButton>
+                  <MyButton
+                    onClick={autoCompleteMissingFields}
                     style={{
-                      backgroundColor: '#333',
-                      borderColor: '#555',
-                      color: '#e0e0e0',
+                      backgroundColor: '#52c41a',
+                      color: 'white',
+                      marginLeft: '8px',
                     }}
                   >
-                    导入检查点
+                    一键AI补全
+                  </MyButton>
+                  <MyButton
+                    onClick={() => {
+                      message.info('报告生成功能待实现');
+                    }}
+                    style={{
+                      backgroundColor: '#1890ff',
+                      color: 'white',
+                      marginLeft: 'auto',
+                    }}
+                  >
+                    生成报告
+                  </MyButton>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    style={{ display: 'none' }}
+                    accept=".csv,.txt,.pdf,.json"
+                  />
+                  <AntButton
+                    icon={<HistoryOutlined />}
+                    onClick={() => setIsCheckpointModalVisible(true)}
+                    style={{ marginLeft: '8px' }}
+                  >
+                    检查点管理
                   </AntButton>
-                </Upload>
-              </Col>
-              <Col span={8}>
-                <AntButton
-                  icon={<CloudSyncOutlined />}
-                  onClick={handleSyncCheckpoints}
-                  loading={syncStatus.status === 'pending'}
-                  block
-                  style={{
-                    backgroundColor: '#333',
-                    borderColor: '#555',
-                    color: '#e0e0e0',
-                  }}
-                  disabled={!supabaseState.isConnected}
-                >
-                  {syncStatus.status === 'pending' ? '同步中...' : '同步到云端'}
-                </AntButton>
-              </Col>
-              <Col span={8}>
-                <AntButton
-                  icon={<CloudDownloadOutlined />}
-                  onClick={handleRestoreFromCloud}
-                  loading={syncStatus.status === 'pending'}
-                  block
-                  style={{
-                    backgroundColor: '#333',
-                    borderColor: '#555',
-                    color: '#e0e0e0',
-                  }}
-                  disabled={!supabaseState.isConnected}
-                >
-                  {syncStatus.status === 'pending' ? '恢复中...' : '从云端恢复'}
-                </AntButton>
-              </Col>
-            </Row>
-
-            <Divider style={{ borderColor: '#444' }} />
-
-            <Typography.Title level={5} style={{ color: '#e0e0e0', marginBottom: '16px' }}>
-              已保存的检查点
-            </Typography.Title>
-            <List
-              itemLayout="horizontal"
-              dataSource={checkpoints}
-              locale={{ emptyText: <Empty description={<span style={{ color: '#aaa' }}>暂无检查点</span>} /> }}
-              renderItem={(item: CheckpointMetadata) => (
-                <List.Item
-                  style={{
-                    backgroundColor: '#2a2a2a',
-                    marginBottom: '8px',
-                    padding: '12px 16px',
-                    borderRadius: '4px',
-                    border: '1px solid #333',
-                  }}
-                  actions={[
-                    <AntButton
-                      key={`restore-${item.name}`}
-                      icon={<HistoryOutlined />}
-                      onClick={() => handleRestoreCheckpoint(item.name)}
-                      type="primary"
+                </div>
+              </div>
+              <div className="main-content">
+                <div className="editor-sider" style={{ width: siderWidth }}>
+                  <div className="file-manager">
+                    <h3>节点类型</h3>
+                    <div className="node-types">
+                      {Object.entries(nodeTypeLabels).map(([type, label]) => (
+                        <div
+                          key={type}
+                          className="draggable-file"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('application/carbonflow', label);
+                          }}
+                        >
+                          {label}
+                          <span className="drag-hint">拖拽到画布</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="resizer" onMouseDown={handleResizeStart} role="separator" aria-label="Resize panel">
+                    <div className="resizer-handle" />
+                  </div>
+                </div>
+                <div className="ai-summary-floating-container">
+                  <CarbonFlowAISummary setSelectedNode={setSelectedNode} />
+                </div>
+                <div className="editor-content">
+                  <div className="reactflow-wrapper">
+                    <ReactFlow
+                      nodes={nodes}
+                      edges={edges}
+                      onNodesChange={onNodesChange}
+                      onEdgesChange={onEdgesChange}
+                      onConnect={onConnect}
+                      onNodeClick={onNodeClick}
+                      onDragOver={onDragOver}
+                      onDrop={onDrop}
+                      onInit={onInit}
+                      onPaneClick={handlePaneClick}
+                      nodeTypes={nodeTypes}
+                      fitView
+                      minZoom={0.1}
+                      maxZoom={2}
+                      defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+                      onNodeDragStart={handleNodeDragStart}
+                      onNodeDragStop={handleNodeDragStop}
                     >
-                      恢复
-                    </AntButton>,
+                      <Background />
+                      <Controls />
+                      <MiniMap />
+
+                      {selectedNode && (
+                        <Panel position="top-center">
+                          <NodeProperties
+                            node={selectedNode}
+                            selectedNode={selectedNode}
+                            onClose={() => setSelectedNode(null)}
+                            setNodes={setNodes as Dispatch<SetStateAction<Node<NodeData>[]>>}
+                            setSelectedNode={setSelectedNode}
+                            updateAiSummary={() => { /* Define or pass actual update function if needed */ }}
+                            onUpdate={() => {
+                              /* Placeholder */
+                            }}
+                          />
+                        </Panel>
+                      )}
+                    </ReactFlow>
+                  </div>
+                </div>
+              </div>
+              <Modal
+                title="检查点管理"
+                open={isCheckpointModalVisible}
+                onCancel={() => setIsCheckpointModalVisible(false)}
+                footer={null}
+                width={800}
+                bodyStyle={{
+                  backgroundColor: '#1f1f1f',
+                  color: '#e0e0e0',
+                  padding: '24px',
+                  maxHeight: '70vh',
+                  overflowY: 'auto',
+                }}
+                styles={{
+                  header: {
+                    backgroundColor: '#1f1f1f',
+                    color: '#e0e0e0',
+                    borderBottom: '1px solid #303030',
+                  },
+                  content: {
+                    backgroundColor: '#1f1f1f',
+                  },
+                  mask: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                  },
+                }}
+              >
+                <Row gutter={[16, 16]}>
+                  <Col span={16}>
+                    <Input
+                      placeholder="输入检查点名称"
+                      value={checkpointName}
+                      onChange={(e) => setCheckpointName(e.target.value)}
+                      style={{
+                        backgroundColor: '#2a2a2a',
+                        color: '#e0e0e0',
+                        borderColor: '#444',
+                      }}
+                    />
+                  </Col>
+                  <Col span={8}>
                     <AntButton
-                      key={`export-${item.name}`}
-                      icon={<ExportOutlined />}
-                      onClick={() => handleExportCheckpoint(item.name)}
+                      type="primary"
+                      onClick={handleSaveCheckpoint}
+                      icon={<SaveOutlined />}
+                      block
+                      loading={isSaving}
+                      disabled={isSaving || !checkpointName.trim()}
+                    >
+                      {isSaving ? '保存中...' : '保存当前状态'}
+                    </AntButton>
+                  </Col>
+                </Row>
+
+                <Row gutter={[16, 16]} style={{ marginTop: '20px' }}>
+                  <Col span={8}>
+                    <Upload
+                      accept=".json"
+                      showUploadList={false}
+                      beforeUpload={handleImportAntdUpload}
+                      customRequest={({ onSuccess }) => {
+                        setTimeout(() => {
+                          if (onSuccess) {
+                            onSuccess('ok');
+                          }
+                        }, 0);
+                      }}
+                    >
+                      <AntButton
+                        icon={<UploadOutlined />}
+                        block
+                        style={{
+                          backgroundColor: '#333',
+                          borderColor: '#555',
+                          color: '#e0e0e0',
+                        }}
+                      >
+                        导入检查点
+                      </AntButton>
+                    </Upload>
+                  </Col>
+                  <Col span={8}>
+                    <AntButton
+                      icon={<CloudSyncOutlined />}
+                      onClick={handleSyncCheckpoints}
+                      loading={syncStatus.status === 'pending'}
+                      block
                       style={{
                         backgroundColor: '#333',
                         borderColor: '#555',
                         color: '#e0e0e0',
                       }}
+                      disabled={!supabaseState.isConnected}
                     >
-                      导出
-                    </AntButton>,
+                      {syncStatus.status === 'pending' ? '同步中...' : '同步到云端'}
+                    </AntButton>
+                  </Col>
+                  <Col span={8}>
                     <AntButton
-                      key={`delete-${item.name}`}
-                      icon={<DeleteOutlined />}
-                      onClick={() => handleDeleteCheckpoint(item.name)}
-                      danger
+                      icon={<CloudDownloadOutlined />}
+                      onClick={handleRestoreFromCloud}
+                      loading={syncStatus.status === 'pending'}
+                      block
+                      style={{
+                        backgroundColor: '#333',
+                        borderColor: '#555',
+                        color: '#e0e0e0',
+                      }}
+                      disabled={!supabaseState.isConnected}
                     >
-                      删除
-                    </AntButton>,
-                  ]}
-                >
-                  <List.Item.Meta
-                    title={<span style={{ color: '#e0e0e0' }}>{item.name}</span>}
-                    description={
-                      <span style={{ color: '#aaa' }}>
-                        {new Date(item.timestamp).toLocaleString()}
-                        {item.metadata?.description ? ` - ${item.metadata.description}` : ''}
-                      </span>
-                    }
-                  />
-                </List.Item>
-              )}
-            />
-          </Modal>
-        </div>
-      ) : (
-        <div className="carbon-panel-container" style={{ height: '100vh', width: '100%' }}>
-          <CarbonCalculatorPanelClient />
-        </div>
+                      {syncStatus.status === 'pending' ? '恢复中...' : '从云端恢复'}
+                    </AntButton>
+                  </Col>
+                </Row>
+
+                <Divider style={{ borderColor: '#444' }} />
+
+                <Typography.Title level={5} style={{ color: '#e0e0e0', marginBottom: '16px' }}>
+                  已保存的检查点
+                </Typography.Title>
+                <List
+                  itemLayout="horizontal"
+                  dataSource={checkpoints}
+                  locale={{ emptyText: <Empty description={<span style={{ color: '#aaa' }}>暂无检查点</span>} /> }}
+                  renderItem={(item: CheckpointMetadata) => (
+                    <List.Item
+                      style={{
+                        backgroundColor: '#2a2a2a',
+                        marginBottom: '8px',
+                        padding: '12px 16px',
+                        borderRadius: '4px',
+                        border: '1px solid #333',
+                      }}
+                      actions={[
+                        <AntButton
+                          key={`restore-${item.name}`}
+                          icon={<HistoryOutlined />}
+                          onClick={() => handleRestoreCheckpoint(item.name)}
+                          type="primary"
+                        >
+                          恢复
+                        </AntButton>,
+                        <AntButton
+                          key={`export-${item.name}`}
+                          icon={<ExportOutlined />}
+                          onClick={() => handleExportCheckpoint(item.name)}
+                          style={{
+                            backgroundColor: '#333',
+                            borderColor: '#555',
+                            color: '#e0e0e0',
+                          }}
+                        >
+                          导出
+                        </AntButton>,
+                        <AntButton
+                          key={`delete-${item.name}`}
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleDeleteCheckpoint(item.name)}
+                          danger
+                        >
+                          删除
+                        </AntButton>,
+                      ]}
+                    >
+                      <List.Item.Meta
+                        title={<span style={{ color: '#e0e0e0' }}>{item.name}</span>}
+                        description={
+                          <span style={{ color: '#aaa' }}>
+                            {new Date(item.timestamp).toLocaleString()}
+                            {item.metadata?.description ? ` - ${item.metadata.description}` : ''}
+                          </span>
+                        }
+                      />
+                    </List.Item>
+                  )}
+                />
+              </Modal>
+            </div>
+          ) : (
+            <div className="carbon-panel-container" style={{ height: '100vh', width: '100%' }}>
+              <CarbonCalculatorPanelClient />
+            </div>
+          )}
+        </>
       )}
     </>
   );
