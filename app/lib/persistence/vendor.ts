@@ -1,7 +1,42 @@
 import { createClient } from '@supabase/supabase-js';
 
 import type { Vendor } from '~/components/dashboard/sections/schema';
-import { z } from 'zod';
+
+/**
+ * Convert camelCase object keys to snake_case
+ */
+function camelToSnake(obj: any): any {
+    if (obj === null || typeof obj !== 'object') {
+        return obj;
+    }
+
+    const converted: any = {};
+
+    Object.keys(obj).forEach(key => {
+        const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        converted[snakeKey] = obj[key];
+    });
+
+    return converted;
+}
+
+/**
+ * Convert snake_case object keys to camelCase
+ */
+function snakeToCamel(obj: any): any {
+    if (obj === null || typeof obj !== 'object') {
+        return obj;
+    }
+
+    const converted: any = {};
+
+    Object.keys(obj).forEach(key => {
+        const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+        converted[camelKey] = obj[key];
+    });
+
+    return converted;
+}
 
 // Table name constants
 const VENDORS_TABLE = 'vendors';
@@ -15,39 +50,31 @@ const supabase = createClient(
     HARDCODED_SUPABASE_ANON_KEY
 );
 
+/**
+ * Find a vendor by name
+ * @param name The name of the vendor to find
+ * @returns Promise with the found vendor or error
+ */
+export async function findVendorByName(
+    name: string
+): Promise<{ data: Vendor | null; error: Error | null }> {
+    try {
+        const { data, error } = await supabase
+            .from(VENDORS_TABLE)
+            .select('*')
+            .eq('name', name)
+            .single();
 
-// 将驼峰命名转换为下划线命名
-function camelToSnake(obj: any): any {
-    if (obj === null || typeof obj !== 'object') {
-        return obj;
+        if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
+            throw error;
+        }
+
+        // 转换回属性名(驼峰)
+        return { data: data ? snakeToCamel(data) as Vendor : null, error: null };
+    } catch (error) {
+        console.error('Error finding vendor by name:', error);
+        return { data: null, error: error as Error };
     }
-
-    const converted: any = {};
-
-    Object.keys(obj).forEach(key => {
-        // 驼峰转下划线: contactPerson -> contact_person
-        const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-        converted[snakeKey] = obj[key];
-    });
-
-    return converted;
-}
-
-// 将下划线命名转换为驼峰命名
-function snakeToCamel(obj: any): any {
-    if (obj === null || typeof obj !== 'object') {
-        return obj;
-    }
-
-    const converted: any = {};
-
-    Object.keys(obj).forEach(key => {
-        // 下划线转驼峰: contact_person -> contactPerson
-        const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-        converted[camelKey] = obj[key];
-    });
-
-    return converted;
 }
 
 /**

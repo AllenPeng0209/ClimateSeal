@@ -193,7 +193,6 @@ export default function VendorManagement() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
-    const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
     const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
     const [currentVendor, setCurrentVendor] = useState<Vendor | null>(null);
 
@@ -252,10 +251,6 @@ export default function VendorManagement() {
             status: '启用'
         });
         setIsAddDialogOpen(true);
-    };
-
-    const openImportDialog = () => {
-        setIsImportDialogOpen(true);
     };
 
     const openEditDialog = (vendor: Vendor) => {
@@ -396,7 +391,9 @@ export default function VendorManagement() {
                 <Button variant="outline" onClick={resetFilters}>重置</Button>
 
                 <div className="ml-auto flex items-center gap-2">
-                    <Button onClick={openImportDialog}>导入</Button>
+                    <Button asChild>
+                        <Link to="/dashboard/vendor-import" prefetch="intent">导入</Link>
+                    </Button>
                     <Button onClick={openAddDialog}>新增</Button>
                 </div>
             </div>

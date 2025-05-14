@@ -28,4 +28,31 @@ export type PurchaseGood = z.infer<typeof purchaseGoodSchema> & {
     updatedBy: string;
     updatedAt: string;
     vendorIds: number[];
+};
+
+export const vendorImportSchema = z.object({
+    vendorName: z.string().min(1, '供应商名称不能为空'),
+    contactPerson: z.string().min(1, '联系人不能为空'),
+    phone: z.string().min(1, '联系电话不能为空'),
+    email: z.string().min(1, '邮箱不能为空').email('邮箱格式不正确'),
+    address: z.string().optional(),
+    purchaseGoodCode: z.string().min(1, '采购产品代码不能为空'),
+    purchaseGoodName: z.string().min(1, '采购产品名称不能为空'),
+    remarks: z.string().optional()
+});
+
+export type VendorImport = z.infer<typeof vendorImportSchema>;
+
+export const vendorImportResultSchema = z.object({
+    fileName: z.string(),
+    successCount: z.number(),
+    failureCount: z.number(),
+    status: z.enum(['导入成功', '导入失败']),
+    createdAt: z.string(),
+    sourceFilePath: z.string(),
+    errorFilePath: z.string().optional()
+});
+
+export type VendorImportResult = z.infer<typeof vendorImportResultSchema> & {
+    id: number;
 }; 
