@@ -237,6 +237,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     } | null
   >(null);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false); // <-- Add this line
+  const [isAIFileParseModalVisible, setIsAIFileParseModalVisible] = useState(false); // <-- New state for AI File Parse Modal
 
   // ===== 证据文件（Drawer 内 Upload）状态 =====
   const [drawerEvidenceFiles, setDrawerEvidenceFiles] = useState<UploadedFile[]>([]);
@@ -1944,6 +1945,15 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     return false;
   };
 
+  // Handlers for the new AI File Parse Modal
+  const handleOpenAIFileParseModal = () => {
+    setIsAIFileParseModalVisible(true);
+  };
+
+  const handleCloseAIFileParseModal = () => {
+    setIsAIFileParseModalVisible(false);
+  };
+
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
       {/* Wrapper for Card Rows to manage height distribution */}
@@ -1970,24 +1980,14 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
               {/* File Upload Card (now below Scene Info, and flex-grows) */}
                 <Card
-                    title="原始数据文件"
+                    title="AI文件解析与管理" // Changed title to reflect new button purpose
                     size="small"
-                    extra={
-                        <Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>上传文件</Button>
-                    }
                     className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col file-upload-card" // flex-grow min-h-0 kept to fill remaining space
-                    bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+                    bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 0 }} // Center the button
                 >
-                     <div className="flex-grow overflow-auto file-upload-table-container">
-                        <Table
-                            columns={fileTableColumns}
-                            dataSource={ [...uploadedFiles].sort((a, b) => new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime()) }
-                            rowKey="id"
-                            size="small"
-                            pagination={{ pageSize: 5 }}
-                            className="file-upload-table"
-                        />
-                    </div>  
+                    <Button icon={<ExperimentOutlined />} onClick={handleOpenAIFileParseModal} type="primary">
+                        AI文件解析
+                    </Button>
                 </Card>
             </Col>
 
@@ -3071,6 +3071,42 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
             </ul>
           </div>
         </Modal>
+      </Modal>
+
+      {/* New Modal for AI File Parse / Raw Data Files */}
+      <Modal
+        title="原始数据文件管理"
+        open={isAIFileParseModalVisible}
+        onCancel={handleCloseAIFileParseModal}
+        width={900} // Or a suitable width, e.g., 80% or a fixed value like 900
+        footer={
+          <Button key="close" onClick={handleCloseAIFileParseModal}>
+            关闭
+          </Button>
+        }
+        destroyOnClose // Good practice if there's internal state like forms
+      >
+        <div className="mb-4 flex justify-end">
+          <Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>
+            上传文件
+          </Button>
+        </div>
+        <div className="flex-grow overflow-auto file-upload-table-container" style={{ maxHeight: '60vh' }}> {/* Added maxHeight for scroll in modal */}
+          {isLoadingFiles && <Spin tip="加载文件中..." />}
+          {!isLoadingFiles && uploadedFiles.length === 0 && (
+            <Empty description="暂无文件" />
+          )}
+          {!isLoadingFiles && uploadedFiles.length > 0 && (
+            <Table
+              columns={fileTableColumns}
+              dataSource={[...uploadedFiles].sort((a, b) => new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime())}
+              rowKey="id"
+              size="small"
+              pagination={{ pageSize: 10 }} // Adjust page size for modal if needed
+              className="file-upload-table"
+            />
+          )}
+        </div>
       </Modal>
     </div>
   );
