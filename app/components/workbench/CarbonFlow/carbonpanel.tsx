@@ -3075,38 +3075,57 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
       {/* New Modal for AI File Parse / Raw Data Files */}
       <Modal
-        title="原始数据文件管理"
+        title="AI文件解析" // Changed title to match prototype
         open={isAIFileParseModalVisible}
         onCancel={handleCloseAIFileParseModal}
-        width={900} // Or a suitable width, e.g., 80% or a fixed value like 900
-        footer={
+        width="80%" // Increased width to accommodate two columns
+        footer={[
           <Button key="close" onClick={handleCloseAIFileParseModal}>
-            关闭
-          </Button>
-        }
-        destroyOnClose // Good practice if there's internal state like forms
+            返回
+          </Button>,
+        ]}
+        destroyOnClose
       >
-        <div className="mb-4 flex justify-end">
-          <Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>
-            上传文件
-          </Button>
-        </div>
-        <div className="flex-grow overflow-auto file-upload-table-container" style={{ maxHeight: '60vh' }}> {/* Added maxHeight for scroll in modal */}
-          {isLoadingFiles && <Spin tip="加载文件中..." />}
-          {!isLoadingFiles && uploadedFiles.length === 0 && (
-            <Empty description="暂无文件" />
-          )}
-          {!isLoadingFiles && uploadedFiles.length > 0 && (
-            <Table
-              columns={fileTableColumns}
-              dataSource={[...uploadedFiles].sort((a, b) => new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime())}
-              rowKey="id"
-              size="small"
-              pagination={{ pageSize: 10 }} // Adjust page size for modal if needed
-              className="file-upload-table"
-            />
-          )}
-        </div>
+        <Row gutter={16}>
+          <Col span={8}> {/* Left column for file list */}
+            <Card title="原始数据文件" size="small" extra={<Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>上传</Button>}>
+              <div className="flex-grow overflow-auto file-upload-table-container" style={{ maxHeight: 'calc(80vh - 200px)' }}> {/* Adjust maxHeight for modal context */}
+                {isLoadingFiles && <Spin tip="加载文件中..." />}
+                {!isLoadingFiles && uploadedFiles.length === 0 && (
+                  <Empty description="暂无文件" />
+                )}
+                {!isLoadingFiles && uploadedFiles.length > 0 && (
+                  <Table
+                    columns={fileTableColumns.map(col => {
+                      // Make columns more compact for this view if needed
+                      if (col.key === 'action') {
+                        return { ...col, width: 80 }; // Example: reduce action column width
+                      }
+                      return col;
+                    })}
+                    dataSource={[...uploadedFiles].sort((a, b) => new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime())}
+                    rowKey="id"
+                    size="small"
+                    pagination={{ pageSize: 10, size: 'small' }} // Smaller pagination
+                    className="file-upload-table"
+                    // Add onRow click handler if needed for right panel later
+                    // onRow={(record) => {
+                    //   return {
+                    //     onClick: event => { console.log('Row clicked:', record); /* TODO: Set current file for right panel */ },
+                    //   };
+                    // }}
+                  />
+                )}
+              </div>
+            </Card>
+          </Col>
+          <Col span={16}> {/* Right column, empty for now */}
+            <div style={{ border: '1px dashed #ccc', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(80vh - 130px)' }}>
+              {/* Content for the right panel will go here later */}
+              <Empty description="文件详情及解析结果将在此处展示" />
+            </div>
+          </Col>
+        </Row>
       </Modal>
     </div>
   );
