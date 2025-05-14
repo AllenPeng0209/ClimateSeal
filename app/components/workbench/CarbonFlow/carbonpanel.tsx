@@ -23,6 +23,7 @@ import {
   Radio, // <-- Import Radio
   Checkbox, // <-- Import Checkbox
   DatePicker, // <-- Import DatePicker
+  Divider,
 } from 'antd';
 import type { FormInstance } from 'antd';
 import {
@@ -238,6 +239,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   >(null);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false); // <-- Add this line
   const [isAIFileParseModalVisible, setIsAIFileParseModalVisible] = useState(false); // <-- New state for AI File Parse Modal
+  const [selectedFileForParse, setSelectedFileForParse] = useState<UploadedFile | null>(null); // <-- New state for selected file in AI Parse Modal
 
   // ===== 证据文件（Drawer 内 Upload）状态 =====
   const [drawerEvidenceFiles, setDrawerEvidenceFiles] = useState<UploadedFile[]>([]);
@@ -1952,6 +1954,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
   const handleCloseAIFileParseModal = () => {
     setIsAIFileParseModalVisible(false);
+    setSelectedFileForParse(null); // Reset selected file on modal close
   };
 
   return (
@@ -3109,21 +3112,82 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     pagination={{ pageSize: 10, size: 'small' }} // Smaller pagination
                     className="file-upload-table"
                     // Add onRow click handler if needed for right panel later
-                    // onRow={(record) => {
-                    //   return {
-                    //     onClick: event => { console.log('Row clicked:', record); /* TODO: Set current file for right panel */ },
-                    //   };
-                    // }}
+                    onRow={(record: UploadedFile) => {
+                      return {
+                        onClick: event => {
+                          console.log('Row clicked in AI Parse Modal:', record);
+                          setSelectedFileForParse(record);
+                        },
+                      };
+                    }}
+                    rowClassName={(record: UploadedFile) => {
+                      return record.id === selectedFileForParse?.id ? 'ant-table-row-selected' : '';
+                    }}
                   />
                 )}
               </div>
             </Card>
           </Col>
-          <Col span={16}> {/* Right column, empty for now */}
-            <div style={{ border: '1px dashed #ccc', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(80vh - 130px)' }}>
-              {/* Content for the right panel will go here later */}
-              <Empty description="文件详情及解析结果将在此处展示" />
-            </div>
+          <Col span={16}> {/* Right column, for file details and parse results */}
+            {selectedFileForParse ? (
+              <div>
+                <Typography.Title level={4} style={{ marginBottom: 16 }}>{selectedFileForParse.name}</Typography.Title>
+                <Row gutter={[16, 16]}>
+                  <Col span={24}>
+                    <Typography.Text><strong>上传时间:</strong> {selectedFileForParse.uploadTime}</Typography.Text>
+                  </Col>
+                  <Col span={24}>
+                    <Typography.Text><strong>类型:</strong> {selectedFileForParse.type}</Typography.Text>
+                  </Col>
+                  <Col span={24}>
+                    <Typography.Text><strong>源文件:</strong> </Typography.Text>
+                    <Button type="link" onClick={() => handlePreviewFile(selectedFileForParse)} disabled={!selectedFileForParse.url}>
+                      {selectedFileForParse.name} (点击预览)
+                    </Button>
+                  </Col>
+                </Row>
+
+                <Divider />
+
+                <Typography.Title level={5} style={{ marginTop: 24, marginBottom: 16 }}>解析结果</Typography.Title>
+                <Row gutter={[16, 16]}>
+                  <Col span={12}>
+                    <Typography.Text><strong>解析状态:</strong> {getChineseFileStatusMessage(selectedFileForParse.status)}</Typography.Text>
+                  </Col>
+                  <Col span={12} style={{ textAlign: 'right' }}>
+                    <Button 
+                      type="primary" 
+                      onClick={() => handleParseFile(selectedFileForParse)} 
+                      disabled={selectedFileForParse.status === 'parsing' || parsingStatus === '解析中'} // Added parsingStatus check
+                      loading={selectedFileForParse.status === 'parsing' || (currentParsingFile?.id === selectedFileForParse.id && parsingStatus === '解析中')} // Show loading on button
+                    >
+                      {selectedFileForParse.status === 'completed' ? '重新解析' : '开始解析'}
+                    </Button>
+                  </Col>
+                  <Col span={24}>
+                    <Typography.Text><strong>解析结果概览:</strong></Typography.Text>
+                    <Card size="small" style={{ marginTop: 8, backgroundColor: 'var(--bolt-elements-background-depth-1)', borderColor: 'var(--bolt-elements-borderColor)' }}>
+                      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--bolt-elements-textPrimary)', maxHeight: 100, overflowY: 'auto' }}>
+                        {/* Display parseResultSummary if it's relevant to the selectedFileForParse, otherwise a placeholder */}
+                        {currentParsingFile?.id === selectedFileForParse.id ? parseResultSummary : (selectedFileForParse.content ? '文件已上传，等待解析或查看历史解析结果。' : '暂无概览信息。')}
+                      </pre>
+                    </Card>
+                  </Col>
+                </Row>
+
+                {/* Placeholder for Parsed Emission Sources Table */}
+                <div style={{ marginTop: 24 }}>
+                  <Typography.Title level={5} style={{ marginBottom: 16 }}>解析结果数据</Typography.Title>
+                  <Empty description="解析数据列表将在此处展示" />
+                  {/* Table for ParsedEmissionSource will go here */}
+                </div>
+
+              </div>
+            ) : (
+              <div style={{ border: '1px dashed var(--bolt-elements-borderColor)', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(80vh - 130px)', backgroundColor: 'var(--bolt-elements-background-depth-0)' }}>
+                <Empty description="请从左侧选择一个文件以查看详情和解析结果" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              </div>
+            )}
           </Col>
         </Row>
       </Modal>
