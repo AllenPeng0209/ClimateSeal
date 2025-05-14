@@ -38,6 +38,9 @@ import {
   InboxOutlined,
   ClearOutlined,
   FileOutlined,
+  FunctionOutlined, // For AI数据补全
+  CloudDownloadOutlined, // For AI数据收集
+  SecurityScanOutlined, // For AI风险评测
 } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
@@ -1981,17 +1984,28 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 </Space>
               </Card>
 
-              {/* File Upload Card (now below Scene Info, and flex-grows) */}
-                <Card
-                    title="AI文件解析与管理" // Changed title to reflect new button purpose
-                    size="small"
-                    className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col file-upload-card" // flex-grow min-h-0 kept to fill remaining space
-                    bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 0 }} // Center the button
-                >
-                    <Button icon={<ExperimentOutlined />} onClick={handleOpenAIFileParseModal} type="primary">
-                        AI文件解析
-                    </Button>
-                </Card>
+              {/* AI Toolbox Card (formerly File Upload Card) */}
+              <Card
+                title="AI工具箱"
+                size="small"
+                className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col"
+                bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', padding: '16px' }}
+              >
+                <Space size="large" wrap>
+                  <Button icon={<ExperimentOutlined />} onClick={handleOpenAIFileParseModal} type="default">
+                    AI文件解析
+                  </Button>
+                  <Button icon={<FunctionOutlined />} onClick={() => setIsAIAutoFillModalVisible(true)} type="default">
+                    AI数据补全
+                  </Button>
+                  <Button icon={<CloudDownloadOutlined />} onClick={() => message.info('AI数据收集功能待实现')} type="default">
+                    AI数据收集
+                  </Button>
+                  <Button icon={<SecurityScanOutlined />} onClick={() => message.info('AI风险评测功能待实现')} type="default">
+                    AI风险评测
+                  </Button>
+                </Space>
+              </Card>
             </Col>
 
             {/* Model Score Card (remains as the second item in the Row) */}
@@ -2051,7 +2065,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space> {/* Buttons for the left side */}
                             {/* <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button> */} {/* Removed old button */}
-                            <Button icon={<ExperimentOutlined />} onClick={() => setIsAIAutoFillModalVisible(true)} type="default">AI补全数据</Button>
+                            {/* The AI补全数据 button that was here is now moved to AI工具箱 */}
                         </Space>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
                     </div>
