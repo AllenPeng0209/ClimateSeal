@@ -93,7 +93,7 @@ type SceneInfoType = {
 
   functionalUnit?: string;          // 功能单位
 
-  // For "核算边界" - using string arrays to store selected checkbox values
+  lifecycleType?: 'half' | 'full'; // New: To store the radio choice for lifecycle boundary
   calculationBoundaryHalfLifecycle?: string[]; 
   calculationBoundaryFullLifecycle?: string[];
 };
@@ -184,6 +184,7 @@ const nodeTypeToLifecycleStageMap: Record<string, string> = Object.fromEntries(
 
 // Add workflowId to props
 export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
+  const [settingsForm] = Form.useForm(); // Added for the settings modal form instance
   const [sceneInfo, setSceneInfo] = useState<SceneInfoType>({}); // Placeholder state
   const [modelScore, setModelScore] = useState<ModelScoreType>({}); // Placeholder state
   const [selectedStage, setSelectedStage] = useState<string>(lifecycleStages[0]);
@@ -247,6 +248,45 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
   // 从CarbonFlowStore获取数据 - 重要：这必须在所有使用nodes的函数之前定义
   const { nodes, aiSummary, setNodes: setStoreNodes } = useCarbonFlowStore();
+
+  const halfLifecycleSelectedStages = ['原材料获取', '生产'];
+  const fullLifecycleSelectedStages = ['原材料获取', '生产', '分销与运输', '使用', '寿命终止'];
+  const allLifecycleStagesForCheckboxes = [
+    { label: '原材料获取', value: '原材料获取' },
+    { label: '生产', value: '生产' },
+    { label: '分销与运输', value: '分销与运输' },
+    { label: '使用', value: '使用' },
+    { label: '寿命终止', value: '寿命终止' },
+  ];
+
+  // Effect to initialize settings form when modal becomes visible or sceneInfo changes
+  useEffect(() => {
+    if (isSettingsModalVisible) {
+      let derivedLifecycleType = sceneInfo.lifecycleType;
+      let initialHalfStages = sceneInfo.calculationBoundaryHalfLifecycle || [];
+      let initialFullStages = sceneInfo.calculationBoundaryFullLifecycle || [];
+
+      if (!derivedLifecycleType) {
+        if (initialFullStages.length > 0 && initialFullStages.every(stage => fullLifecycleSelectedStages.includes(stage)) && initialFullStages.length === fullLifecycleSelectedStages.length) {
+          derivedLifecycleType = 'full';
+        } else if (initialHalfStages.length > 0 && initialHalfStages.every(stage => halfLifecycleSelectedStages.includes(stage)) && initialHalfStages.length === halfLifecycleSelectedStages.length) {
+          derivedLifecycleType = 'half';
+        }
+      }
+      
+      settingsForm.resetFields();
+      settingsForm.setFieldsValue({
+        ...sceneInfo,
+        lifecycleType: derivedLifecycleType,
+        calculationBoundaryHalfLifecycle: derivedLifecycleType === 'half' 
+                                          ? halfLifecycleSelectedStages 
+                                          : (derivedLifecycleType === 'full' ? [] : initialHalfStages),
+        calculationBoundaryFullLifecycle: derivedLifecycleType === 'full' 
+                                           ? fullLifecycleSelectedStages 
+                                           : (derivedLifecycleType === 'half' ? [] : initialFullStages),
+      });
+    }
+  }, [isSettingsModalVisible, sceneInfo, settingsForm]); // Added sceneInfo and settingsForm
 
   // Helper function to filter nodes for the main table based on selectedStage
   const getFilteredNodesForTable = useCallback((): Node<NodeData>[] => {
@@ -395,13 +435,25 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const handleCloseSettings = () => setIsSettingsModalVisible(false);
   const handleSaveSettings = (values: any) => {
     console.log('Saving settings:', values);
-    // TODO: API call to save settings
+    let finalHalfStages: string[] = [];
+    let finalFullStages: string[] = [];
+
+    if (values.lifecycleType === 'half') {
+      finalHalfStages = halfLifecycleSelectedStages;
+    } else if (values.lifecycleType === 'full') {
+      finalFullStages = fullLifecycleSelectedStages;
+    }
+
     setSceneInfo({
-        verificationLevel: values.verificationLevel,
-        standard: values.standard,
-        productName: values.productName,
+      ...values, // Includes other form fields like taskName, productName etc.
+      lifecycleType: values.lifecycleType, // Save the radio choice
+      calculationBoundaryHalfLifecycle: finalHalfStages,
+      calculationBoundaryFullLifecycle: finalFullStages,
+      // Ensure fields not directly in the form but part of sceneInfo are preserved if necessary
+      productSpecs: sceneInfo.productSpecs, 
+      productDesc: sceneInfo.productDesc,
     });
-    message.success('场景信息已保存');
+    message.success('目标与范围已保存');
     handleCloseSettings();
   };
 
@@ -2027,7 +2079,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         style={{ top: 50 }} // Move modal closer to the top
         centered={false} // Ensure top style is applied
       >
-        <Form layout="vertical" onFinish={handleSaveSettings} initialValues={sceneInfo}>
+        <Form form={settingsForm} layout="vertical" onFinish={handleSaveSettings} /* Removed initialValues, using setFieldsValue in useEffect */ >
           <Typography.Title level={5} style={{ marginBottom: '16px' }}>基本信息</Typography.Title>
           <Row gutter={24}>
             <Col span={12}>
@@ -2178,31 +2230,50 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           </Row>
 
           <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px' }}>核算边界</Typography.Title>
-          <Row gutter={16}>
+          <Form.Item name="lifecycleType" label="选择核算边界类型">
+            <Radio.Group onChange={(e) => {
+              const type = e.target.value;
+              if (type === 'half') {
+                settingsForm.setFieldsValue({
+                  calculationBoundaryHalfLifecycle: halfLifecycleSelectedStages,
+                  calculationBoundaryFullLifecycle: [],
+                });
+              } else if (type === 'full') {
+                settingsForm.setFieldsValue({
+                  calculationBoundaryHalfLifecycle: [],
+                  calculationBoundaryFullLifecycle: fullLifecycleSelectedStages,
+                });
+              } else { // Should not happen with current radio setup
+                settingsForm.setFieldsValue({
+                  calculationBoundaryHalfLifecycle: [],
+                  calculationBoundaryFullLifecycle: [],
+                });
+              }
+            }}>
+              <Radio value="half">半生命周期 (摇篮到大门)</Radio>
+              <Radio value="full">全生命周期 (摇篮到坟墓)</Radio>
+            </Radio.Group>
+          </Form.Item>
+
+          <Row gutter={16} style={{ marginTop: '16px' }}>
             <Col span={12}>
-              <Form.Item name="calculationBoundaryHalfLifecycle" label="半生命周期 (摇篮到大门)">
-                <Checkbox.Group
-                  options={[
-                    { label: '原材料获取', value: '原材料获取' },
-                    { label: '生产', value: '生产' },
-                    { label: '分销与运输', value: '分销与运输' },
-                    { label: '使用', value: '使用' },
-                    { label: '寿命终止', value: '寿命终止' },
-                  ]}
-                />
+              <Form.Item label="半生命周期阶段 (自动选择)">
+                 <Form.Item name="calculationBoundaryHalfLifecycle" noStyle>
+                    <Checkbox.Group
+                      options={allLifecycleStagesForCheckboxes}
+                      disabled // Always disabled
+                    />
+                 </Form.Item>
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="calculationBoundaryFullLifecycle" label="全生命周期 (摇篮到坟墓)">
-                 <Checkbox.Group
-                  options={[
-                    { label: '原材料获取', value: '原材料获取' },
-                    { label: '生产', value: '生产' },
-                    { label: '分销与运输', value: '分销与运输' },
-                    { label: '使用', value: '使用' },
-                    { label: '寿命终止', value: '寿命终止' },
-                  ]}
-                />
+              <Form.Item label="全生命周期阶段 (自动选择)">
+                <Form.Item name="calculationBoundaryFullLifecycle" noStyle>
+                  <Checkbox.Group
+                    options={allLifecycleStagesForCheckboxes}
+                    disabled // Always disabled
+                  />
+                </Form.Item>
               </Form.Item>
             </Col>
           </Row>
