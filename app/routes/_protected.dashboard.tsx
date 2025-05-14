@@ -30,6 +30,7 @@ const pathToMenuKeyMap: Record<string, string> = {
   '': 'dashboard',
   'overview': 'dashboard',
   'workbench': 'workbench-main',
+  'product-management': 'product-management',
   'vendor-data': 'vendor-data',
   'carbon-factor-search': 'carbon-factor-search',
   'vendor-information': 'vendor-information',
@@ -77,6 +78,10 @@ export default function Dashboard() {
       icon: <ToolOutlined />,
       label: '工作台',
       children: [
+        {
+          key: 'dashboard:product-management',
+          label: <Link to="/dashboard/product-management">产品管理</Link>,
+        },
         {
           key: 'dashboard:workbench-main',
           label: <Link to="/dashboard/workbench">产品碳足迹管理</Link>,
