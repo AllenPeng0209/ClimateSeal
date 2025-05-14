@@ -938,8 +938,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   };
 
   const handleParseFile = async (file: UploadedFile) => {
-     if (!file || !file.content) {
-       message.error('文件内容为空，无法解析');
+     if (!file) {
+       message.error('文件信息缺失，无法解析');
        return;
      }
 
