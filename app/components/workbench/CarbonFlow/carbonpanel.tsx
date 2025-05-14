@@ -1874,13 +1874,14 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
           {/* 2. Upper Row - Fixed proportional height (e.g., 30%) */}
           <Row gutter={16} className="h-[30%] flex-shrink-0"> {/* Changed height to 30% */}
-            {/* 2.1 Scene Info (Top Left) - Adjusted span to 5 */}
-            <Col span={5} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
+            {/* New Col to stack Scene Info and File Upload */}
+            <Col span={17} className="flex flex-col h-full space-y-4">
+              {/* Scene Info Card */}
               <Card
                 title="场景信息"
                 size="small"
                 extra={<Button type="link" icon={<SettingOutlined />} onClick={handleOpenSettings}>设置</Button>}
-                className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor" // Added flex-grow, min-h-0
+                className="bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor" // flex-grow min-h-0 removed for natural height
                 bodyStyle={{ overflow: 'auto' }}
               >
                 <Space direction="vertical" className="w-full">
@@ -1889,17 +1890,15 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                   <div>核算产品: {sceneInfo.productName || '未设置'}</div>
                 </Space>
               </Card>
-            </Col>
 
-            {/* 2.2 File Upload (Moved to middle) - Adjusted span to 14 */}
-            <Col span={12} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
+              {/* File Upload Card (now below Scene Info, and flex-grows) */}
                 <Card
                     title="原始数据文件"
                     size="small"
                     extra={
                         <Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>上传文件</Button>
                     }
-                    className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col file-upload-card" // Added flex-grow, min-h-0
+                    className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col file-upload-card" // flex-grow min-h-0 kept to fill remaining space
                     bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
                 >
                      <div className="flex-grow overflow-auto file-upload-table-container">
@@ -1915,7 +1914,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 </Card>
             </Col>
 
-             {/* 2.3 Model Score (Moved to right) - Adjusted span to 5 */}
+            {/* Model Score Card (remains as the second item in the Row) */}
             <Col span={7} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
               <Card
                 title="模型评分"
