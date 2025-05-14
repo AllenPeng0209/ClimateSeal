@@ -717,105 +717,107 @@ input[type="number"].node-properties-input:focus {
   }
 }
 
-/* 修复下拉菜单样式 */
-.ant-select-dropdown {
-  background: rgba(16, 32, 61, 0.98) !important;
-  backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(100, 255, 218, 0.3) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(100, 255, 218, 0.2) !important;
-  padding: 8px 0 !important;
-  z-index: 9999 !important;
-  position: fixed !important;
-}
-
-/* 修复下拉菜单选项样式 */
-.ant-select-item {
-  padding: 12px 16px !important;
-  color: #e6f1ff !important;
-  background: transparent !important;
-  transition: all 0.2s !important;
-  line-height: 1.5 !important;
-  font-size: 14px !important;
-  margin: 0 !important;
-  border: none !important;
-}
-
-.ant-select-item:hover {
-  background: rgba(100, 255, 218, 0.1) !important;
-  color: #64ffda !important;
-}
-
-.ant-select-item-option-selected {
-  background: rgba(100, 255, 218, 0.2) !important;
-  color: #64ffda !important;
-}
-
-.ant-select-item-option-active {
-  background: rgba(100, 255, 218, 0.15) !important;
-}
-
-/* 修复Select组件样式 */
-.ant-select {
-  width: 100% !important;
-}
-
-.ant-select-selector {
-  background: rgba(10, 25, 47, 0.8) !important;
-  border: 1px solid rgba(100, 255, 218, 0.3) !important;
-  border-radius: 8px !important;
-  height: 48px !important;
-  padding: 0 16px !important;
-  display: flex !important;
-  align-items: center !important;
-  width: 100% !important;
-  /* 宽度为120% */
-  min-width: 362px !important;
-  /* 往左移 */
-  margin-left: -20px !important;
-}
-
-.ant-select:not(.ant-select-disabled):hover .ant-select-selector {
-  border-color: rgba(100, 255, 218, 0.5) !important;
-  background: rgba(16, 32, 61, 0.9) !important;
-}
-
-.ant-select-focused:not(.ant-select-disabled) .ant-select-selector {
-  border-color: #64ffda !important;
-  box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
-  background: rgba(16, 32, 61, 0.95) !important;
-}
-
-.ant-select-selection-item {
-  color: #e6f1ff !important;
-  line-height: 48px !important;
-}
-
-.ant-select-selection-placeholder {
-  color: rgba(230, 241, 255, 0.5) !important;
-  line-height: 48px !important;
-}
-
-.ant-select-arrow {
-  color: rgba(100, 255, 218, 0.5) !important;
-  font-size: 12px !important;
-  right: 16px !important;
-}
-
-/* 修复下拉菜单内容溢出问题 */
-.ant-select-dropdown-placement-bottomLeft {
-  margin-top: 4px !important;
-}
-
-.ant-select-dropdown .ant-select-item-option-content {
-  white-space: normal !important;
-  word-break: break-word !important;
-  line-height: 1.5 !important;
-}
-
-/* 确保下拉菜单显示在其他元素之上 */
-.ant-select-dropdown {
-  position: fixed !important;
+.carbonflow-inner-wrapper {
+  /* 修复下拉菜单样式 */
+  .ant-select-dropdown {
+    background: rgba(16, 32, 61, 0.98) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(100, 255, 218, 0.3) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(100, 255, 218, 0.2) !important;
+    padding: 8px 0 !important;
+    z-index: 9999 !important;
+    position: fixed !important;
+  }
+  
+  /* 修复下拉菜单选项样式 */
+  .ant-select-item {
+    padding: 12px 16px !important;
+    color: #e6f1ff !important;
+    background: transparent !important;
+    transition: all 0.2s !important;
+    line-height: 1.5 !important;
+    font-size: 14px !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+  
+  .ant-select-item:hover {
+    background: rgba(100, 255, 218, 0.1) !important;
+    color: #64ffda !important;
+  }
+  
+  .ant-select-item-option-selected {
+    background: rgba(100, 255, 218, 0.2) !important;
+    color: #64ffda !important;
+  }
+  
+  .ant-select-item-option-active {
+    background: rgba(100, 255, 218, 0.15) !important;
+  }
+  
+  /* 修复Select组件样式 */
+  .ant-select {
+    width: 100% !important;
+  }
+  
+  .ant-select-selector {
+    background: rgba(10, 25, 47, 0.8) !important;
+    border: 1px solid rgba(100, 255, 218, 0.3) !important;
+    border-radius: 8px !important;
+    height: 48px !important;
+    padding: 0 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    /* 宽度为120% */
+    min-width: 362px !important;
+    /* 往左移 */
+    margin-left: -20px !important;
+  }
+  
+  .ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+    border-color: rgba(100, 255, 218, 0.5) !important;
+    background: rgba(16, 32, 61, 0.9) !important;
+  }
+  
+  .ant-select-focused:not(.ant-select-disabled) .ant-select-selector {
+    border-color: #64ffda !important;
+    box-shadow: 0 0 15px rgba(100, 255, 218, 0.3) !important;
+    background: rgba(16, 32, 61, 0.95) !important;
+  }
+  
+  .ant-select-selection-item {
+    color: #e6f1ff !important;
+    line-height: 48px !important;
+  }
+  
+  .ant-select-selection-placeholder {
+    color: rgba(230, 241, 255, 0.5) !important;
+    line-height: 48px !important;
+  }
+  
+  .ant-select-arrow {
+    color: rgba(100, 255, 218, 0.5) !important;
+    font-size: 12px !important;
+    right: 16px !important;
+  }
+  
+  /* 修复下拉菜单内容溢出问题 */
+  .ant-select-dropdown-placement-bottomLeft {
+    margin-top: 4px !important;
+  }
+  
+  .ant-select-dropdown .ant-select-item-option-content {
+    white-space: normal !important;
+    word-break: break-word !important;
+    line-height: 1.5 !important;
+  }
+  
+  /* 确保下拉菜单显示在其他元素之上 */
+  .ant-select-dropdown {
+    position: fixed !important;
+  }
 }
 
 /* 基于activityScore的节点背景颜色 */
@@ -864,9 +866,9 @@ input[type="number"].node-properties-input:focus {
 }
 
 /* 全局文字颜色 */
-* {
+/* * {
   color: #e6f1ff !important;
-}
+} */
 
 /* 特殊文字颜色 */
 .node-title,

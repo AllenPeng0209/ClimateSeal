@@ -994,7 +994,7 @@ const CarbonFlowInner = () => {
   };
 
   return (
-    <>
+    <div className="carbonflow-inner-wrapper">
       <div
         className="view-toggle-container"
         style={{
@@ -1321,7 +1321,7 @@ const CarbonFlowInner = () => {
           <CarbonCalculatorPanelClient />
         </div>
       )}
-    </>
+    </div>
   );
 };
 
