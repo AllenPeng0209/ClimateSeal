@@ -21,6 +21,8 @@ import {
   Tabs, // <-- Import Tabs
   Typography, // <-- Import Typography
   Radio, // <-- Import Radio
+  Checkbox, // <-- Import Checkbox
+  DatePicker, // <-- Import DatePicker
 } from 'antd';
 import type { FormInstance } from 'antd';
 import {
@@ -68,9 +70,32 @@ interface WorkflowFileRecord {
 
 // Placeholder data types (replace with actual types later)
 type SceneInfoType = {
-  verificationLevel?: string;
-  standard?: string;
-  productName?: string;
+  verificationLevel?: string; // 预期核验级别
+  standard?: string;          // 满足标准 (PRD) / 核算标准 (Screenshot)
+  productName?: string;       // 核算产品
+
+  // New fields from PRD/Screenshot
+  taskName?: string;                // 核算任务名称
+  
+  productSpecs?: string;            // 产品规格 (for display)
+  productDesc?: string;             // 产品描述 (for display)
+
+  dataCollectionStartDate?: string; // 数据收集开始时间 (Antd DatePicker will store as string or Moment object, handle accordingly)
+  dataCollectionEndDate?: string;   // 数据收集结束时间
+
+  totalOutputValue?: number;        // 产品总产量 - 数值
+  totalOutputUnit?: string;         // 产品总产量 - 单位
+
+  benchmarkValue?: number;          // 核算基准 - 数值
+  benchmarkUnit?: string;           // 核算基准 - 单位
+  
+  conversionFactor?: number;        // 总产量单位转换系数 (Screenshot: next to 核算基准)
+
+  functionalUnit?: string;          // 功能单位
+
+  // For "核算边界" - using string arrays to store selected checkbox values
+  calculationBoundaryHalfLifecycle?: string[]; 
+  calculationBoundaryFullLifecycle?: string[];
 };
 
 // Define a type for individual scores (0-1 range) based on AISummary logic
@@ -1994,35 +2019,201 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
       {/* Modals and Drawers */}
       <Modal
-        title="设置场景信息"
+        title="目标与范围" // Changed title
         open={isSettingsModalVisible}
         onCancel={handleCloseSettings}
         footer={null} // Use Form's footer
+        width={900} // Increased width further
+        style={{ top: 50 }} // Move modal closer to the top
+        centered={false} // Ensure top style is applied
       >
-            <Form layout="vertical" onFinish={handleSaveSettings} initialValues={sceneInfo}>
-                <Form.Item name="verificationLevel" label="预期核验等级" rules={[{ required: true, message: '请选择核验等级' }]}>
-                    <Select placeholder="选择核验等级" className="custom-modal-select-small">
-                        <Select.Option value="准核验级别">准核验级别</Select.Option>
-                        <Select.Option value="披露级别">披露级别</Select.Option>
-                    </Select>
-                </Form.Item>
-                 <Form.Item name="standard" label="满足标准" rules={[{ required: true, message: '请选择满足标准' }]}>
-                    <Select placeholder="选择满足标准" className="custom-modal-select-small">
-                        <Select.Option value="ISO14067">ISO14067</Select.Option>
-                        <Select.Option value="欧盟电池法">欧盟电池法</Select.Option>
-                    </Select>
+        <Form layout="vertical" onFinish={handleSaveSettings} initialValues={sceneInfo}>
+          <Typography.Title level={5} style={{ marginBottom: '16px' }}>基本信息</Typography.Title>
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item 
+                name="taskName" 
+                label="核算任务名称" 
+                rules={[{ required: true, message: '请输入核算任务名称' }]}
+              >
+                <Input placeholder="请填写" />
+              </Form.Item>
+              <Form.Item 
+                name="productName" 
+                label="核算产品"
+                // rules={[{ required: false }]} // PRD: 非必选
+              >
+                <Select placeholder="选择产品" allowClear>
+                  {/* Replace with actual product list from your data source */}
+                  <Select.Option value="产品1">产品1</Select.Option>
+                  <Select.Option value="产品2">产品2</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Card size="small" title="产品信息">
+                <p><strong>产品规格:</strong> {sceneInfo.productSpecs || '反显值'}</p>
+                <p><strong>产品描述:</strong> {sceneInfo.productDesc || '反显值'}</p>
+              </Card>
+            </Col>
+          </Row>
 
-                </Form.Item>
-                 <Form.Item name="productName" label="核算产品" rules={[{ required: true, message: '请输入核算产品名称' }]}>
-                    <Input placeholder="输入产品名称" className="custom-modal-input-small" />
-                </Form.Item>
-                 <Form.Item className="text-right">
-                     <Space>
-                        <Button onClick={handleCloseSettings}>取消</Button>
-                        <Button type="primary" htmlType="submit">保存</Button>
-                     </Space>
-                 </Form.Item>
-            </Form>
+          <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px' }}>核算目标范围</Typography.Title>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
+                label="数据收集时间范围"
+                // rules={[{ required: false }]} // PRD: 非必选
+              >
+                <Space>
+                  <Form.Item name="dataCollectionStartDate" noStyle>
+                    <DatePicker placeholder="开始时间" style={{ width: '100%' }} />
+                  </Form.Item>
+                  <span>-</span>
+                  <Form.Item name="dataCollectionEndDate" noStyle>
+                    <DatePicker placeholder="结束时间" style={{ width: '100%' }} />
+                  </Form.Item>
+                </Space>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item 
+                label="产品总产量" 
+                required 
+                // No direct Form.Item rule, combined field
+              >
+                <Space>
+                  <Form.Item 
+                    name="totalOutputValue" 
+                    noStyle
+                    rules={[{ required: true, message: '请输入总产量数值' }]}
+                  >
+                    <Input type="number" placeholder="数值" />
+                  </Form.Item>
+                  <Form.Item 
+                    name="totalOutputUnit" 
+                    noStyle
+                    rules={[{ required: true, message: '请输入总产量单位' }]}
+                  >
+                    <Input placeholder="单位" />
+                  </Form.Item>
+                </Space>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
+                label="核算基准" 
+                required
+                // No direct Form.Item rule, combined field
+              >
+                 <Space>
+                  <Form.Item 
+                    name="benchmarkValue" 
+                    noStyle
+                    rules={[{ required: true, message: '请输入核算基准数值' }]}
+                  >
+                    <Input type="number" placeholder="数值" />
+                  </Form.Item>
+                  <Form.Item 
+                    name="benchmarkUnit" 
+                    noStyle
+                    rules={[{ required: true, message: '请输入核算基准单位' }]}
+                  >
+                    <Input placeholder="单位" />
+                  </Form.Item>
+                </Space>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item 
+                name="conversionFactor" 
+                label="总产量单位转换系数" 
+                rules={[{ required: true, message: '请输入转换系数值' }]}
+              >
+                <Input type="number" placeholder="数值" />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
+                name="functionalUnit" 
+                label="功能单位"
+                // rules={[{ required: false }]} // PRD: 非必填
+              >
+                <Input placeholder="请填写" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item 
+                name="standard" 
+                label="核算标准" // Changed label from "满足标准" to "核算标准"
+                // rules={[{ required: false }]} // PRD: 非必选
+              >
+                <Select placeholder="选择满足标准" className="custom-modal-select-small" allowClear>
+                  <Select.Option value="ISO14067">ISO14067</Select.Option>
+                  <Select.Option value="欧盟电池法">欧盟电池法</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
+                name="verificationLevel" 
+                label="预期核验级别" 
+                // rules={[{ required: false }]} // PRD: 非必选
+              >
+                <Select placeholder="选择核验等级" className="custom-modal-select-small" allowClear>
+                  <Select.Option value="准核验级别">准核验级别</Select.Option>
+                  <Select.Option value="披露级别">披露级别</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px' }}>核算边界</Typography.Title>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="calculationBoundaryHalfLifecycle" label="半生命周期 (摇篮到大门)">
+                <Checkbox.Group
+                  options={[
+                    { label: '原材料获取', value: '原材料获取' },
+                    { label: '生产', value: '生产' },
+                    { label: '分销与运输', value: '分销与运输' },
+                    { label: '使用', value: '使用' },
+                    { label: '寿命终止', value: '寿命终止' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="calculationBoundaryFullLifecycle" label="全生命周期 (摇篮到坟墓)">
+                 <Checkbox.Group
+                  options={[
+                    { label: '原材料获取', value: '原材料获取' },
+                    { label: '生产', value: '生产' },
+                    { label: '分销与运输', value: '分销与运输' },
+                    { label: '使用', value: '使用' },
+                    { label: '寿命终止', value: '寿命终止' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Form.Item className="text-right" style={{ marginTop: '32px' }}>
+            <Space>
+              <Button onClick={handleCloseSettings}>取消</Button>
+              <Button type="primary" htmlType="submit">保存</Button>
+            </Space>
+          </Form.Item>
+        </Form>
       </Modal>
 
        <Drawer
