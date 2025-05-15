@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button, Card, Row, Col, Progress, List } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
+import { useCarbonFlowStore } from './CarbonFlow/CarbonFlowBridge';
 
 interface VisualizationAnalysisProps {
   onBack: () => void;
@@ -11,7 +12,7 @@ const mockData = {
   productInfo: {
     name: '某产品A',
     boundary: '从摇篮到大门', // 或 '从摇篮到坟墓'
-    period: '2023年度',
+    period: '2024.5.10-2025.5.10',
     standard: 'ISO 14067',
     unit: '件',
     footprint: 123.45,
@@ -50,8 +51,79 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
     if (score >= 61) return '#faad14'; // 橙色
     return '#f5222d'; // 红色
   };
+  const store = useCarbonFlowStore();
+  const {
+    nodes,
+    aiSummary,
+    sceneInfo: { productName = '', standard = '', boundary = '' },
+  } = store.getCarbonFlowData();
 
-  const scoreColor = getScoreColor(mockData.productInfo.credibilityScore);
+  const totalCarbonFootprint = nodes.map(x => x.data.carbonFootprint).reduce((a,b)=>Number(a)+Number(b || 0), 0)
+  const scoreColor = getScoreColor(aiSummary.credibilityScore);
+  const conversion = [
+    { label: '家庭用电量', value: `${totalCarbonFootprint/0.5582} kgCO₂/kWh`, icon: '⚡️' },
+    { label: '汽油车行驶里程', value: `${totalCarbonFootprint/0.203} kgCO₂/km`, icon: '🚗' },
+    { label: '梭梭树碳吸收量', value: `${totalCarbonFootprint/17.9} kgCO2e/棵`, icon: '🌳' },
+  ];
+
+  const calcPercent = (stage: string) => {
+    let lifecycleStage = ''
+    switch (stage) {
+      case '原材料获取':
+        lifecycleStage = "原材料获取阶段"
+        break;
+      case '生产制造':
+        lifecycleStage = "生产阶段"
+        break;
+      case '分销运输':
+        lifecycleStage = "分销运输阶段"
+        break;
+      case '使用阶段':
+        lifecycleStage = "使用阶段"
+        break;
+      case '废弃处置':
+        lifecycleStage = "寿命终止阶段"
+        break;
+    }
+    return Number(((nodes.filter(x=>x.data.lifecycleStage === lifecycleStage).map(x => x.data.carbonFootprint).reduce((a,b)=>Number(a)+Number(b || 0), 0)/totalCarbonFootprint || 0) * 100).toFixed(2));
+  }
+
+  const lifecycle = !boundary
+    ? []
+    : boundary === '从摇篮到大门'
+      ? [
+          { stage: '原材料获取', percent: calcPercent('原材料获取') },
+          { stage: '生产制造', percent: calcPercent('生产制造') },
+        ]
+      : [
+          { stage: '原材料获取', percent: calcPercent('原材料获取') },
+          { stage: '生产制造', percent: calcPercent('生产制造') },
+          { stage: '分销运输', percent: calcPercent('分销运输') },
+          { stage: '使用阶段', percent: calcPercent('使用阶段') },
+          { stage: '废弃处置', percent: calcPercent('废弃处置') },
+        ];
+
+  function getTopEmissionTypesPercent(totalCarbonFootprint: number, data: any[]): { name: string; percent: number }[] {
+    const summary: Record<string, number> = {};
+
+    // 累加同类 emissionType 的 carbonFootprint
+    for (const item of data) {
+      const { emissionType, carbonFootprint } = item.data;
+      const value = parseFloat(carbonFootprint) || 0;
+      summary[emissionType] = (summary[emissionType] || 0) + value;
+    }
+
+    // 转为数组并计算百分比
+    const result = Object.entries(summary).map(([emissionType, total]) => {
+      const percent = Number(((total / totalCarbonFootprint || 0) * 100).toFixed(2));
+      return { name: emissionType, percent };
+    });
+
+    // 排序取前5
+    return result.sort((a, b) => b.percent - a.percent).slice(0, 5);
+  }
+
+  const hotspot = getTopEmissionTypesPercent(totalCarbonFootprint, nodes);
 
   return (
     <div style={{ background: '#181818', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -88,17 +160,17 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
           }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
               <div style={{ fontSize: 28, fontWeight: 700, color: '#faad14', marginRight: 16 }}>
-                {mockData.productInfo.name}
+                {productName}
               </div>
               <div style={{ fontSize: 24, fontWeight: 700, color: '#faad14' }}>
-                {mockData.productInfo.footprint} kgCO₂e/{mockData.productInfo.unit}
+                {totalCarbonFootprint} kgCO₂e/{mockData.productInfo.unit}
               </div>
             </div>
             
             <Row gutter={[24, 8]}>
-              <Col>核算边界：{mockData.productInfo.boundary}</Col>
+              <Col>核算边界：{boundary}</Col>
               <Col>核算周期：{mockData.productInfo.period}</Col>
-              <Col>核算标准：{mockData.productInfo.standard}</Col>
+              <Col>核算标准：{standard}</Col>
             </Row>
           </div>
           
@@ -127,7 +199,7 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
               marginBottom: '8px'
             }}>
               <div style={{ fontSize: 28, fontWeight: 600, color: scoreColor }}>
-                {mockData.productInfo.credibilityScore}
+                {aiSummary.credibilityScore}
               </div>
             </div>
             <div style={{ fontSize: 14, color: '#e0e0e0' }}>
@@ -161,7 +233,7 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
         {/* 相当于区块 */}
         <div style={{ marginBottom: 20 }}>
           <Row gutter={16}>
-            {mockData.conversion.map((item) => (
+            {conversion.map((item) => (
               <Col span={8} key={item.label}>
                 <Card bodyStyle={{ padding: '16px', background: '#222' }}>
                   <div style={{ fontSize: 32 }}>{item.icon}</div>
@@ -178,7 +250,7 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
           <Col span={12}>
             <Card title="生命周期分析" headStyle={{ borderBottom: '1px solid #333' }} bodyStyle={{ padding: '16px', background: '#222' }}>
               <List
-                dataSource={mockData.lifecycle}
+                dataSource={lifecycle}
                 renderItem={item => (
                   <List.Item style={{ padding: '8px 0' }}>
                     <span style={{ width: 100 }}>{item.stage}</span>
@@ -191,7 +263,7 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
           <Col span={12}>
             <Card title="热点分析" headStyle={{ borderBottom: '1px solid #333' }} bodyStyle={{ padding: '16px', background: '#222' }}>
               <List
-                dataSource={[...mockData.hotspot].sort((a, b) => b.percent - a.percent)}
+                dataSource={[...hotspot].sort((a, b) => b.percent - a.percent)}
                 renderItem={item => (
                   <List.Item style={{ padding: '8px 0' }}>
                     <span style={{ width: 120 }}>{item.name}</span>

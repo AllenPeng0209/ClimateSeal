@@ -66,12 +66,6 @@ interface WorkflowFileRecord {
   files: FileRecord; // Assuming files is a single object, not an array. If it's an array, this needs to be FileRecord[]
 }
 
-// Placeholder data types (replace with actual types later)
-type SceneInfoType = {
-  verificationLevel?: string;
-  standard?: string;
-  productName?: string;
-};
 
 // Define a type for individual scores (0-1 range) based on AISummary logic
 type AIScoreType = {
@@ -159,7 +153,6 @@ const nodeTypeToLifecycleStageMap: Record<string, string> = Object.fromEntries(
 
 // Add workflowId to props
 export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
-  const [sceneInfo, setSceneInfo] = useState<SceneInfoType>({}); // Placeholder state
   const [modelScore, setModelScore] = useState<ModelScoreType>({}); // Placeholder state
   const [selectedStage, setSelectedStage] = useState<string>(lifecycleStages[0]);
   const [edges, setEdges] = useState<Edge[]>([]); // <--- Add edges state
@@ -221,7 +214,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
 
   // 从CarbonFlowStore获取数据 - 重要：这必须在所有使用nodes的函数之前定义
-  const { nodes, aiSummary, setNodes: setStoreNodes } = useCarbonFlowStore();
+  const { nodes, aiSummary, setNodes: setStoreNodes, setSceneInfo: setStoreSceneInfo, sceneInfo } = useCarbonFlowStore();
 
   // Helper function to filter nodes for the main table based on selectedStage
   const getFilteredNodesForTable = useCallback((): Node<NodeData>[] => {
@@ -370,11 +363,13 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const handleCloseSettings = () => setIsSettingsModalVisible(false);
   const handleSaveSettings = (values: any) => {
     console.log('Saving settings:', values);
+
     // TODO: API call to save settings
-    setSceneInfo({
-        verificationLevel: values.verificationLevel,
-        standard: values.standard,
-        productName: values.productName,
+    setStoreSceneInfo({
+      verificationLevel: values.verificationLevel,
+      standard: values.standard,
+      productName: values.productName,
+      boundary: values.boundary,
     });
     message.success('场景信息已保存');
     handleCloseSettings();
@@ -485,7 +480,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
              const dataToUpdate: Partial<NodeData> = { // Use Partial<NodeData> for safety
                label: values.label,
                nodeName: values.label,
-               emissionType: values.category,
+               emissionType: values.emissionType,
                quantity: String(values.quantity ?? ''), // 修改这里：使用values.quantity替代values.activityData
                activityUnit: values.activityUnit || '',
                // Keep existing carbon factor or default? Needs clarification. Assuming keep for now.
@@ -1884,9 +1879,9 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                 bodyStyle={{ overflow: 'auto' }}
               >
                 <Space direction="vertical" className="w-full">
-                  <div>预期核验等级: {sceneInfo.verificationLevel || '未设置'}</div>
-                  <div>满足标准: {sceneInfo.standard || '未设置'}</div>
-                  <div>核算产品: {sceneInfo.productName || '未设置'}</div>
+                  <div>预期核验等级: {sceneInfo?.verificationLevel || '未设置'}</div>
+                  <div>满足标准: {sceneInfo?.standard || '未设置'}</div>
+                  <div>核算产品: {sceneInfo?.productName || '未设置'}</div>
                 </Space>
               </Card>
             </Col>
@@ -2000,7 +1995,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
         onCancel={handleCloseSettings}
         footer={null} // Use Form's footer
       >
-            <Form layout="vertical" onFinish={handleSaveSettings} initialValues={sceneInfo}>
+            <Form layout="vertical" onFinish={handleSaveSettings} initialValues={sceneInfo || {}}>
                 <Form.Item name="verificationLevel" label="预期核验等级" rules={[{ required: true, message: '请选择核验等级' }]}>
                     <Select placeholder="选择核验等级" className="custom-modal-select-small">
                         <Select.Option value="准核验级别">准核验级别</Select.Option>
@@ -2013,6 +2008,12 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                         <Select.Option value="欧盟电池法">欧盟电池法</Select.Option>
                     </Select>
 
+                </Form.Item>
+                <Form.Item name="boundary" label="核算边界" rules={[{ required: true, message: '请选择核算边界' }]}>
+                    <Select placeholder="选择核算边界" className="custom-modal-select-small">
+                        <Select.Option value="从摇篮到大门">从摇篮到大门</Select.Option>
+                        <Select.Option value="从摇篮到坟墓">从摇篮到坟墓</Select.Option>
+                    </Select>
                 </Form.Item>
                  <Form.Item name="productName" label="核算产品" rules={[{ required: true, message: '请输入核算产品名称' }]}>
                     <Input placeholder="输入产品名称" className="custom-modal-input-small" />
