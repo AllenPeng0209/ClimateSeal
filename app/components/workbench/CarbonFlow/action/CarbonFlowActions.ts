@@ -11,6 +11,7 @@ import type {
 } from '~/types/nodes';
 import type { CsvParseResultItem } from '~/lib/agents/csv-parser';
 import convert from 'convert-units'; // Added import for convert-units
+import { v4 as uuidv4 } from 'uuid';
 
 // 定义碳因子匹配结果的返回类型
 type CarbonFactorResult = {
@@ -92,7 +93,8 @@ export class CarbonFlowActionHandler {
       source: action.source,
       target: action.target,
       position: action.position,
-      data: action.operation === 'file_parser' || !action.data ? '<data handled separately or missing>' : '<data provided>',
+      data:
+        action.operation === 'file_parser' || !action.data ? '<data handled separately or missing>' : '<data provided>',
       description: action.description,
     });
 
@@ -217,18 +219,18 @@ export class CarbonFlowActionHandler {
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
-        const errorMessage = 
-          typeof errorBody === 'object' && 
-          errorBody !== null && 
-          'error' in errorBody && 
-          typeof errorBody.error === 'string' 
-            ? errorBody.error 
-            : typeof errorBody === 'object' && 
-              errorBody !== null && 
-              'message' in errorBody && 
-              typeof errorBody.message === 'string' 
-            ? errorBody.message 
-            : response.statusText;
+        const errorMessage =
+          typeof errorBody === 'object' &&
+          errorBody !== null &&
+          'error' in errorBody &&
+          typeof errorBody.error === 'string'
+            ? errorBody.error
+            : typeof errorBody === 'object' &&
+                errorBody !== null &&
+                'message' in errorBody &&
+                typeof errorBody.message === 'string'
+              ? errorBody.message
+              : response.statusText;
         throw new Error(`API Error (${response.status}): ${errorMessage}`);
       }
 
@@ -314,7 +316,7 @@ export class CarbonFlowActionHandler {
     }
 
     const nodeType = action.nodeType as NodeType;
-    const nodeId = action.nodeId || `${nodeType}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    const nodeId = action.nodeId || uuidv4();
 
     let inputData: Record<string, any> = {};
     if (action.data) {
@@ -780,7 +782,7 @@ export class CarbonFlowActionHandler {
 
       const edgeData = action.data ? JSON.parse(action.data) : {};
       const newEdge: Edge = {
-        id: `e-${sourceNode.id}-${targetNode.id}-${Date.now()}`,
+        id: uuidv4(),
         source: sourceNode.id,
         target: targetNode.id,
         label: edgeData.label || '',
@@ -859,7 +861,8 @@ export class CarbonFlowActionHandler {
       };
       let maxNodesInStage = 0;
 
-      nodesToLayout.forEach((node) => { // Use nodesToLayout
+      nodesToLayout.forEach((node) => {
+        // Use nodesToLayout
         const nodeType = node.type as NodeType | 'finalProduct';
         if (nodesByType[nodeType]) {
           nodesByType[nodeType].push(node);
@@ -896,23 +899,24 @@ export class CarbonFlowActionHandler {
       }
 
       const positionedIds = new Set(positionedNodes.map((n) => n.id));
-      nodesToLayout.forEach((node) => { // Ensure all nodes from nodesToLayout are included
+      nodesToLayout.forEach((node) => {
+        // Ensure all nodes from nodesToLayout are included
         if (!positionedIds.has(node.id)) {
           positionedNodes.push({ ...node, position: { x: PADDING, y: PADDING } });
         }
       });
-      
+
       let positionsActuallyChanged = false;
       if (nodesToLayout.length !== positionedNodes.length) {
         positionsActuallyChanged = true;
       } else {
-        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        const originalNodePositions = new Map(nodesToLayout.map((n) => [n.id, n.position]));
         for (const updatedNode of positionedNodes) {
-            const originalPos = originalNodePositions.get(updatedNode.id);
-            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
-                positionsActuallyChanged = true;
-                break;
-            }
+          const originalPos = originalNodePositions.get(updatedNode.id);
+          if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+            positionsActuallyChanged = true;
+            break;
+          }
         }
       }
 
@@ -945,7 +949,8 @@ export class CarbonFlowActionHandler {
       const miscNodes: Node<NodeData>[] = [];
       let maxNodesInRow = 0;
 
-      nodesToLayout.forEach((node) => { // Use nodesToLayout
+      nodesToLayout.forEach((node) => {
+        // Use nodesToLayout
         const stage = node.type as string;
         if (stageMap.has(stage)) {
           stageMap.get(stage)?.push(node);
@@ -981,18 +986,18 @@ export class CarbonFlowActionHandler {
           currentX += NODE_WIDTH + HORIZONTAL_SPACING;
         });
       }
-      
+
       let positionsActuallyChanged = false;
-       if (nodesToLayout.length !== updatedNodesFromLayout.length) {
+      if (nodesToLayout.length !== updatedNodesFromLayout.length) {
         positionsActuallyChanged = true;
       } else {
-        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        const originalNodePositions = new Map(nodesToLayout.map((n) => [n.id, n.position]));
         for (const updatedNode of updatedNodesFromLayout) {
-            const originalPos = originalNodePositions.get(updatedNode.id);
-            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
-                positionsActuallyChanged = true;
-                break;
-            }
+          const originalPos = originalNodePositions.get(updatedNode.id);
+          if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+            positionsActuallyChanged = true;
+            break;
+          }
         }
       }
 
@@ -1025,7 +1030,8 @@ export class CarbonFlowActionHandler {
       const miscNodes: Node<NodeData>[] = [];
       let maxNodesInCol = 0;
 
-      nodesToLayout.forEach((node) => { // Use nodesToLayout
+      nodesToLayout.forEach((node) => {
+        // Use nodesToLayout
         const stage = node.type as string;
         if (stageMap.has(stage)) {
           stageMap.get(stage)?.push(node);
@@ -1066,13 +1072,13 @@ export class CarbonFlowActionHandler {
       if (nodesToLayout.length !== updatedNodesFromLayout.length) {
         positionsActuallyChanged = true;
       } else {
-        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        const originalNodePositions = new Map(nodesToLayout.map((n) => [n.id, n.position]));
         for (const updatedNode of updatedNodesFromLayout) {
-            const originalPos = originalNodePositions.get(updatedNode.id);
-            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
-                positionsActuallyChanged = true;
-                break;
-            }
+          const originalPos = originalNodePositions.get(updatedNode.id);
+          if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+            positionsActuallyChanged = true;
+            break;
+          }
         }
       }
 
@@ -1121,30 +1127,28 @@ export class CarbonFlowActionHandler {
 
       // Ensure all nodes from nodesToLayout are included if any were missed (e.g. if centerNode logic was complex)
       if (updatedNodesFromLayout.length !== nodesToLayout.length) {
-          const layoutIds = new Set(updatedNodesFromLayout.map(n => n.id));
-          nodesToLayout.forEach(n => {
-              if (!layoutIds.has(n.id)) {
-                  updatedNodesFromLayout.push({...n, position: {x: centerX, y: centerY}}); // Default position for any missed
-              }
-          });
+        const layoutIds = new Set(updatedNodesFromLayout.map((n) => n.id));
+        nodesToLayout.forEach((n) => {
+          if (!layoutIds.has(n.id)) {
+            updatedNodesFromLayout.push({ ...n, position: { x: centerX, y: centerY } }); // Default position for any missed
+          }
+        });
       }
-
 
       let positionsActuallyChanged = false;
       // Check if positions actually changed compared to nodesToLayout
       if (nodesToLayout.length !== updatedNodesFromLayout.length) {
-         positionsActuallyChanged = true; // Should not happen if logic is correct
+        positionsActuallyChanged = true; // Should not happen if logic is correct
       } else {
-        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        const originalNodePositions = new Map(nodesToLayout.map((n) => [n.id, n.position]));
         for (const updatedNode of updatedNodesFromLayout) {
-            const originalPos = originalNodePositions.get(updatedNode.id);
-            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
-                positionsActuallyChanged = true;
-                break;
-            }
+          const originalPos = originalNodePositions.get(updatedNode.id);
+          if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+            positionsActuallyChanged = true;
+            break;
+          }
         }
       }
-
 
       if (positionsActuallyChanged) {
         layoutAppliedReturnFlag = true;
@@ -1192,10 +1196,17 @@ export class CarbonFlowActionHandler {
         // Prefer quantity if available and meaningful, otherwise fallback to weight
         return Number((data as ProductNodeData).quantity) || Number((data as ProductNodeData).weight) || 1;
       case 'manufacturing':
-        return Number((data as ManufacturingNodeData).quantity) || Number((data as ManufacturingNodeData).energyConsumption) || 1;
+        return (
+          Number((data as ManufacturingNodeData).quantity) ||
+          Number((data as ManufacturingNodeData).energyConsumption) ||
+          1
+        );
       case 'distribution':
-
-        return Number((data as DistributionNodeData).quantity) || Number((data as DistributionNodeData).transportationDistance) || 1;
+        return (
+          Number((data as DistributionNodeData).quantity) ||
+          Number((data as DistributionNodeData).transportationDistance) ||
+          1
+        );
       case 'usage': {
         const usageData = data as UsageNodeData;
         // If quantity is provided for usage, it might represent the number of functional units directly
@@ -1221,7 +1232,7 @@ export class CarbonFlowActionHandler {
   private _calculateNodeFootprints(): boolean {
     let overallChanged = false;
 
-    this._setNodes(currentNodes => {
+    this._setNodes((currentNodes) => {
       let changedInThisUpdate = false;
       const updatedNodes = currentNodes.map((node) => {
         if (node.type === 'finalProduct') {
@@ -1502,10 +1513,10 @@ export class CarbonFlowActionHandler {
             totalMatched: nodesToUpdate.length,
             successCount: matchResults.success.length,
             failedCount: matchResults.failed.length,
-            updated: updated
-          }
-        }
-      })
+            updated: updated,
+          },
+        },
+      }),
     );
 
     console.log('Carbon factor match operation completed, updated:', updated);
@@ -1696,7 +1707,8 @@ export class CarbonFlowActionHandler {
 
       if (validEdges.length !== originalEdgeCount) {
         console.log(`Removing ${originalEdgeCount - validEdges.length} invalid edges (functional update).`);
-        this._handleCalculate({ // This calculate call might need similar functional update if it writes to nodes
+        this._handleCalculate({
+          // This calculate call might need similar functional update if it writes to nodes
           type: 'carbonflow',
           operation: 'calculate',
           content: 'Recalculate after edge update',
@@ -1740,53 +1752,53 @@ export class CarbonFlowActionHandler {
 
     const unitMap: Record<string, string> = {
       // Weight
-      'kg': 'kg',
-      'kilogram': 'kg',
-      'gram': 'g',
-      'g': 'g',
-      'tonne': 't',
-      't': 't',
+      kg: 'kg',
+      kilogram: 'kg',
+      gram: 'g',
+      g: 'g',
+      tonne: 't',
+      t: 't',
       'metric ton': 't',
-      'lb': 'lb',
-      'pound': 'lb',
-      'oz': 'oz', // mass ounce
-      'ounce': 'oz',
+      lb: 'lb',
+      pound: 'lb',
+      oz: 'oz', // mass ounce
+      ounce: 'oz',
 
       // Energy
-      'kwh': 'kWh',
+      kwh: 'kWh',
       'kilowatt hour': 'kWh',
-      'wh': 'Wh',
+      wh: 'Wh',
       'watt hour': 'Wh',
-      'mwh': 'MWh',
+      mwh: 'MWh',
       'megawatt hour': 'MWh',
-      'gwh': 'GWh',
+      gwh: 'GWh',
       'gigawatt hour': 'GWh',
-      'mj': 'MJ',
-      'megajoule': 'MJ',
-      'gj': 'GJ',
-      'gigajoule': 'GJ',
-      'btu': 'Btu', // British Thermal Unit
+      mj: 'MJ',
+      megajoule: 'MJ',
+      gj: 'GJ',
+      gigajoule: 'GJ',
+      btu: 'Btu', // British Thermal Unit
       'british thermal unit': 'Btu',
 
       // Distance
-      'km': 'km',
-      'kilometer': 'km',
-      'm': 'm',
-      'meter': 'm',
-      'mi': 'mi',
-      'mile': 'mi',
-      'nmi': 'nMi', // Nautical Mile
+      km: 'km',
+      kilometer: 'km',
+      m: 'm',
+      meter: 'm',
+      mi: 'mi',
+      mile: 'mi',
+      nmi: 'nMi', // Nautical Mile
       'nautical mile': 'nMi',
 
       // Volume
-      'l': 'l',
-      'liter': 'l',
-      'litre': 'l',
-      'ml': 'ml',
-      'milliliter': 'ml',
-      'm3': 'm3', // Cubic meter
+      l: 'l',
+      liter: 'l',
+      litre: 'l',
+      ml: 'ml',
+      milliliter: 'ml',
+      m3: 'm3', // Cubic meter
       'cubic meter': 'm3',
-      'gallon': 'gal', // US liquid gallon is default for 'gal'
+      gallon: 'gal', // US liquid gallon is default for 'gal'
       'us gallon': 'gal',
       'uk gallon': 'galUK', // Imperial gallon
       'imperial gallon': 'galUK',
@@ -1825,16 +1837,19 @@ export class CarbonFlowActionHandler {
       );
       return 1;
     }
-    
-    if (sUnit === tUnit) { // Check again after mapping
-        return 1;
+
+    if (sUnit === tUnit) {
+      // Check again after mapping
+      return 1;
     }
 
     try {
       // Ensure 'convert' is available in the scope (e.g., imported at the top of the file)
       // import convert from 'convert-units'; // This line is now at the top of the file
-      const multiplier = convert(1).from(sUnit as any).to(tUnit as any); // Use 'as any' if types are tricky with convert-units
-      
+      const multiplier = convert(1)
+        .from(sUnit as any)
+        .to(tUnit as any); // Use 'as any' if types are tricky with convert-units
+
       if (typeof multiplier === 'number' && !isNaN(multiplier)) {
         return multiplier;
       } else {
@@ -1857,13 +1872,16 @@ export class CarbonFlowActionHandler {
    */
   private async _handleAIAutoFillTransportData(action: CarbonFlowAction): Promise<void> {
     if (!action.nodeId) return;
-    const nodeIds = action.nodeId.split(',').map(id => id.trim()).filter(Boolean);
+    const nodeIds = action.nodeId
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
     if (!nodeIds.length) return;
-    const nodesToFill = this._nodes.filter(n => nodeIds.includes(n.id));
+    const nodesToFill = this._nodes.filter((n) => nodeIds.includes(n.id));
     if (!nodesToFill.length) return;
 
     // 构造请求体，增加 nodeType 和 category
-    const requestBody = nodesToFill.map(node => ({
+    const requestBody = nodesToFill.map((node) => ({
       nodeId: node.id,
       startPoint: (node.data as any).startPoint,
       endPoint: (node.data as any).endPoint,
@@ -1896,9 +1914,15 @@ export class CarbonFlowActionHandler {
       aiResult = await response.json();
     } catch (error) {
       console.error('调用 /api/ai-autofill-transport 失败:', error);
-      window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
-        detail: { success: [], failed: nodeIds, logs: [`AI补全运输数据API调用失败: ${error instanceof Error ? error.message : String(error)}`] },
-      }));
+      window.dispatchEvent(
+        new CustomEvent('carbonflow-autofill-results', {
+          detail: {
+            success: [],
+            failed: nodeIds,
+            logs: [`AI补全运输数据API调用失败: ${error instanceof Error ? error.message : String(error)}`],
+          },
+        }),
+      );
       return;
     }
 
@@ -1906,8 +1930,8 @@ export class CarbonFlowActionHandler {
     const success: string[] = [];
     const failed: string[] = [];
     const logs: string[] = [];
-    const updatedNodes = this._nodes.map(node => {
-      const ai = aiResult.find(r => r.nodeId === node.id);
+    const updatedNodes = this._nodes.map((node) => {
+      const ai = aiResult.find((r) => r.nodeId === node.id);
       if (!ai) return node;
       try {
         // 更新节点数据
@@ -1928,7 +1952,7 @@ export class CarbonFlowActionHandler {
       }
     });
     // 统计未返回的节点为失败
-    nodeIds.forEach(id => {
+    nodeIds.forEach((id) => {
       if (!success.includes(id) && !failed.includes(id)) {
         failed.push(id);
         logs.push(`节点${id}未返回AI补全结果`);
@@ -1936,47 +1960,57 @@ export class CarbonFlowActionHandler {
     });
     // 更新节点
     this._setNodes(updatedNodes);
-    window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
-      detail: { success, failed, logs },
-    }));
+    window.dispatchEvent(
+      new CustomEvent('carbonflow-autofill-results', {
+        detail: { success, failed, logs },
+      }),
+    );
     if (success.length > 0) {
-      window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
-        detail: { action: 'AI_AUTOFILL_TRANSPORT', nodeIds: success },
-      }));
+      window.dispatchEvent(
+        new CustomEvent('carbonflow-data-updated', {
+          detail: { action: 'AI_AUTOFILL_TRANSPORT', nodeIds: success },
+        }),
+      );
     }
   }
-
-
-
 
   private async _handleAIAutoFillConversionData(action: CarbonFlowAction): Promise<void> {
     if (!action.nodeId) {
       console.warn('AI AutoFill Conversion Data: 操作中缺少 nodeId。');
-      window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
-        detail: { success: [], failed: [], logs: ['AI补全转换数据失败: 操作缺少nodeId'] },
-      }));
+      window.dispatchEvent(
+        new CustomEvent('carbonflow-autofill-results', {
+          detail: { success: [], failed: [], logs: ['AI补全转换数据失败: 操作缺少nodeId'] },
+        }),
+      );
       return;
     }
 
-    const nodeIds = action.nodeId.split(',').map(id => id.trim()).filter(Boolean);
+    const nodeIds = action.nodeId
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
     if (!nodeIds.length) {
       console.warn('AI AutoFill Conversion Data: 未提供有效的 nodeId。');
-      window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
-        detail: { success: [], failed: [], logs: ['AI补全转换数据失败: 未提供有效的nodeId'] },
-      }));
+      window.dispatchEvent(
+        new CustomEvent('carbonflow-autofill-results', {
+          detail: { success: [], failed: [], logs: ['AI补全转换数据失败: 未提供有效的nodeId'] },
+        }),
+      );
       return;
     }
 
-    const nodesToFill = this._nodes.filter(n => nodeIds.includes(n.id));
+    const nodesToFill = this._nodes.filter((n) => nodeIds.includes(n.id));
     if (!nodesToFill.length) {
       console.warn('AI AutoFill Conversion Data: 未找到与提供的 ID 匹配的节点。');
-      window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
-        detail: { success: [], failed: nodeIds, logs: ['AI补全转换数据失败: 未找到与ID匹配的节点'] },
-      }));
+      window.dispatchEvent(
+        new CustomEvent('carbonflow-autofill-results', {
+          detail: { success: [], failed: nodeIds, logs: ['AI补全转换数据失败: 未找到与ID匹配的节点'] },
+        }),
+      );
       return;
     }
 
-    const requestBody = nodesToFill.map(node => ({
+    const requestBody = nodesToFill.map((node) => ({
       nodeId: node.id,
       name: node.data.label || node.data.nodeName || '',
       nodeType: node.type,
@@ -1989,13 +2023,14 @@ export class CarbonFlowActionHandler {
     let aiResults: Array<{
       nodeId: string;
       unitConversion?: string; // 单位转换的乘数
-      targetUnit?: string;     // 碳因子实际对应的单位或应转换到的目标单位
+      targetUnit?: string; // 碳因子实际对应的单位或应转换到的目标单位
       // convertedQuantity?: string; // AI也可能直接返回转换后的活动量 (较少见)
-      notes?: string;          // AI返回的备注信息
+      notes?: string; // AI返回的备注信息
     }> = [];
 
     try {
-      const response = await fetch('/api/ai-autofill-conversion', { // 新的API端点
+      const response = await fetch('/api/ai-autofill-conversion', {
+        // 新的API端点
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nodes: requestBody }),
@@ -2003,9 +2038,13 @@ export class CarbonFlowActionHandler {
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({ message: '无法解析错误响应' }));
-        const errorMessage = (typeof errorBody === 'object' && errorBody !== null && 'message' in errorBody && typeof errorBody.message === 'string')
-          ? errorBody.message
-          : response.statusText;
+        const errorMessage =
+          typeof errorBody === 'object' &&
+          errorBody !== null &&
+          'message' in errorBody &&
+          typeof errorBody.message === 'string'
+            ? errorBody.message
+            : response.statusText;
         throw new Error(`API 错误 (${response.status}): ${errorMessage}`);
       }
       aiResults = await response.json();
@@ -2013,9 +2052,11 @@ export class CarbonFlowActionHandler {
     } catch (error) {
       console.error('调用 /api/ai-autofill-conversion 失败:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
-        detail: { success: [], failed: nodeIds, logs: [`AI补全转换数据API调用失败: ${errorMessage}`] },
-      }));
+      window.dispatchEvent(
+        new CustomEvent('carbonflow-autofill-results', {
+          detail: { success: [], failed: nodeIds, logs: [`AI补全转换数据API调用失败: ${errorMessage}`] },
+        }),
+      );
       return;
     }
 
@@ -2024,10 +2065,10 @@ export class CarbonFlowActionHandler {
     const logs: string[] = [];
     let nodesActuallyChangedInThisCall = false;
 
-    this._setNodes(currentNodes => {
+    this._setNodes((currentNodes) => {
       let internalChanges = false;
-      const updatedNodes = currentNodes.map(node => {
-        const aiData = aiResults.find(r => r.nodeId === node.id);
+      const updatedNodes = currentNodes.map((node) => {
+        const aiData = aiResults.find((r) => r.nodeId === node.id);
         if (!aiData) return node; // 没有此节点的AI数据
 
         try {
@@ -2036,7 +2077,9 @@ export class CarbonFlowActionHandler {
 
           if (aiData.unitConversion !== undefined) {
             newData.unitConversion = String(aiData.unitConversion);
-            logs.push(`节点 ${node.id} (${newData.label}): 单位转换因子已更新为 ${aiData.unitConversion}. ${aiData.notes || ''}`);
+            logs.push(
+              `节点 ${node.id} (${newData.label}): 单位转换因子已更新为 ${aiData.unitConversion}. ${aiData.notes || ''}`,
+            );
             nodeChangedThisIteration = true;
           }
 
@@ -2045,7 +2088,7 @@ export class CarbonFlowActionHandler {
             logs.push(`节点 ${node.id} (${newData.label}): 碳因子单位已更新为 ${aiData.targetUnit}.`);
             nodeChangedThisIteration = true;
           }
-          
+
           // 如果AI还提供了其他可以更新的字段，可以在这里添加逻辑
           // 例如: newData.someOtherField = aiData.someOtherField;
 
@@ -2056,7 +2099,6 @@ export class CarbonFlowActionHandler {
             return { ...node, data: newData as NodeData };
           }
           return node;
-
         } catch (e) {
           if (!failed.includes(node.id)) failed.push(node.id);
           logs.push(`节点 ${node.id} (${node.data.label || 'N/A'}) AI数据应用失败: ${(e as Error).message}`);
@@ -2065,21 +2107,23 @@ export class CarbonFlowActionHandler {
       });
 
       // 将请求处理但未收到有效AI结果的节点标记为失败
-      nodeIds.forEach(id => {
+      nodeIds.forEach((id) => {
         if (!success.includes(id) && !failed.includes(id)) {
-          const targetNode = currentNodes.find(n => n.id === id);
+          const targetNode = currentNodes.find((n) => n.id === id);
           const nodeLabelInfo = targetNode ? `${targetNode.data.label || targetNode.id}` : id;
           failed.push(id);
           logs.push(`节点 ${nodeLabelInfo}: AI未返回有效补全结果或处理失败。`);
         }
       });
-      
+
       return internalChanges ? updatedNodes : currentNodes;
     });
 
-    window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
-      detail: { success, failed, logs },
-    }));
+    window.dispatchEvent(
+      new CustomEvent('carbonflow-autofill-results', {
+        detail: { success, failed, logs },
+      }),
+    );
 
     if (nodesActuallyChangedInThisCall) {
       console.log(`AI AutoFill Conversion Data: 成功更新 ${success.length} 个节点。`);
@@ -2088,12 +2132,13 @@ export class CarbonFlowActionHandler {
         operation: 'calculate',
         content: 'AI自动填充转换数据后重新计算',
       });
-      window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
-        detail: { action: 'AI_AUTOFILL_CONVERSION_DATA', nodeIds: success },
-      }));
+      window.dispatchEvent(
+        new CustomEvent('carbonflow-data-updated', {
+          detail: { action: 'AI_AUTOFILL_CONVERSION_DATA', nodeIds: success },
+        }),
+      );
     } else {
       console.log('AI AutoFill Conversion Data: AI未更新任何节点。');
     }
-  } 
-
+  }
 }

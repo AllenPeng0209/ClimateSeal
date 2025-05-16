@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import type { DragEvent } from 'react';
 import { useLoaderData } from '@remix-run/react';
 import ReactFlow, {
@@ -301,7 +302,7 @@ const CarbonFlowInner = () => {
         y: event.clientY,
       });
 
-      const newNodeId = `${type}-${Date.now()}`;
+      const newNodeId = uuidv4();
       const baseData: Partial<NodeData> & Pick<NodeData, 'label' | 'nodeName' | 'lifecycleStage' | 'emissionType' | 'activityScore' | 'carbonFactor' | 'activitydataSource' | 'carbonFootprint' | 'unitConversion' | 'emissionFactorQuality' | 'emissionFactor' | 'calculationMethod' | 'verificationStatus' | 'applicableStandard' | 'completionStatus' | 'carbonFactorName' | 'activityScorelevel' | 'carbonFactordataSource' | 'certificationMaterials'> = {
         label: `新 ${nodeTypeLabels[type]} 节点`,
         nodeName: `${type}_${Date.now()}`,
@@ -489,7 +490,7 @@ const CarbonFlowInner = () => {
     let finalProductNode = nodesByType.finalProduct[0];
     if (!finalProductNode) {
       finalProductNode = {
-        id: 'final-product-1',
+        id: uuidv4(),
         type: 'finalProduct',
         position: { x: 0, y: 0 },
         data: {
