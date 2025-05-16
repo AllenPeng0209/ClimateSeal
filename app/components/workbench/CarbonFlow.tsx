@@ -149,6 +149,9 @@ const CarbonFlowInner = () => {
   const [editingName, setEditingName] = useState(workflow?.name || '');
   const [workflowName, setWorkflowName] = useState(workflow?.name || '');
 
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
   const saveWorkflowName = async () => {
     if (!editingName.trim()) {
       message.error('名称不能为空');
@@ -780,7 +783,6 @@ const CarbonFlowInner = () => {
     message.success('碳因子匹配请求已发送');
   }, [actionHandler]);
 
-  const [isSaving, setIsSaving] = useState(false);
   const [syncStatus, setSyncStatus] = useState(CheckpointSyncService.getSyncStatus());
 
   useEffect(() => {
@@ -1017,6 +1019,168 @@ const CarbonFlowInner = () => {
     }
   };
 
+  const saveWorkflow = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      // 1. 转换节点数据
+      const nodeRecords = nodes.map(node => ({
+        id: node.id,
+        workflow_id: workflow.id,
+        position_x: node.position.x,
+        position_y: node.position.y,
+        node_type: node.type,
+        label: node.data.label,
+        lifecycle_stage: node.data.lifecycleStage,
+        activity_score: node.data.activityScore || 0,
+        has_evidence_files: node.data.hasEvidenceFiles || false,
+        activity_data_ai_generated: node.data.activityData_aiGenerated || false,
+        activity_unit_ai_generated: node.data.activityUnit_aiGenerated || false,
+        conversion_factor_ai_generated: node.data.conversionFactor_aiGenerated || false,
+        is_recycled: node.data.isRecycled || false,
+        recycled_content_percentage: node.data.recycledContentPercentage || 0,
+        refrigerated_transport: node.data.refrigeratedTransport || false,
+        weight: node.data.weight || 0,
+        certainty_percentage: node.data.certaintyPercentage || 0,
+        energy_consumption: node.data.energyConsumption || 0,
+        process_efficiency: node.data.processEfficiency || 0,
+        waste_generation: node.data.wasteGeneration || 0,
+        water_consumption: node.data.waterConsumption || 0,
+        recycled_material_percentage: node.data.recycledMaterialPercentage || 0,
+        production_capacity: node.data.productionCapacity || 0,
+        machine_utilization: node.data.machineUtilization || 0,
+        quality_defect_rate: node.data.qualityDefectRate || 0,
+        transportation_distance: node.data.transportationDistance || 0,
+        fuel_efficiency: node.data.fuelEfficiency || 0,
+        load_factor: node.data.loadFactor || 0,
+        refrigeration: node.data.refrigeration || false,
+        packaging_weight: node.data.packagingWeight || 0,
+        warehouse_energy: node.data.warehouseEnergy || 0,
+        storage_time: node.data.storageTime || 0,
+        return_logistics: node.data.returnLogistics || false,
+        packaging_recyclability: node.data.packagingRecyclability || 0,
+        distribution_distance: node.data.distributionDistance || 0,
+        distribution_transportation_distance: node.data.distributionTransportationDistance || 0,
+        lifespan: node.data.lifespan || 0,
+        energy_consumption_per_use: node.data.energyConsumptionPerUse || 0,
+        water_consumption_per_use: node.data.waterConsumptionPerUse || 0,
+        consumables_weight: node.data.consumablesWeight || 0,
+        usage_frequency: node.data.usageFrequency || 0,
+        maintenance_frequency: node.data.maintenanceFrequency || 0,
+        repair_rate: node.data.repairRate || 0,
+        user_behavior_impact: node.data.userBehaviorImpact || 0,
+        efficiency_degradation: node.data.efficiencyDegradation || 0,
+        standby_energy_consumption: node.data.standbyEnergyConsumption || 0,
+        upgradeability: node.data.upgradeability || 0,
+        second_hand_market: node.data.secondHandMarket || false,
+        recycling_rate: node.data.recyclingRate || 0,
+        landfill_percentage: node.data.landfillPercentage || 0,
+        incineration_percentage: node.data.incinerationPercentage || 0,
+        compost_percentage: node.data.compostPercentage || 0,
+        reuse_percentage: node.data.reusePercentage || 0,
+        hazardous_waste_content: node.data.hazardousWasteContent || 0,
+        biodegradability: node.data.biodegradability || 0,
+        disposal_energy_recovery: node.data.disposalEnergyRecovery || 0,
+        transport_to_disposal: node.data.transportToDisposal || 0,
+        recycling_efficiency: node.data.recyclingEfficiency || 0,
+        takeback: node.data.takeback || false,
+        circular_economy_potential: node.data.circularEconomyPotential || 0,
+        total_carbon_footprint: node.data.totalCarbonFootprint || 0,
+        sustainability_score: node.data.sustainabilityScore || 0,
+        packaging_material: node.data.packagingMaterial || '',
+        direct_emission: node.data.directEmission || '',
+        waste_gas_treatment: node.data.wasteGasTreatment || '',
+        waste_disposal_method: node.data.wasteDisposalMethod || '',
+        wastewater_treatment: node.data.wastewaterTreatment || '',
+        production_method: node.data.productionMethod || '',
+        production_method_data_source: node.data.productionMethodDataSource || '',
+        production_method_verification_status: node.data.productionMethodVerificationStatus || '',
+        production_method_applicable_standard: node.data.productionMethodApplicableStandard || '',
+        production_method_completion_status: node.data.productionMethodCompletionStatus || '',
+        distribution_distance_unit: node.data.distributionDistanceUnit || '',
+        energy_type: node.data.energyType || '',
+        distribution_transportation_mode: node.data.distributionTransportationMode || '',
+        product_category: node.data.productCategory || '',
+        dismantling_difficulty: node.data.dismantlingDifficulty || '',
+        waste_regulations: node.data.wasteRegulations || '',
+        market_segment: node.data.marketSegment || '',
+        consumables_used: node.data.consumablesUsed || '',
+        target_region: node.data.targetRegion || '',
+        process_technology: node.data.processTechnology || '',
+        manufacturing_standard: node.data.manufacturingStandard || '',
+        automation_level: node.data.automationLevel || '',
+        manufacturing_location: node.data.manufacturingLocation || '',
+        byproducts: node.data.byproducts || '',
+        emission_control_measures: node.data.emissionControlMeasures || '',
+        transportation_mode: node.data.transportationMode || '',
+        vehicle_type: node.data.vehicleType || '',
+        fuel_type: node.data.fuelType || '',
+        compliance_status: node.data.complianceStatus || '',
+        emission_type: node.data.emissionType || '',
+        activity_data_source: node.data.activitydataSource || '',
+        certification_status: node.data.certificationStatus || '',
+        final_product_name: node.data.finalProductName || ''
+      }));
+
+      // 2. 转换边数据
+      const edgeRecords = edges.map(edge => ({
+        id: edge.id,
+        workflow_id: workflow.id,
+        source_node_id: edge.source,
+        target_node_id: edge.target,
+        edge_data: edge
+      }));
+
+      // 3. 更新工作流数据
+      const { error: workflowError } = await supabase
+        .from('workflows')
+        .update({
+          editor_state: {
+            nodes,
+            edges
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', workflow.id);
+
+      if (workflowError) throw workflowError;
+
+      // 4. 批量更新节点
+      const { error: nodesError } = await supabase
+        .from('workflow_nodes')
+        .upsert(nodeRecords);
+
+      if (nodesError) throw nodesError;
+
+      // 5. 批量更新边
+      const { error: edgesError } = await supabase
+        .from('workflow_edges')
+        .upsert(edgeRecords);
+
+      if (edgesError) throw edgesError;
+
+      setLastSaved(new Date());
+      message.success('工作流保存成功');
+    } catch (error) {
+      console.error('保存工作流失败:', error);
+      message.error('保存工作流失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 自动保存功能
+  useEffect(() => {
+    const autoSave = async () => {
+      if (nodes.length > 0 || edges.length > 0) {
+        await saveWorkflow();
+      }
+    };
+
+    const autoSaveInterval = setInterval(autoSave, 5 * 60 * 1000); // 每5分钟自动保存
+    return () => clearInterval(autoSaveInterval);
+  }, [nodes, edges]);
+
   return (
     <div className="carbonflow-inner-wrapper">
       <div
@@ -1025,6 +1189,7 @@ const CarbonFlowInner = () => {
           width: '100%',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           gap: '32px',
           padding: '12px 32px',
           background: 'rgba(16,32,61,0.8)',
@@ -1087,6 +1252,22 @@ const CarbonFlowInner = () => {
           >
             数据查验面板
           </MyButton>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <MyButton
+            onClick={saveWorkflow}
+            style={{
+              backgroundColor: '#1890ff',
+              color: 'white',
+            }}
+          >
+            <SaveOutlined /> {isSaving ? '保存中...' : '保存工作流'}
+          </MyButton>
+          {lastSaved && (
+            <span style={{ color: '#aaa', fontSize: 12 }}>
+              上次保存: {lastSaved.toLocaleTimeString()}
+            </span>
+          )}
         </div>
       </div>
 
