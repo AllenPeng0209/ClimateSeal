@@ -41,6 +41,7 @@ import {
   FunctionOutlined, // For AI数据补全
   CloudDownloadOutlined, // For AI数据收集
   SecurityScanOutlined, // For AI风险评测
+  CheckOutlined,
 } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
@@ -187,7 +188,7 @@ const nodeTypeToLifecycleStageMap: Record<string, string> = Object.fromEntries(
 // --- 结束映射关系 ---
 
 // Add workflowId to props
-export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
+export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflowName }: { workflowId: string, workflowName: string }) {
   const [settingsForm] = Form.useForm(); // Added for the settings modal form instance
   const [sceneInfo, setSceneInfo] = useState<SceneInfoType>({}); // Placeholder state
   const [modelScore, setModelScore] = useState<ModelScoreType>({}); // Placeholder state
@@ -264,6 +265,10 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     { label: '使用', value: '使用' },
     { label: '寿命终止', value: '寿命终止' },
   ];
+
+  const [workflowName, setWorkflowName] = useState(initialWorkflowName);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState('');
 
   // Effect to initialize settings form when modal becomes visible or sceneInfo changes
   useEffect(() => {
@@ -1960,6 +1965,29 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     setSelectedFileForParse(null); // Reset selected file on modal close
   };
 
+  // 保存工作流名称
+  const saveWorkflowName = async () => {
+    if (!editingName.trim()) {
+      message.error('名称不能为空');
+      return;
+    }
+    if (editingName === workflowName) {
+      setIsEditingName(false);
+      return;
+    }
+    const { error } = await supabase
+      .from('workflows')
+      .update({ name: editingName })
+      .eq('id', workflowId);
+    if (error) {
+      message.error('修改失败: ' + error.message);
+      return;
+    }
+    setWorkflowName(editingName);
+    setIsEditingName(false);
+    message.success('名称已更新');
+  };
+
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
       {/* Wrapper for Card Rows to manage height distribution */}
@@ -3205,6 +3233,46 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           </Col>
         </Row>
       </Modal>
+
+      {/* 工作流名称编辑区 */}
+      <Row align="middle" style={{ marginBottom: 8 }}>
+        <Col>
+          {isEditingName ? (
+            <Input
+              value={editingName}
+              onChange={e => setEditingName(e.target.value)}
+              onPressEnter={saveWorkflowName}
+              style={{ width: 220, marginRight: 8 }}
+              size="small"
+              autoFocus
+              maxLength={50}
+            />
+          ) : (
+            <span style={{ fontSize: 20, fontWeight: 600 }}>{workflowName}</span>
+          )}
+        </Col>
+        <Col>
+          {isEditingName ? (
+            <Button
+              icon={<CheckOutlined />}
+              size="small"
+              type="primary"
+              onClick={saveWorkflowName}
+              style={{ marginLeft: 4 }}
+            />
+          ) : (
+            <Button
+              icon={<EditOutlined />}
+              size="small"
+              onClick={() => {
+                setEditingName(workflowName);
+                setIsEditingName(true);
+              }}
+              style={{ marginLeft: 8 }}
+            />
+          )}
+        </Col>
+      </Row>
     </div>
   );
 }
@@ -4139,7 +4207,7 @@ export const CarbonCalculatorPanelClient = () => {
   const { workflow } = useLoaderData() as any;
   return (
     <ClientOnly>
-      {() => <CarbonCalculatorPanel workflowId={workflow.id} />}
+      {() => <CarbonCalculatorPanel workflowId={workflow.id} workflowName={workflow.name} />}
     </ClientOnly>
   );
 };

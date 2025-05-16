@@ -54,6 +54,8 @@ import {
   CloudDownloadOutlined,
   CloudSyncOutlined,
   UploadOutlined,
+  EditOutlined,
+  CheckOutlined,
 } from '@ant-design/icons';
 import { CheckpointManager } from '~/lib/checkpoints/CheckpointManager';
 import { CheckpointSyncService } from '~/lib/services/checkpointSyncService';
@@ -142,6 +144,32 @@ const CarbonFlowInner = () => {
   } = useCarbonFlowStore();
 
   const supabaseState = useStore(supabaseConnection);
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState(workflow?.name || '');
+  const [workflowName, setWorkflowName] = useState(workflow?.name || '');
+
+  const saveWorkflowName = async () => {
+    if (!editingName.trim()) {
+      message.error('名称不能为空');
+      return;
+    }
+    if (editingName === workflowName) {
+      setIsEditingName(false);
+      return;
+    }
+    const { error } = await supabase
+      .from('workflows')
+      .update({ name: editingName, updated_at: new Date().toISOString() })
+      .eq('id', workflow.id);
+    if (error) {
+      message.error('修改失败: ' + error.message);
+      return;
+    }
+    setWorkflowName(editingName);
+    setIsEditingName(false);
+    message.success('名称已更新');
+  };
 
   useEffect(() => {
     if (storeNodes) {
@@ -752,7 +780,6 @@ const CarbonFlowInner = () => {
     message.success('碳因子匹配请求已发送');
   }, [actionHandler]);
 
-  const [workflowTitle, ] = useState(workflow?.name || '');
   const [isSaving, setIsSaving] = useState(false);
   const [syncStatus, setSyncStatus] = useState(CheckpointSyncService.getSyncStatus());
 
@@ -995,32 +1022,72 @@ const CarbonFlowInner = () => {
       <div
         className="view-toggle-container"
         style={{
-          position: 'fixed',
-          top: '10px',
-          right: '10px',
-          zIndex: 1000,
+          width: '100%',
           display: 'flex',
-          gap: '12px',
+          alignItems: 'center',
+          gap: '32px',
+          padding: '12px 32px',
+          background: 'rgba(16,32,61,0.8)',
+          borderBottom: '1px solid #222',
+          boxSizing: 'border-box',
+          position: 'relative',
         }}
       >
-        <MyButton
-          onClick={() => setViewMode('panel')}
-          className="view-toggle-button"
-        >
-          数据操作台面板
-        </MyButton>
-        <MyButton
-          onClick={() => setViewMode('flow')}
-          className="view-toggle-button"
-        >
-          流程图面板
-        </MyButton>
-        <MyButton
-          onClick={() => setViewMode('check')}
-          className="view-toggle-button"
-        >
-          数据查验面板
-        </MyButton>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isEditingName ? (
+            <Input
+              value={editingName}
+              onChange={e => setEditingName(e.target.value)}
+              onPressEnter={saveWorkflowName}
+              style={{ width: 220 }}
+              size="small"
+              autoFocus
+              maxLength={50}
+            />
+          ) : (
+            <span style={{ fontSize: 18, fontWeight: 500, color: '#fff' }}>{workflowName}</span>
+          )}
+          {isEditingName ? (
+            <AntButton
+              icon={<CheckOutlined />}
+              size="small"
+              type="primary"
+              onClick={saveWorkflowName}
+            />
+          ) : (
+            <AntButton
+              icon={<EditOutlined />}
+              size="small"
+              onClick={() => {
+                setEditingName(workflowName);
+                setIsEditingName(true);
+              }}
+            />
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <MyButton
+            onClick={() => setViewMode('panel')}
+            className="view-toggle-button view-toggle-button-hover"
+            style={{ backgroundColor: viewMode === 'panel' ? '#1890ff' : '#333', color: '#fff', borderColor: '#555', borderWidth: '1px', borderStyle: 'solid' }}
+          >
+            数据操作台面板
+          </MyButton>
+          <MyButton
+            onClick={() => setViewMode('flow')}
+            className="view-toggle-button view-toggle-button-hover"
+            style={{ backgroundColor: viewMode === 'flow' ? '#1890ff' : '#333', color: '#fff', borderColor: '#555', borderWidth: '1px', borderStyle: 'solid' }}
+          >
+            流程图面板
+          </MyButton>
+          <MyButton
+            onClick={() => setViewMode('check')}
+            className="view-toggle-button view-toggle-button-hover"
+            style={{ backgroundColor: viewMode === 'check' ? '#1890ff' : '#333', color: '#fff', borderColor: '#555', borderWidth: '1px', borderStyle: 'solid' }}
+          >
+            数据查验面板
+          </MyButton>
+        </div>
       </div>
 
       {viewMode === 'panel' && (
@@ -1031,9 +1098,7 @@ const CarbonFlowInner = () => {
       {viewMode === 'flow' && (
         <div className="editor-layout">
           <div className="editor-header">
-            <div className="header-left">
-              <h2 className="workflow-title">{workflowTitle}</h2>
-            </div>
+            <div className="header-left" />
             <div className="header-right">
               <MyButton onClick={triggerFileInput}>上传文件</MyButton>
               <MyButton onClick={handleCarbonFactorMatch}>碳因子匹配</MyButton>
@@ -1378,6 +1443,9 @@ export const CarbonFlow = () => {
         }
         .ant-modal-close-x:hover {
             color: #fff !important;
+        }
+        .view-toggle-button-hover:hover {
+          background-color: #333;
         }
       `}</style>
       <ReactFlowProvider>
