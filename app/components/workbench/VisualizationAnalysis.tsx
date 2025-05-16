@@ -61,9 +61,9 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
   const totalCarbonFootprint = nodes.map(x => x.data.carbonFootprint).reduce((a,b)=>Number(a)+Number(b || 0), 0)
   const scoreColor = getScoreColor(aiSummary.credibilityScore);
   const conversion = [
-    { label: '家庭用电量', value: `${totalCarbonFootprint/0.5582} kgCO₂/kWh`, icon: '⚡️' },
-    { label: '汽油车行驶里程', value: `${totalCarbonFootprint/0.203} kgCO₂/km`, icon: '🚗' },
-    { label: '梭梭树碳吸收量', value: `${totalCarbonFootprint/17.9} kgCO2e/棵`, icon: '🌳' },
+    { label: '家庭用电量', value: `${(totalCarbonFootprint/0.5582).toFixed(2)} kWh`, icon: '⚡️' },
+    { label: '汽油车行驶里程', value: `${(totalCarbonFootprint/0.203).toFixed(2)} km`, icon: '🚗' },
+    { label: '梭梭树碳吸收量', value: `${(totalCarbonFootprint/17.9).toFixed(2)} 棵`, icon: '🌳' },
   ];
 
   const calcPercent = (stage: string) => {
@@ -108,15 +108,17 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
 
     // 累加同类 emissionType 的 carbonFootprint
     for (const item of data) {
-      const { emissionType, carbonFootprint } = item.data;
-      const value = parseFloat(carbonFootprint) || 0;
-      summary[emissionType] = (summary[emissionType] || 0) + value;
+      const { label, carbonFootprint } = item.data;
+      if (label && carbonFootprint) {
+        const value = parseFloat(carbonFootprint) || 0;
+        summary[label] = (summary[label] || 0) + value;
+      }
     }
 
     // 转为数组并计算百分比
-    const result = Object.entries(summary).map(([emissionType, total]) => {
+    const result = Object.entries(summary).map(([label, total]) => {
       const percent = Number(((total / totalCarbonFootprint || 0) * 100).toFixed(2));
-      return { name: emissionType, percent };
+      return { name: label, percent };
     });
 
     // 排序取前5

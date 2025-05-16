@@ -609,7 +609,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
            label: values.label,
            nodeName: values.label,
            lifecycleStage: selectedStageName,
-           emissionType: values.category,
+           emissionType: values.emissionType,
            activitydataSource: values.activitydataSource || '',
            carbonFactordataSource: values.carbonFactordataSource || '',
            activityScore: 0,
