@@ -14,12 +14,11 @@ interface WorkflowResponse {
     id: string;
     name: string;
     description: string;
-    total_carbon_footprint: number;
     created_at: string;
     industry_type?: string;
-    nodes: any[];
-    edges: any[];
-    data: any;
+    editor_state?: any;
+    scene_info?: any;
+    model_score?: any;
     is_public: boolean;
   };
   error?: string;
@@ -31,13 +30,14 @@ interface LoaderData {
     id: string;
     name: string;
     description: string;
-    total_carbon_footprint: number;
     created_at: string;
     industry_type?: string;
-    nodes: any[];
-    edges: any[];
-    data: any;
+    editor_state?: any;
+    scene_info?: any;
+    model_score?: any;
     is_public: boolean;
+    status?: string;
+    user_id?: string;
   };
 }
 
@@ -79,9 +79,10 @@ export const action: ActionFunction = async ({ request }) => {
           name: '新工作流',
           description: '这是一个新的碳足迹工作流',
           user_id: user.id,
-          data: {},
+          editor_state: { nodes: [], edges: [], viewport: { x:0, y:0, zoom:1 } },
+          scene_info: {},
+          model_score: {},
           is_public: false,
-          total_carbon_footprint: 0.0,
         })
         .select()
         .single();
@@ -95,8 +96,9 @@ export const action: ActionFunction = async ({ request }) => {
       return json({ 
         workflow: {
           ...workflow,
-          nodes: [],
-          edges: []
+          editor_state: workflow.editor_state || { nodes: [], edges: [], viewport: null },
+          scene_info: workflow.scene_info || {},
+          model_score: workflow.model_score || {}
         }
       });
     } catch (error) {
@@ -124,14 +126,13 @@ export const loader: LoaderFunction = async ({ request, params }) => {
   }
 
   try {
-    // 使用已配置的 supabase 实例
     const { data: workflow, error: workflowError } = await supabase
       .from('workflows')
       .select('*')
       .eq('id', id)
       .single();
 
-    console.log('workflow', workflow);
+    console.log('Fetched workflow from DB:', workflow);
     if (workflowError) {
       console.error('Failed to fetch workflow:', workflowError);
       return json({ error: "获取工作流数据失败" }, { status: 500 });
@@ -141,24 +142,13 @@ export const loader: LoaderFunction = async ({ request, params }) => {
       return json({ error: "工作流不存在" }, { status: 404 });
     }
 
-    // 获取工作流节点 - 即使失败也继续
-    const { data: nodes } = await supabase
-      .from('workflow_nodes')
-      .select('*')
-      .eq('workflow_id', id);
-
-    // 获取工作流边 - 即使失败也继续
-    const { data: edges } = await supabase
-      .from('workflow_edges')
-      .select('*')
-      .eq('workflow_id', id);
-
-    // 合并工作流数据，确保 nodes 和 edges 至少是空数组
+    // No longer fetching nodes and edges separately. They are part of workflow.editor_state
     return json({ 
       workflow: {
         ...workflow,
-        nodes: nodes || [],
-        edges: edges || []
+        editor_state: workflow.editor_state || { nodes: [], edges: [], viewport: null },
+        scene_info: workflow.scene_info || {},
+        model_score: workflow.model_score || {}
       }
     });
   } catch (error) {
@@ -212,9 +202,10 @@ export default function WorkflowPage() {
             .insert({
               name: '新工作流',
               description: '这是一个新的碳足迹工作流',
-              data: {}, 
+              editor_state: { nodes: [], edges: [], viewport: { x:0, y:0, zoom:1 } },
+              scene_info: {},
+              model_score: {},
               is_public: false,
-              total_carbon_footprint: 0.0,
               user_id: user.id
             })
             .select()

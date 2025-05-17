@@ -5,14 +5,23 @@ import type { CarbonFlowData, AISummary } from '~/types/carbonFlow';
 import type { CarbonFlowAction } from '~/types/actions';
 import { v4 as uuidv4 } from 'uuid';
 
+type SceneInfoType = {
+  verificationLevel?: string;
+  standard?: string;
+  productName?: string;
+  boundary?: string;
+};
+
 // 定义CarbonFlow数据存储
 interface CarbonFlowStore {
   nodes: Node<NodeData>[];
   edges: Edge[];
   aiSummary: AISummary | null;
+  sceneInfo: SceneInfoType | null;
   setNodes: (nodes: Node<NodeData>[]) => void;
   setEdges: (edges: Edge[]) => void;
   setAiSummary: (aiSummary: AISummary | null) => void;
+  setSceneInfo: (sceneInfo: SceneInfoType | {}) => void;
   getCarbonFlowData: () => CarbonFlowData;
 }
 
@@ -20,13 +29,15 @@ interface CarbonFlowStore {
 export const useCarbonFlowStore = create<CarbonFlowStore>((set, get) => ({
   nodes: [],
   edges: [],
-  aiSummary: null,
+  aiSummary: {},
+  sceneInfo: {},
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
   setAiSummary: (aiSummary) => set({ aiSummary }),
+  setSceneInfo: (sceneInfo) => set({ sceneInfo }),
   getCarbonFlowData: () => {
-    const { nodes, edges, aiSummary } = get();
-    return { nodes, edges, aiSummary };
+    const { nodes, edges, aiSummary, sceneInfo } = get();
+    return { nodes, edges, aiSummary, sceneInfo };
   },
 }));
 
