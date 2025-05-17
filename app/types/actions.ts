@@ -1,10 +1,20 @@
 import type { Change } from 'diff';
-import type { NodeData } from './nodes';
 
-export type ActionType = 'file' | 'shell' | 'start' | 'supabase' | 'carbonflow' | 'llm' | 'datasheet' | 'settings';
+// import type { NodeData } from './nodes'; // Removed unused import
+
+export type ActionType =
+  | 'file'
+  | 'shell'
+  | 'start'
+  | 'supabase'
+  | 'carbonflow'
+  | 'llm'
+  | 'datasheet'
+  | 'settings'
+  | 'build';
 
 export interface BaseAction {
-  type: 'llm' | 'carbonflow' | 'datasheet' | 'settings';
+  type: ActionType;
   content: string;
   description?: string;
   traceId?: string;
@@ -54,7 +64,6 @@ export interface CarbonFlowAction extends BaseAction {
   target?: string;
   position?: string;
   data?: string;
-  description?: string;
 }
 
 export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction;
@@ -66,7 +75,7 @@ export interface ActionAlert {
   title: string;
   description: string;
   content: string;
-  source?: 'terminal' | 'preview'; // Add source to differentiate between terminal and preview errors
+  source?: 'terminal' | 'preview';
 }
 
 export interface SupabaseAlert {
@@ -85,7 +94,5 @@ export interface FileHistory {
     timestamp: number;
     content: string;
   }[];
-
-  // Novo campo para rastrear a origem das mudanças
   changeSource?: 'user' | 'auto-save' | 'external';
 }

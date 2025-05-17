@@ -44,7 +44,7 @@ const mockData = {
   ],
 };
 
-export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ onBack, workflowName }) => {
+export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ onBack }) => {
   // 根据分数决定显示颜色
   const getScoreColor = (score: number) => {
     if (score > 80) return '#52c41a'; // 绿色

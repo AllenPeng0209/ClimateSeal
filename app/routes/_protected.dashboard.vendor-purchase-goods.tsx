@@ -7,15 +7,21 @@ import {
     TableHeader,
     TableRow,
 } from "~/components/dashboard/ui/table"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '~/components/dashboard/ui/select';
 import { Input } from '~/components/dashboard/ui/input';
 import { Button } from '~/components/dashboard/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/dashboard/ui/select';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import type { Vendor, PurchaseGood } from './schema';
+import type { Vendor, PurchaseGood } from '~/components/dashboard/sections/schema';
 import {
     AddPurchaseGoodDialog,
     EditPurchaseGoodDialog,
@@ -24,8 +30,8 @@ import {
     ViewPurchaseGoodDialog,
     SupplierVendorsDialog,
     SelectVendorsDialog
-} from './dialogs';
-import { purchaseGoodSchema } from './schema';
+} from '~/components/dashboard/sections/dialogs';
+import { purchaseGoodSchema } from '~/components/dashboard/sections/schema';
 
 const initialPurchaseGoods: PurchaseGood[] = [
     {
@@ -339,51 +345,37 @@ export default function VendorPurchaseGoods() {
             <Table className="mt-6 border-collapse border border-gray-200">
                 <TableHeader>
                     <TableRow className="border border-gray-200">
-                        {(() => {
-                            const tableHeadClass = "border border-gray-200 text-center";
-                            return (
-                                <>
-                                    <TableHead className={`w-12 ${tableHeadClass}`}>序号</TableHead>
-                                    <TableHead className={tableHeadClass}>采购商品代码</TableHead>
-                                    <TableHead className={tableHeadClass}>采购商品名称</TableHead>
-                                    <TableHead className={tableHeadClass}>状态</TableHead>
-                                    <TableHead className={tableHeadClass}>更新人</TableHead>
-                                    <TableHead className={tableHeadClass}>更新时间</TableHead>
-                                    <TableHead className={`w-64 ${tableHeadClass}`}>操作</TableHead>
-                                </>
-                            );
-                        })()}
+                        <TableHead className="w-12 border border-gray-200 text-center">序号</TableHead>
+                        <TableHead className="border border-gray-200 text-center">采购商品代码</TableHead>
+                        <TableHead className="border border-gray-200 text-center">采购商品名称</TableHead>
+                        <TableHead className="border border-gray-200 text-center">状态</TableHead>
+                        <TableHead className="border border-gray-200 text-center">更新人</TableHead>
+                        <TableHead className="border border-gray-200 text-center">更新时间</TableHead>
+                        <TableHead className="w-64 border border-gray-200 text-center">操作</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {filteredPurchaseGoods.map((purchaseGood, index) => (
                         <TableRow key={purchaseGood.id} className="border border-gray-200">
-                            {(() => {
-                                const tableCellClass = "border border-gray-200";
-                                return (
-                                    <>
-                                        <TableCell className={tableCellClass}>{index + 1}</TableCell>
-                                        <TableCell className={tableCellClass}>{purchaseGood.code}</TableCell>
-                                        <TableCell className={tableCellClass}>{purchaseGood.name}</TableCell>
-                                        <TableCell className={tableCellClass}>{purchaseGood.status}</TableCell>
-                                        <TableCell className={tableCellClass}>{purchaseGood.updatedBy}</TableCell>
-                                        <TableCell className={tableCellClass}>{purchaseGood.updatedAt}</TableCell>
-                                        <TableCell className={`flex gap-1 ${tableCellClass}`}>
-                                            <Button size="sm" variant="outline" onClick={() => openSupplierVendorsDialog(purchaseGood)}>供货供应商</Button>
-                                            <Button size="sm" variant="outline" onClick={() => openEditDialog(purchaseGood)}>编辑</Button>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => openStatusDialog(purchaseGood)}
-                                            >
-                                                {purchaseGood.status === '启用' ? '禁用' : '启用'}
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => openDeleteDialog(purchaseGood)}>删除</Button>
-                                            <Button size="sm" variant="outline" onClick={() => openViewDialog(purchaseGood)}>查看</Button>
-                                        </TableCell>
-                                    </>
-                                );
-                            })()}
+                            <TableCell className="border border-gray-200">{index + 1}</TableCell>
+                            <TableCell className="border border-gray-200">{purchaseGood.code}</TableCell>
+                            <TableCell className="border border-gray-200">{purchaseGood.name}</TableCell>
+                            <TableCell className="border border-gray-200">{purchaseGood.status}</TableCell>
+                            <TableCell className="border border-gray-200">{purchaseGood.updatedBy}</TableCell>
+                            <TableCell className="border border-gray-200">{purchaseGood.updatedAt}</TableCell>
+                            <TableCell className="flex gap-1 border border-gray-200">
+                                <Button size="sm" variant="outline" onClick={() => openSupplierVendorsDialog(purchaseGood)}>供货供应商</Button>
+                                <Button size="sm" variant="outline" onClick={() => openEditDialog(purchaseGood)}>编辑</Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openStatusDialog(purchaseGood)}
+                                >
+                                    {purchaseGood.status === '启用' ? '禁用' : '启用'}
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => openDeleteDialog(purchaseGood)}>删除</Button>
+                                <Button size="sm" variant="outline" onClick={() => openViewDialog(purchaseGood)}>查看</Button>
+                            </TableCell>
                         </TableRow>
                     ))}
                 </TableBody>

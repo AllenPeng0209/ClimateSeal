@@ -34,10 +34,8 @@ export default function Login() {
               style={{ height: "60px" }}
             />
           </div>
-          
-          <AuthProvider>
-            <LoginForm />
-          </AuthProvider>
+
+          <LoginForm />
         </div>
       </div>
 
@@ -74,7 +72,7 @@ export default function Login() {
           }}
         >
           <Title level={2} style={{ color: 'white', marginBottom: '30px' }}>
-            行动起来！留给下一代更好的地球 
+            行动起来！留给下一代更好的地球
           </Title>
         </div>
       </div>

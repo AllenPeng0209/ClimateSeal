@@ -1,19 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
 import type { Vendor } from '~/components/dashboard/sections/schema';
-import { z } from 'zod';
 
-// Table name constants
-const VENDORS_TABLE = 'vendors';
-
-// TODO: shaobo322
-const supabase = createClient(
-    "https://gteroiyixmumpmokkezy.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0ZXJvaXlpeG11bXBtb2trZXp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY5NDEyODcsImV4cCI6MjA2MjUxNzI4N30.zidwpurKw-DaAlW6v4p9OcksRYWF0nRqIFiRLTo8xw8"
-);
-
-
-// 将驼峰命名转换为下划线命名
+/**
+ * Convert camelCase object keys to snake_case
+ */
 function camelToSnake(obj: any): any {
     if (obj === null || typeof obj !== 'object') {
         return obj;
@@ -22,7 +13,6 @@ function camelToSnake(obj: any): any {
     const converted: any = {};
 
     Object.keys(obj).forEach(key => {
-        // 驼峰转下划线: contactPerson -> contact_person
         const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
         converted[snakeKey] = obj[key];
     });
@@ -30,7 +20,9 @@ function camelToSnake(obj: any): any {
     return converted;
 }
 
-// 将下划线命名转换为驼峰命名
+/**
+ * Convert snake_case object keys to camelCase
+ */
 function snakeToCamel(obj: any): any {
     if (obj === null || typeof obj !== 'object') {
         return obj;
@@ -39,12 +31,50 @@ function snakeToCamel(obj: any): any {
     const converted: any = {};
 
     Object.keys(obj).forEach(key => {
-        // 下划线转驼峰: contact_person -> contactPerson
         const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
         converted[camelKey] = obj[key];
     });
 
     return converted;
+}
+
+// Table name constants
+const VENDORS_TABLE = 'vendors';
+
+const HARDCODED_SUPABASE_URL = 'https://xkcdlulngazdosqvwnsc.supabase.co';
+const HARDCODED_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhrY2RsdWxuZ2F6ZG9zcXZ3bnNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMzMzQ5MzUsImV4cCI6MjA1ODkxMDkzNX0.9gyLSGLhLYxUZWcbUQe6CwEXx5Lpbyqzzpw8ygWvQ0Q';
+
+// TODO: shaobo322
+const supabase = createClient(
+    HARDCODED_SUPABASE_URL,
+    HARDCODED_SUPABASE_ANON_KEY
+);
+
+/**
+ * Find a vendor by name
+ * @param name The name of the vendor to find
+ * @returns Promise with the found vendor or error
+ */
+export async function findVendorByName(
+    name: string
+): Promise<{ data: Vendor | null; error: Error | null }> {
+    try {
+        const { data, error } = await supabase
+            .from(VENDORS_TABLE)
+            .select('*')
+            .eq('name', name)
+            .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
+            throw error;
+        }
+
+        // 转换回属性名(驼峰)
+        return { data: data ? snakeToCamel(data) as Vendor : null, error: null };
+    } catch (error) {
+        console.error('Error finding vendor by name:', error);
+        return { data: null, error: error as Error };
+    }
 }
 
 /**

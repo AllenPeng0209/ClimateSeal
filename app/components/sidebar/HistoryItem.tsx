@@ -11,9 +11,10 @@ interface HistoryItemProps {
   onDelete?: (event: React.UIEvent) => void;
   onDuplicate?: (id: string) => void;
   exportChat: (id?: string) => void;
+  onSelect?: () => void;
 }
 
-export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: HistoryItemProps) {
+export function HistoryItem({ item, onDelete, onDuplicate, exportChat, onSelect }: HistoryItemProps) {
   const { id: urlId } = useParams();
   const isActiveChat = urlId === item.urlId;
 
@@ -27,8 +28,8 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
   return (
     <div
       className={classNames(
-        'group rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50/80 dark:hover:bg-gray-800/30 overflow-hidden flex justify-between items-center px-3 py-2 transition-colors',
-        { 'text-gray-900 dark:text-white bg-gray-50/80 dark:bg-gray-800/30': isActiveChat },
+        'group rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-700/10 dark:hover:bg-gray-800/30 overflow-hidden flex justify-between items-center px-3 py-2 transition-colors',
+        { 'text-gray-900 dark:text-white bg-gray-700/10 dark:bg-gray-800/30': isActiveChat },
       )}
     >
       {editing ? (
@@ -49,14 +50,23 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
           />
         </form>
       ) : (
-        <a href={`/chat/${item.urlId}`} className="flex w-full relative truncate block">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            onSelect?.();
+          }}
+          className="flex w-full items-center relative text-left focus:outline-none bg-transparent"
+        >
           <WithTooltip tooltip={currentDescription}>
-            <span className="truncate pr-24">{currentDescription}</span>
+            <span className="flex-1 min-w-0 truncate pr-24 text-gray-300 dark:text-gray-400 group-hover:text-gray-50 dark:group-hover:text-white">
+              {currentDescription}
+            </span>
           </WithTooltip>
           <div
             className={classNames(
-              'absolute right-0 top-0 bottom-0 flex items-center bg-white dark:bg-gray-950 group-hover:bg-gray-50/80 dark:group-hover:bg-gray-800/30 px-2',
-              { 'bg-gray-50/80 dark:bg-gray-800/30': isActiveChat },
+              'absolute right-0 top-0 bottom-0 flex items-center bg-transparent group-hover:bg-gray-600/20 dark:group-hover:bg-gray-800/30 px-2',
+              { 'bg-gray-600/20 dark:bg-gray-800/30': isActiveChat },
             )}
           >
             <div className="flex items-center gap-2.5 text-gray-400 dark:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -96,7 +106,7 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
               </Dialog.Trigger>
             </div>
           </div>
-        </a>
+        </button>
       )}
     </div>
   );

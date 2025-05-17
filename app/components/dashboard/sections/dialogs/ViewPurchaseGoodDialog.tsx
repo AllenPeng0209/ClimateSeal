@@ -47,7 +47,7 @@ export function ViewPurchaseGoodDialog({ open, onOpenChange, purchaseGood, backg
                     <DialogTitle>查看采购商品</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
-                    <div className="space-y-4">
+                    <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
                         <FormField
                             control={form.control}
                             name="code"
@@ -90,7 +90,7 @@ export function ViewPurchaseGoodDialog({ open, onOpenChange, purchaseGood, backg
                         <DialogFooter>
                             <Button type="button" onClick={() => onOpenChange(false)}>关闭</Button>
                         </DialogFooter>
-                    </div>
+                    </form>
                 </Form>
             </DialogContent>
         </Dialog>

@@ -28,8 +28,10 @@ export const LoginForm: React.FC = () => {
       if (result.success) {
         message.success('登录成功');
         // 获取重定向路径
-        const redirectTo = location.state?.from || "/dashboard";
-        navigate(redirectTo);
+        const redirectTo =
+          (location.state as { from?: Location })?.from?.pathname ?? '/dashboard';
+
+        navigate(redirectTo, { replace: true });
       } else {
         message.error(result.error || '登录失败');
       }
@@ -45,12 +47,12 @@ export const LoginForm: React.FC = () => {
     try {
       setGoogleLoading(true);
       setError(null);
-      
+
       // 保存当前路径到sessionStorage，用于登录后重定向
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem("redirectTo", location.state?.from || "/dashboard");
       }
-      
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -63,12 +65,12 @@ export const LoginForm: React.FC = () => {
       });
 
       if (error) throw error;
-      
+
       // 如果返回了URL，说明需要重定向到Google登录页面
       if (data?.url) {
         window.location.href = data.url;
       }
-      
+
     } catch (err: any) {
       console.error("Google登录错误:", err);
       setError(err.message || "Google登录失败，请重试");
@@ -136,7 +138,7 @@ export const LoginForm: React.FC = () => {
       </Divider>
 
       <Form.Item>
-        <Button 
+        <Button
           icon={<GoogleOutlined />}
           onClick={handleGoogleLogin}
           loading={googleLoading}

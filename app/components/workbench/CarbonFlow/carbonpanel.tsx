@@ -21,6 +21,9 @@ import {
   Tabs, // <-- Import Tabs
   Typography, // <-- Import Typography
   Radio, // <-- Import Radio
+  Checkbox, // <-- Import Checkbox
+  DatePicker, // <-- Import DatePicker
+  Divider,
 } from 'antd';
 import type { FormInstance } from 'antd';
 import {
@@ -35,84 +38,28 @@ import {
   InboxOutlined,
   ClearOutlined,
   FileOutlined,
+  FunctionOutlined, // For AI数据补全
+  CloudDownloadOutlined, // For AI数据收集
+  SecurityScanOutlined, // For AI风险评测
+  CheckOutlined,
 } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
-import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
+import type { UploadFile, UploadProps, RcFile } from 'antd/es/upload/interface'; // Added RcFile here
 import { useCarbonFlowStore } from './CarbonFlowBridge';
-import type { Node, Edge } from 'reactflow';
-import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData, UsageNodeData, DisposalNodeData, FinalProductNodeData } from '~/types/nodes'; // Import all specific node data types
+import type { Node, Edge } from 'reactflow'; // Edge is kept for now
+import type { NodeData, ProductNodeData, FinalProductNodeData } from '~/types/nodes'; 
 import type { TableProps, ColumnType } from 'antd/es/table';
 import type { FilterDropdownProps } from 'antd/es/table/interface';
-import { useLoaderData } from '@remix-run/react';
+import { useLoaderData } from '@remix-run/react'; 
 import type { CarbonFlowAction } from '~/types/actions';
-import type { UploadFileResponse } from '~/types/file';
-import { CarbonFlowActionHandler } from './action/CarbonFlowActions';
 import { supabase } from '~/lib/supabase';
 import type { UploadChangeParam } from 'antd/es/upload';
-import type { RcFile } from 'antd/es/upload';
+// import type { RcFile } from 'antd/es/upload'; // Moved to line with UploadFile
 
-interface FileRecord {
-  id: string;
-  name: string;
-  path: string;
-  type: string;
-  size: number;
-  mime_type: string;
-  created_at: string;
-}
-
-interface WorkflowFileRecord {
-  file_id: string;
-  files: FileRecord; // Assuming files is a single object, not an array. If it's an array, this needs to be FileRecord[]
-}
-
-
-// Define a type for individual scores (0-1 range) based on AISummary logic
-type AIScoreType = {
-  score: number; // Score between 0 and 1
-};
-
-// Update ModelScoreType to use AIScoreType for sub-scores and store overall score (0-1)
-type ModelScoreType = {
-  credibilityScore?: number; // Overall score (assume 0-1 from calculation)
-  completeness?: AIScoreType;
-  traceability?: AIScoreType;
-  massBalance?: AIScoreType;
-  validation?: AIScoreType; // Maps to "数据准确性"
-};
-
-// New type for Uploaded Files
-type UploadedFile = {
-  id: string;
-  name: string;
-  type: string; // e.g., '报告', '原始数据', '认证证书'
-  uploadTime: string;
-  url?: string; // Optional URL for preview/download
-  status: 'pending' | 'parsing' | 'completed' | 'failed'; // Added status field based on PRD
-  size?: number;
-  mimeType?: string;
-  content?: string; // 添加content字段用于缓存文件内容
-};
-
-// New type for Parsed Emission Sources in the Parse File Modal
-type ParsedEmissionSource = {
-  id: string; // Unique ID for this parsed item
-  key: React.Key; // For table selection
-  index: number; // For display order
-  lifecycleStage: string;
-  name: string;
-  category: string;
-  supplementaryInfo?: string;
-  activityData?: number;
-  activityUnit?: string;
-  dataStatus: '未生效' | '已生效' | '已删除'; // Key new field from PRD
-  sourceFileId: string; // Link back to the UploadedFile
-};
-
-// Extend antd's UploadFile type to include our custom selectedType
-type ModalUploadFile = UploadFile & {
-  selectedType?: string;
-};
+// Import newly created type files
+import type { SceneInfoType } from '~/types/scene';
+import type { AIScoreType, ModelScoreType } from '~/types/scores';
+import type { UploadedFile, ParsedEmissionSource, ModalUploadFile, FileRecord, WorkflowFileRecord } from '~/types/files'; // Restored FileRecord, WorkflowFileRecord
 
 // File types enum based on PRD
 const RawFileTypes = [
@@ -123,7 +70,7 @@ const RawFileTypes = [
   '原材料运输',
   '成品运输',
   '产品使用数据',
-  '成品废弃数据'
+  '成品废弃数据',
 ];
 
 const lifecycleStages = [
@@ -152,7 +99,9 @@ const nodeTypeToLifecycleStageMap: Record<string, string> = Object.fromEntries(
 // --- 结束映射关系 ---
 
 // Add workflowId to props
-export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
+export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflowName }: { workflowId: string, workflowName: string }) {
+  const [settingsForm] = Form.useForm(); // Added for the settings modal form instance
+  const [sceneInfo, setSceneInfo] = useState<SceneInfoType>({}); // Placeholder state
   const [modelScore, setModelScore] = useState<ModelScoreType>({}); // Placeholder state
   const [selectedStage, setSelectedStage] = useState<string>(lifecycleStages[0]);
   const [edges, setEdges] = useState<Edge[]>([]); // <--- Add edges state
@@ -204,6 +153,37 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     } | null
   >(null);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false); // <-- Add this line
+  const [isAIFileParseModalVisible, setIsAIFileParseModalVisible] = useState(false); // <-- New state for AI File Parse Modal
+  const [selectedFileForParse, setSelectedFileForParse] = useState<UploadedFile | null>(null); // <-- New state for selected file in AI Parse Modal
+
+  // ===== 辅助函数：记录工作流操作 =====
+  const logWorkflowAction = async (actionDetails: {
+    action_type: string;
+    operation_name: string;
+    triggered_by_node_ids?: string[];
+    parameters?: any;
+    status: string;
+    results_summary?: any;
+    detailed_logs?: string;
+    user_prompt?: string;
+    ai_response_summary?: string;
+  }) => {
+    try {
+      const { error } = await supabase.from('Workflow_Actions').insert([
+        {
+          workflow_id: workflowId, // Assumes workflowId is available in this scope
+          ...actionDetails,
+        },
+      ]);
+      if (error) {
+        console.error('Error logging workflow action:', error.message);
+        // message.warning(`操作日志记录失败: ${error.message}`); // Optional: notify user
+      }
+    } catch (err: any) { 
+      console.error('Exception while logging workflow action:', err.message);
+    }
+  };
+  // ===== 结束辅助函数 =====
 
   // ===== 证据文件（Drawer 内 Upload）状态 =====
   const [drawerEvidenceFiles, setDrawerEvidenceFiles] = useState<UploadedFile[]>([]);
@@ -214,7 +194,50 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
 
   // 从CarbonFlowStore获取数据 - 重要：这必须在所有使用nodes的函数之前定义
-  const { nodes, aiSummary, setNodes: setStoreNodes, setSceneInfo: setStoreSceneInfo, sceneInfo } = useCarbonFlowStore();
+  const { nodes, aiSummary, setNodes: setStoreNodes, setSceneInfo: setStoreSceneInfo } = useCarbonFlowStore();
+
+  const halfLifecycleSelectedStages = ['原材料获取', '生产'];
+  const fullLifecycleSelectedStages = ['原材料获取', '生产', '分销与运输', '使用', '寿命终止'];
+  const allLifecycleStagesForCheckboxes = [
+    { label: '原材料获取', value: '原材料获取' },
+    { label: '生产', value: '生产' },
+    { label: '分销与运输', value: '分销与运输' },
+    { label: '使用', value: '使用' },
+    { label: '寿命终止', value: '寿命终止' },
+  ];
+
+  const [workflowName, setWorkflowName] = useState(initialWorkflowName);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState('');
+
+  // Effect to initialize settings form when modal becomes visible or sceneInfo changes
+  useEffect(() => {
+    if (isSettingsModalVisible) {
+      let derivedLifecycleType = sceneInfo.lifecycleType;
+      let initialHalfStages = sceneInfo.calculationBoundaryHalfLifecycle || [];
+      let initialFullStages = sceneInfo.calculationBoundaryFullLifecycle || [];
+
+      if (!derivedLifecycleType) {
+        if (initialFullStages.length > 0 && initialFullStages.every(stage => fullLifecycleSelectedStages.includes(stage)) && initialFullStages.length === fullLifecycleSelectedStages.length) {
+          derivedLifecycleType = 'full';
+        } else if (initialHalfStages.length > 0 && initialHalfStages.every(stage => halfLifecycleSelectedStages.includes(stage)) && initialHalfStages.length === halfLifecycleSelectedStages.length) {
+          derivedLifecycleType = 'half';
+        }
+      }
+      
+      settingsForm.resetFields();
+      settingsForm.setFieldsValue({
+        ...sceneInfo,
+        lifecycleType: derivedLifecycleType,
+        calculationBoundaryHalfLifecycle: derivedLifecycleType === 'half' 
+                                          ? halfLifecycleSelectedStages 
+                                          : (derivedLifecycleType === 'full' ? [] : initialHalfStages),
+        calculationBoundaryFullLifecycle: derivedLifecycleType === 'full' 
+                                           ? fullLifecycleSelectedStages 
+                                           : (derivedLifecycleType === 'half' ? [] : initialFullStages),
+      });
+    }
+  }, [isSettingsModalVisible, sceneInfo, settingsForm]); // Added sceneInfo and settingsForm
 
   // Helper function to filter nodes for the main table based on selectedStage
   const getFilteredNodesForTable = useCallback((): Node<NodeData>[] => {
@@ -363,16 +386,49 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   const handleCloseSettings = () => setIsSettingsModalVisible(false);
   const handleSaveSettings = (values: any) => {
     console.log('Saving settings:', values);
+    let finalHalfStages: string[] = [];
+    let finalFullStages: string[] = [];
 
-    // TODO: API call to save settings
+    if (values.lifecycleType === 'half') {
+      finalHalfStages = halfLifecycleSelectedStages;
+    } else if (values.lifecycleType === 'full') {
+      finalFullStages = fullLifecycleSelectedStages;
+    }
+
+    setSceneInfo({
+      ...values, // Includes other form fields like taskName, productName etc.
+      lifecycleType: values.lifecycleType, // Save the radio choice
+      calculationBoundaryHalfLifecycle: finalHalfStages,
+      calculationBoundaryFullLifecycle: finalFullStages,
+      // Ensure fields not directly in the form but part of sceneInfo are preserved if necessary
+      productSpecs: sceneInfo.productSpecs, 
+      productDesc: sceneInfo.productDesc,
+    });
+
     setStoreSceneInfo({
       verificationLevel: values.verificationLevel,
       standard: values.standard,
       productName: values.productName,
       boundary: values.boundary,
     });
-    message.success('场景信息已保存');
+    message.success('目标与范围已保存');
     handleCloseSettings();
+
+    // Log this action
+    logWorkflowAction({
+      action_type: 'USER_SETTINGS_SAVE',
+      operation_name: 'save_scene_info',
+      parameters: { 
+        // Redact or summarize sensitive/large values if necessary
+        savedValues: {
+            ...values,
+            calculationBoundaryHalfLifecycle: finalHalfStages, // Log calculated stages
+            calculationBoundaryFullLifecycle: finalFullStages
+        } 
+      },
+      status: 'COMPLETED_SUCCESS',
+      results_summary: { message: 'Scene info saved successfully' }
+    });
   };
 
 
@@ -583,6 +639,17 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
          }));
 
          message.success('排放源已更新');
+
+         // Log this action
+         logWorkflowAction({
+           action_type: 'USER_NODE_UPDATE',
+           operation_name: 'update_emission_source_node',
+           triggered_by_node_ids: [editingNodeId],
+           parameters: { savedValues: values, nodeType: selectedNodeType },
+           status: 'COMPLETED_SUCCESS',
+           results_summary: { message: `Node ${editingNodeId} updated successfully.` }
+         });
+
        } else {
          message.error('更新失败：无法访问数据存储');
        }
@@ -724,6 +791,36 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
          }));
 
          message.success('排放源已添加');
+
+         // Log this action
+         logWorkflowAction({
+           action_type: 'USER_NODE_CREATE',
+           operation_name: 'create_emission_source_node',
+           triggered_by_node_ids: [newSourceId], // Log the ID of the newly created node
+           parameters: { savedValues: values, nodeType: nodeType, position: newNode.position },
+           status: 'COMPLETED_SUCCESS',
+           results_summary: { message: `Node ${newSourceId} created successfully.` }
+         });
+
+         // 如果有待处理的证据文件，则在新节点创建后立即上传它们
+         if (pendingEvidenceFiles.length > 0) {
+           // const newFiles = pendingEvidenceFiles.map(file => uploadEvidenceFile(file, newSourceId));
+           // setPendingEvidenceFiles([]);
+           // setUploadedFiles(prev => [...prev, ...newFiles]); // This line caused the error
+
+           const uploadPromises = pendingEvidenceFiles.map(file => uploadEvidenceFile(file, newSourceId));
+           Promise.all(uploadPromises).then(results => {
+             const successfullyUploadedFiles = results.filter(Boolean) as UploadedFile[];
+             if (successfullyUploadedFiles.length > 0) {
+               setUploadedFiles(prev => [...prev, ...successfullyUploadedFiles]);
+             }
+             setPendingEvidenceFiles([]); // Clear pending files after all attempts
+           }).catch(uploadError => {
+             console.error("Error uploading pending evidence files:", uploadError);
+             message.error("部分待上传证据文件失败，请检查控制台。");
+             setPendingEvidenceFiles([]); // Still clear pending files
+           });
+         }
        } else {
          message.error('添加失败：无法访问数据存储');
        }
@@ -933,8 +1030,8 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
   };
 
   const handleParseFile = async (file: UploadedFile) => {
-     if (!file || !file.content) {
-       message.error('文件内容为空，无法解析');
+     if (!file) {
+       message.error('文件信息缺失，无法解析');
        return;
      }
 
@@ -1520,15 +1617,12 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
       }
 
       // 转换数据格式
-      const formattedFiles: UploadedFile[] = (data as unknown as WorkflowFileRecord[]).map(item => {
-        // Assuming item.files is an object based on your WorkflowFileRecord interface.
-        // If Supabase actually returns an array for item.files, you'd need item.files[0]
-        // and add checks for item.files being non-null and non-empty.
-        const fileDetail = item.files; // Assuming files is a single object
+      const mappedFiles = (data as unknown as WorkflowFileRecord[]).map(item => {
+        const fileDetail = item.files; 
 
         if (!fileDetail) {
           console.warn('Skipping item due to missing file details:', item);
-          return null; // Skip this item if fileDetail is null/undefined
+          return null; 
         }
 
         return {
@@ -1536,14 +1630,17 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           name: fileDetail.name,
           type: fileDetail.type,
           uploadTime: new Date(fileDetail.created_at).toLocaleString(),
-          url: fileDetail.path,
-          status: 'completed' as const,
+          url: fileDetail.path, // path is likely always a string from db
+          status: 'completed' as const, // Explicitly 'completed' for fetched files initially
           size: fileDetail.size,
-          mimeType: fileDetail.mime_type
+          mimeType: fileDetail.mime_type,
+          content: undefined, // Explicitly add content as undefined
         };
-      }).filter(Boolean) as UploadedFile[]; // Filter out nulls and assert type
+      });
+      
+      const filteredFiles = mappedFiles.filter(Boolean);
+      setUploadedFiles(filteredFiles as UploadedFile[]);
 
-      setUploadedFiles(formattedFiles);
     } catch (error) {
       console.error('Error fetching files:', error);
       message.error('获取文件列表失败');
@@ -1862,6 +1959,39 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
     return false;
   };
 
+  // Handlers for the new AI File Parse Modal
+  const handleOpenAIFileParseModal = () => {
+    setIsAIFileParseModalVisible(true);
+  };
+
+  const handleCloseAIFileParseModal = () => {
+    setIsAIFileParseModalVisible(false);
+    setSelectedFileForParse(null); // Reset selected file on modal close
+  };
+
+  // 保存工作流名称
+  const saveWorkflowName = async () => {
+    if (!editingName.trim()) {
+      message.error('名称不能为空');
+      return;
+    }
+    if (editingName === workflowName) {
+      setIsEditingName(false);
+      return;
+    }
+    const { error } = await supabase
+      .from('workflows')
+      .update({ name: editingName })
+      .eq('id', workflowId);
+    if (error) {
+      message.error('修改失败: ' + error.message);
+      return;
+    }
+    setWorkflowName(editingName);
+    setIsEditingName(false);
+    message.success('名称已更新');
+  };
+
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
       {/* Wrapper for Card Rows to manage height distribution */}
@@ -1869,13 +1999,14 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
           {/* 2. Upper Row - Fixed proportional height (e.g., 30%) */}
           <Row gutter={16} className="h-[30%] flex-shrink-0"> {/* Changed height to 30% */}
-            {/* 2.1 Scene Info (Top Left) - Adjusted span to 5 */}
-            <Col span={5} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
+            {/* New Col to stack Scene Info and File Upload */}
+            <Col span={17} className="flex flex-col h-full space-y-4">
+              {/* Scene Info Card */}
               <Card
                 title="场景信息"
                 size="small"
                 extra={<Button type="link" icon={<SettingOutlined />} onClick={handleOpenSettings}>设置</Button>}
-                className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor" // Added flex-grow, min-h-0
+                className="bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor" // flex-grow min-h-0 removed for natural height
                 bodyStyle={{ overflow: 'auto' }}
               >
                 <Space direction="vertical" className="w-full">
@@ -1884,33 +2015,32 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                   <div>核算产品: {sceneInfo?.productName || '未设置'}</div>
                 </Space>
               </Card>
+
+              {/* AI Toolbox Card (formerly File Upload Card) */}
+              <Card
+                title="AI工具箱"
+                size="small"
+                className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col"
+                bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', padding: '16px' }}
+              >
+                <Space size="large" wrap>
+                  <Button icon={<ExperimentOutlined />} onClick={handleOpenAIFileParseModal} type="default">
+                    AI文件解析
+                  </Button>
+                  <Button icon={<FunctionOutlined />} onClick={() => setIsAIAutoFillModalVisible(true)} type="default">
+                    AI数据补全
+                  </Button>
+                  <Button icon={<CloudDownloadOutlined />} onClick={() => message.info('AI数据收集功能待实现')} type="default">
+                    AI数据收集
+                  </Button>
+                  <Button icon={<SecurityScanOutlined />} onClick={() => message.info('AI风险评测功能待实现')} type="default">
+                    AI风险评测
+                  </Button>
+                </Space>
+              </Card>
             </Col>
 
-            {/* 2.2 File Upload (Moved to middle) - Adjusted span to 14 */}
-            <Col span={12} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
-                <Card
-                    title="原始数据文件"
-                    size="small"
-                    extra={
-                        <Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>上传文件</Button>
-                    }
-                    className="flex-grow min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor flex flex-col file-upload-card" // Added flex-grow, min-h-0
-                    bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
-                >
-                     <div className="flex-grow overflow-auto file-upload-table-container">
-                        <Table
-                            columns={fileTableColumns}
-                            dataSource={ [...uploadedFiles].sort((a, b) => new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime()) }
-                            rowKey="id"
-                            size="small"
-                            pagination={{ pageSize: 5 }}
-                            className="file-upload-table"
-                        />
-                    </div>  
-                </Card>
-            </Col>
-
-             {/* 2.3 Model Score (Moved to right) - Adjusted span to 5 */}
+            {/* Model Score Card (remains as the second item in the Row) */}
             <Col span={7} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
               <Card
                 title="模型评分"
@@ -1967,7 +2097,7 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
                         <Space> {/* Buttons for the left side */}
                             {/* <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button> */} {/* Removed old button */}
-                            <Button icon={<ExperimentOutlined />} onClick={() => setIsAIAutoFillModalVisible(true)} type="default">AI补全数据</Button>
+                            {/* The AI补全数据 button that was here is now moved to AI工具箱 */}
                         </Space>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
                     </div>
@@ -1990,41 +2120,226 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
 
       {/* Modals and Drawers */}
       <Modal
-        title="设置场景信息"
+        title="目标与范围" // Changed title
         open={isSettingsModalVisible}
         onCancel={handleCloseSettings}
         footer={null} // Use Form's footer
+        width={900} // Increased width further
+        style={{ top: 50 }} // Move modal closer to the top
+        centered={false} // Ensure top style is applied
       >
-            <Form layout="vertical" onFinish={handleSaveSettings} initialValues={sceneInfo || {}}>
-                <Form.Item name="verificationLevel" label="预期核验等级" rules={[{ required: true, message: '请选择核验等级' }]}>
-                    <Select placeholder="选择核验等级" className="custom-modal-select-small">
-                        <Select.Option value="准核验级别">准核验级别</Select.Option>
-                        <Select.Option value="披露级别">披露级别</Select.Option>
-                    </Select>
-                </Form.Item>
-                 <Form.Item name="standard" label="满足标准" rules={[{ required: true, message: '请选择满足标准' }]}>
-                    <Select placeholder="选择满足标准" className="custom-modal-select-small">
-                        <Select.Option value="ISO14067">ISO14067</Select.Option>
-                        <Select.Option value="欧盟电池法">欧盟电池法</Select.Option>
-                    </Select>
+        <Form form={settingsForm} layout="vertical" onFinish={handleSaveSettings} /* Removed initialValues, using setFieldsValue in useEffect */ >
+          <Typography.Title level={5} style={{ marginBottom: '16px' }}>基本信息</Typography.Title>
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item 
+                name="taskName" 
+                label="核算任务名称" 
+                rules={[{ required: true, message: '请输入核算任务名称' }]}
+              >
+                <Input placeholder="请填写" />
+              </Form.Item>
+              <Form.Item 
+                name="productName" 
+                label="核算产品"
+                // rules={[{ required: false }]} // PRD: 非必选
+              >
+                <Select placeholder="选择产品" allowClear>
+                  {/* Replace with actual product list from your data source */}
+                  <Select.Option value="产品1">产品1</Select.Option>
+                  <Select.Option value="产品2">产品2</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Card size="small" title="产品信息">
+                <p><strong>产品规格:</strong> {sceneInfo.productSpecs || '反显值'}</p>
+                <p><strong>产品描述:</strong> {sceneInfo.productDesc || '反显值'}</p>
+              </Card>
+            </Col>
+          </Row>
 
-                </Form.Item>
-                <Form.Item name="boundary" label="核算边界" rules={[{ required: true, message: '请选择核算边界' }]}>
-                    <Select placeholder="选择核算边界" className="custom-modal-select-small">
-                        <Select.Option value="从摇篮到大门">从摇篮到大门</Select.Option>
-                        <Select.Option value="从摇篮到坟墓">从摇篮到坟墓</Select.Option>
-                    </Select>
-                </Form.Item>
-                 <Form.Item name="productName" label="核算产品" rules={[{ required: true, message: '请输入核算产品名称' }]}>
-                    <Input placeholder="输入产品名称" className="custom-modal-input-small" />
-                </Form.Item>
-                 <Form.Item className="text-right">
-                     <Space>
-                        <Button onClick={handleCloseSettings}>取消</Button>
-                        <Button type="primary" htmlType="submit">保存</Button>
-                     </Space>
+          <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px' }}>核算目标范围</Typography.Title>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
+                label="数据收集时间范围"
+                // rules={[{ required: false }]} // PRD: 非必选
+              >
+                <Space>
+                  <Form.Item name="dataCollectionStartDate" noStyle>
+                    <DatePicker placeholder="开始时间" style={{ width: '100%' }} />
+                  </Form.Item>
+                  <span>-</span>
+                  <Form.Item name="dataCollectionEndDate" noStyle>
+                    <DatePicker placeholder="结束时间" style={{ width: '100%' }} />
+                  </Form.Item>
+                </Space>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item 
+                label="产品总产量" 
+                required 
+                // No direct Form.Item rule, combined field
+              >
+                <Space>
+                  <Form.Item 
+                    name="totalOutputValue" 
+                    noStyle
+                    rules={[{ required: true, message: '请输入总产量数值' }]}
+                  >
+                    <Input type="number" placeholder="数值" />
+                  </Form.Item>
+                  <Form.Item 
+                    name="totalOutputUnit" 
+                    noStyle
+                    rules={[{ required: true, message: '请输入总产量单位' }]}
+                  >
+                    <Input placeholder="单位" />
+                  </Form.Item>
+                </Space>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
+                label="核算基准" 
+                required
+                // No direct Form.Item rule, combined field
+              >
+                 <Space>
+                  <Form.Item 
+                    name="benchmarkValue" 
+                    noStyle
+                    rules={[{ required: true, message: '请输入核算基准数值' }]}
+                  >
+                    <Input type="number" placeholder="数值" />
+                  </Form.Item>
+                  <Form.Item 
+                    name="benchmarkUnit" 
+                    noStyle
+                    rules={[{ required: true, message: '请输入核算基准单位' }]}
+                  >
+                    <Input placeholder="单位" />
+                  </Form.Item>
+                </Space>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item 
+                name="conversionFactor" 
+                label="总产量单位转换系数" 
+                rules={[{ required: true, message: '请输入转换系数值' }]}
+              >
+                <Input type="number" placeholder="数值" />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
+                name="functionalUnit" 
+                label="功能单位"
+                // rules={[{ required: false }]} // PRD: 非必填
+              >
+                <Input placeholder="请填写" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item 
+                name="standard" 
+                label="核算标准" // Changed label from "满足标准" to "核算标准"
+                // rules={[{ required: false }]} // PRD: 非必选
+              >
+                <Select placeholder="选择满足标准" className="custom-modal-select-small" allowClear>
+                  <Select.Option value="ISO14067">ISO14067</Select.Option>
+                  <Select.Option value="欧盟电池法">欧盟电池法</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
+                name="verificationLevel" 
+                label="预期核验级别" 
+                // rules={[{ required: false }]} // PRD: 非必选
+              >
+                <Select placeholder="选择核验等级" className="custom-modal-select-small" allowClear>
+                  <Select.Option value="准核验级别">准核验级别</Select.Option>
+                  <Select.Option value="披露级别">披露级别</Select.Option>
+                </Select>
+              </Form.Item>
+              <Form.Item name="boundary" label="核算边界" rules={[{ required: true, message: '请选择核算边界' }]}>
+                  <Select placeholder="选择核算边界" className="custom-modal-select-small">
+                      <Select.Option value="从摇篮到大门">从摇篮到大门</Select.Option>
+                      <Select.Option value="从摇篮到坟墓">从摇篮到坟墓</Select.Option>
+                  </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Typography.Title level={5} style={{ marginTop: '24px', marginBottom: '16px' }}>核算边界</Typography.Title>
+          <Form.Item name="lifecycleType" label="选择核算边界类型">
+            <Radio.Group onChange={(e) => {
+              const type = e.target.value;
+              if (type === 'half') {
+                settingsForm.setFieldsValue({
+                  calculationBoundaryHalfLifecycle: halfLifecycleSelectedStages,
+                  calculationBoundaryFullLifecycle: [],
+                });
+              } else if (type === 'full') {
+                settingsForm.setFieldsValue({
+                  calculationBoundaryHalfLifecycle: [],
+                  calculationBoundaryFullLifecycle: fullLifecycleSelectedStages,
+                });
+              } else { // Should not happen with current radio setup
+                settingsForm.setFieldsValue({
+                  calculationBoundaryHalfLifecycle: [],
+                  calculationBoundaryFullLifecycle: [],
+                });
+              }
+            }}>
+              <Radio value="half">半生命周期 (摇篮到大门)</Radio>
+              <Radio value="full">全生命周期 (摇篮到坟墓)</Radio>
+            </Radio.Group>
+          </Form.Item>
+
+          <Row gutter={16} style={{ marginTop: '16px' }}>
+            <Col span={12}>
+              <Form.Item label="半生命周期阶段 (自动选择)">
+                 <Form.Item name="calculationBoundaryHalfLifecycle" noStyle>
+                    <Checkbox.Group
+                      options={allLifecycleStagesForCheckboxes}
+                      disabled // Always disabled
+                    />
                  </Form.Item>
-            </Form>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="全生命周期阶段 (自动选择)">
+                <Form.Item name="calculationBoundaryFullLifecycle" noStyle>
+                  <Checkbox.Group
+                    options={allLifecycleStagesForCheckboxes}
+                    disabled // Always disabled
+                  />
+                </Form.Item>
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Form.Item className="text-right" style={{ marginTop: '32px' }}>
+            <Space>
+              <Button onClick={handleCloseSettings}>取消</Button>
+              <Button type="primary" htmlType="submit">保存</Button>
+            </Space>
+          </Form.Item>
+        </Form>
       </Modal>
 
        <Drawer
@@ -2812,6 +3127,162 @@ export function CarbonCalculatorPanel({ workflowId }: { workflowId: string }) {
           </div>
         </Modal>
       </Modal>
+
+      {/* New Modal for AI File Parse / Raw Data Files */}
+      <Modal
+        title="AI文件解析" // Changed title to match prototype
+        open={isAIFileParseModalVisible}
+        onCancel={handleCloseAIFileParseModal}
+        width="80%" // Increased width to accommodate two columns
+        footer={[
+          <Button key="close" onClick={handleCloseAIFileParseModal}>
+            返回
+          </Button>,
+        ]}
+        destroyOnClose
+      >
+        <Row gutter={16}>
+          <Col span={8}> {/* Left column for file list */}
+            <Card title="原始数据文件" size="small" extra={<Button icon={<UploadOutlined />} onClick={handleOpenUploadModal}>上传</Button>}>
+              <div className="flex-grow overflow-auto file-upload-table-container" style={{ maxHeight: 'calc(80vh - 200px)' }}> {/* Adjust maxHeight for modal context */}
+                {isLoadingFiles && <Spin tip="加载文件中..." />}
+                {!isLoadingFiles && uploadedFiles.length === 0 && (
+                  <Empty description="暂无文件" />
+                )}
+                {!isLoadingFiles && uploadedFiles.length > 0 && (
+                  <Table
+                    columns={fileTableColumns.map(col => {
+                      // Make columns more compact for this view if needed
+                      if (col.key === 'action') {
+                        return { ...col, width: 80 }; // Example: reduce action column width
+                      }
+                      return col;
+                    })}
+                    dataSource={[...uploadedFiles].sort((a, b) => new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime())}
+                    rowKey="id"
+                    size="small"
+                    pagination={{ pageSize: 10, size: 'small' }} // Smaller pagination
+                    className="file-upload-table"
+                    // Add onRow click handler if needed for right panel later
+                    onRow={(record: UploadedFile) => {
+                      return {
+                        onClick: event => {
+                          console.log('Row clicked in AI Parse Modal:', record);
+                          setSelectedFileForParse(record);
+                        },
+                      };
+                    }}
+                    rowClassName={(record: UploadedFile) => {
+                      return record.id === selectedFileForParse?.id ? 'ant-table-row-selected' : '';
+                    }}
+                  />
+                )}
+              </div>
+            </Card>
+          </Col>
+          <Col span={16}> {/* Right column, for file details and parse results */}
+            {selectedFileForParse ? (
+              <div>
+                <Typography.Title level={4} style={{ marginBottom: 16 }}>{selectedFileForParse.name}</Typography.Title>
+                <Row gutter={[16, 16]}>
+                  <Col span={24}>
+                    <Typography.Text><strong>上传时间:</strong> {selectedFileForParse.uploadTime}</Typography.Text>
+                  </Col>
+                  <Col span={24}>
+                    <Typography.Text><strong>类型:</strong> {selectedFileForParse.type}</Typography.Text>
+                  </Col>
+                  <Col span={24}>
+                    <Typography.Text><strong>源文件:</strong> </Typography.Text>
+                    <Button type="link" onClick={() => handlePreviewFile(selectedFileForParse)} disabled={!selectedFileForParse.url}>
+                      {selectedFileForParse.name} (点击预览)
+                    </Button>
+                  </Col>
+                </Row>
+
+                <Divider />
+
+                <Typography.Title level={5} style={{ marginTop: 24, marginBottom: 16 }}>解析结果</Typography.Title>
+                <Row gutter={[16, 16]}>
+                  <Col span={12}>
+                    <Typography.Text><strong>解析状态:</strong> {getChineseFileStatusMessage(selectedFileForParse.status)}</Typography.Text>
+                  </Col>
+                  <Col span={12} style={{ textAlign: 'right' }}>
+                    <Button 
+                      type="primary" 
+                      onClick={() => handleParseFile(selectedFileForParse)} 
+                      disabled={selectedFileForParse.status === 'parsing' || parsingStatus === '解析中'} // Added parsingStatus check
+                      loading={selectedFileForParse.status === 'parsing' || (currentParsingFile?.id === selectedFileForParse.id && parsingStatus === '解析中')} // Show loading on button
+                    >
+                      {selectedFileForParse.status === 'completed' ? '重新解析' : '开始解析'}
+                    </Button>
+                  </Col>
+                  <Col span={24}>
+                    <Typography.Text><strong>解析结果概览:</strong></Typography.Text>
+                    <Card size="small" style={{ marginTop: 8, backgroundColor: 'var(--bolt-elements-background-depth-1)', borderColor: 'var(--bolt-elements-borderColor)' }}>
+                      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--bolt-elements-textPrimary)', maxHeight: 100, overflowY: 'auto' }}>
+                        {/* Display parseResultSummary if it's relevant to the selectedFileForParse, otherwise a placeholder */}
+                        {currentParsingFile?.id === selectedFileForParse.id ? parseResultSummary : (selectedFileForParse.content ? '文件已上传，等待解析或查看历史解析结果。' : '暂无概览信息。')}
+                      </pre>
+                    </Card>
+                  </Col>
+                </Row>
+
+                {/* Placeholder for Parsed Emission Sources Table */}
+                <div style={{ marginTop: 24 }}>
+                  <Typography.Title level={5} style={{ marginBottom: 16 }}>解析结果数据</Typography.Title>
+                  <Empty description="解析数据列表将在此处展示" />
+                  {/* Table for ParsedEmissionSource will go here */}
+                </div>
+
+              </div>
+            ) : (
+              <div style={{ border: '1px dashed var(--bolt-elements-borderColor)', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(80vh - 130px)', backgroundColor: 'var(--bolt-elements-background-depth-0)' }}>
+                <Empty description="请从左侧选择一个文件以查看详情和解析结果" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              </div>
+            )}
+          </Col>
+        </Row>
+      </Modal>
+
+      {/* 工作流名称编辑区 */}
+      <Row align="middle" style={{ marginBottom: 8 }}>
+        <Col>
+          {isEditingName ? (
+            <Input
+              value={editingName}
+              onChange={e => setEditingName(e.target.value)}
+              onPressEnter={saveWorkflowName}
+              style={{ width: 220, marginRight: 8 }}
+              size="small"
+              autoFocus
+              maxLength={50}
+            />
+          ) : (
+            <span style={{ fontSize: 20, fontWeight: 600 }}>{workflowName}</span>
+          )}
+        </Col>
+        <Col>
+          {isEditingName ? (
+            <Button
+              icon={<CheckOutlined />}
+              size="small"
+              type="primary"
+              onClick={saveWorkflowName}
+              style={{ marginLeft: 4 }}
+            />
+          ) : (
+            <Button
+              icon={<EditOutlined />}
+              size="small"
+              onClick={() => {
+                setEditingName(workflowName);
+                setIsEditingName(true);
+              }}
+              style={{ marginLeft: 8 }}
+            />
+          )}
+        </Col>
+      </Row>
     </div>
   );
 }
@@ -3746,7 +4217,7 @@ export const CarbonCalculatorPanelClient = () => {
   const { workflow } = useLoaderData() as any;
   return (
     <ClientOnly>
-      {() => <CarbonCalculatorPanel workflowId={workflow.id} />}
+      {() => <CarbonCalculatorPanel workflowId={workflow.id} workflowName={workflow.name} />}
     </ClientOnly>
   );
 };
