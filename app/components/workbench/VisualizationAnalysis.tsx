@@ -58,7 +58,7 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
     sceneInfo: { productName = '', standard = '', boundary = '' },
   } = store.getCarbonFlowData();
 
-  const totalCarbonFootprint = nodes.map(x => x.data.carbonFootprint).reduce((a,b)=>Number(a)+Number(b || 0), 0)
+  const totalCarbonFootprint = nodes.map(x => x.data.carbonFootprint).reduce((a,b)=>Number(a)+Number(b || 0), 0).toFixed(2)
   const scoreColor = getScoreColor(aiSummary.credibilityScore);
   const conversion = [
     { label: '家庭用电量', value: `${(totalCarbonFootprint/0.5582).toFixed(2)} kWh`, icon: '⚡️' },
