@@ -2275,12 +2275,6 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                   <Select.Option value="披露级别">披露级别</Select.Option>
                 </Select>
               </Form.Item>
-              <Form.Item name="boundary" label="核算边界" rules={[{ required: true, message: '请选择核算边界' }]}>
-                  <Select placeholder="选择核算边界" className="custom-modal-select-small">
-                      <Select.Option value="从摇篮到大门">从摇篮到大门</Select.Option>
-                      <Select.Option value="从摇篮到坟墓">从摇篮到坟墓</Select.Option>
-                  </Select>
-              </Form.Item>
             </Col>
           </Row>
 
