@@ -78,6 +78,7 @@ import { supabase } from '~/lib/supabase';
 import { CarbonCalculatorPanelClient } from './CarbonFlow/carbonpanel';
 import { CarbonFlowAISummary } from './CarbonFlow/score/AISummary';
 import { VisualizationAnalysis } from './VisualizationAnalysis';
+import { DataCheckPanel } from './CarbonFlow/DataCheckPanel';
 
 const { darkAlgorithm } = theme;
 
@@ -131,7 +132,7 @@ const CarbonFlowInner = () => {
   const { project, fitView } = useReactFlow();
   const isDraggingRef = useRef(false);
 
-  const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'check'>('panel');
+  const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'check' | 'analysis'>('panel');
 
   const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
   const [checkpointName, setCheckpointName] = useState('');
@@ -140,8 +141,6 @@ const CarbonFlowInner = () => {
   const { setNodes: setStoreNodes, setEdges: setStoreEdges, nodes: storeNodes, aiSummary } = useCarbonFlowStore();
 
   const supabaseState = useStore(supabaseConnection);
-
-  const [showAnalysis, setShowAnalysis] = useState(false);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState(workflow?.name || '');
@@ -241,7 +240,7 @@ const CarbonFlowInner = () => {
 
     const handlePanelDataUpdated = (event: Event) => {
       const customEvent = event as CustomEvent;
-      const { action, nodeId, nodeType } = customEvent.detail;
+      const { action } = customEvent.detail;
 
       switch (action) {
         case 'DELETE_NODE':
@@ -309,7 +308,6 @@ const CarbonFlowInner = () => {
           | 'activitydataSource'
           | 'carbonFootprint'
           | 'unitConversion'
-          | 'emissionFactorQuality'
           | 'emissionFactor'
           | 'calculationMethod'
           | 'verificationStatus'
@@ -329,7 +327,6 @@ const CarbonFlowInner = () => {
         activitydataSource: 'default',
         carbonFootprint: '0',
         unitConversion: '1',
-        emissionFactorQuality: 0,
         emissionFactor: '',
         calculationMethod: '',
         verificationStatus: '未验证',
@@ -346,6 +343,7 @@ const CarbonFlowInner = () => {
       if (type === 'product') {
         specificData = {
           ...baseData,
+          nodeType: 'product',
           material: '',
           weight_per_unit: '',
           quantity: '0',
@@ -356,6 +354,7 @@ const CarbonFlowInner = () => {
       } else if (type === 'manufacturing') {
         specificData = {
           ...baseData,
+          nodeType: 'manufacturing',
           energyConsumption: 0,
           energyType: '',
           ElectricityAccountingMethod: '',
@@ -366,14 +365,16 @@ const CarbonFlowInner = () => {
       } else if (type === 'distribution') {
         specificData = {
           ...baseData,
-          startPoint: '',
-          endPoint: '',
-          transportationMode: '',
-          transportationDistance: '0',
+          nodeType: 'distribution',
+          distribution_start_point: '',
+          distribution_end_point: '',
+          transportation_mode: '',
+          transportation_distance: '0',
         } as DistributionNodeData;
       } else if (type === 'usage') {
         specificData = {
           ...baseData,
+          nodeType: 'usage',
           lifespan: 0,
           usageFrequency: 0,
           energyConsumptionPerUse: 0,
@@ -381,10 +382,11 @@ const CarbonFlowInner = () => {
       } else if (type === 'disposal') {
         specificData = {
           ...baseData,
-          disposalMethod: '',
-          recyclingRate: 0,
-          landfillRate: 0,
-          incinerationRate: 0,
+          nodeType: 'disposal',
+          disposal_method: '',
+          recycling_rate: 0,
+          landfill_gas_recovery_rate: 0,
+          incineration_with_energy_recovery_rate: 0,
           compostingRate: 0,
           otherDisposalRate: 0,
           disposalEmissionFactor: 0,
@@ -403,6 +405,7 @@ const CarbonFlowInner = () => {
       } else if (type === 'finalProduct') {
         specificData = {
           ...baseData,
+          nodeType: 'finalProduct',
           finalProductName: '最终产品',
           totalCarbonFootprint: 0,
           certificationStatus: 'pending',
@@ -526,7 +529,6 @@ const CarbonFlowInner = () => {
           completionStatus: 'incomplete',
           carbonFactorName: '',
           unitConversion: '1',
-          emissionFactorQuality: 0,
           finalProductName: '最终产品',
           totalCarbonFootprint: 0,
           certificationStatus: 'pending',
@@ -537,6 +539,8 @@ const CarbonFlowInner = () => {
           targetRegion: '未指定',
           complianceStatus: '未验证',
           carbonLabel: '待认证',
+          nodeType: 'finalProduct',
+          quantity: '0',
         } as FinalProductNodeData,
       };
       nodesByType.finalProduct.push(finalProductNode);
@@ -681,9 +685,9 @@ const CarbonFlowInner = () => {
         case '分销和储存': {
           const distributionData = updatedData as DistributionNodeData;
           updateNumericStringField(distributionData, 'carbonFactor', '0.2');
-          if (!distributionData.startPoint) distributionData.startPoint = '起点';
-          if (!distributionData.endPoint) distributionData.endPoint = '终点';
-          updateNumericStringField(distributionData, 'transportationDistance', '100');
+          if (!distributionData.distribution_start_point) distributionData.distribution_start_point = '起点';
+          if (!distributionData.distribution_end_point) distributionData.distribution_end_point = '终点';
+          updateNumericStringField(distributionData, 'transportation_distance', '100');
           break;
         }
         case 'usage':
@@ -697,9 +701,9 @@ const CarbonFlowInner = () => {
         case 'disposal':
         case '废弃处置': {
           const disposalData = updatedData as DisposalNodeData;
-          updateNumericField(disposalData, 'recyclingRate', 80);
-          updateNumericField(disposalData, 'landfillRate', 10);
-          updateNumericField(disposalData, 'incinerationRate', 10);
+          updateNumericField(disposalData, 'recycling_rate', 80);
+          updateNumericField(disposalData, 'landfill_gas_recovery_rate', 10);
+          updateNumericField(disposalData, 'incineration_with_energy_recovery_rate', 10);
           break;
         }
       }
@@ -1036,110 +1040,114 @@ const CarbonFlowInner = () => {
 
   return (
     <>
-      {showAnalysis ? (
-        <VisualizationAnalysis onBack={() => setShowAnalysis(false)} />
-      ) : (
-        <div className="carbonflow-inner-wrapper">
-          <div
-            className="view-toggle-container"
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '32px',
-              padding: '12px 32px',
-              background: 'rgba(16,32,61,0.8)',
-              borderBottom: '1px solid #222',
-              boxSizing: 'border-box',
-              position: 'relative',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {isEditingName ? (
-                <Input
-                  value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
-                  onPressEnter={saveWorkflowName}
-                  style={{ width: 220 }}
-                  size="small"
-                  autoFocus
-                  maxLength={50}
-                />
-              ) : (
-                <span style={{ fontSize: 18, fontWeight: 500, color: '#fff' }}>{workflowName}</span>
-              )}
-              {isEditingName ? (
-                <AntButton icon={<CheckOutlined />} size="small" type="primary" onClick={saveWorkflowName} />
-              ) : (
-                <AntButton
-                  icon={<EditOutlined />}
-                  size="small"
-                  onClick={() => {
-                    setEditingName(workflowName);
-                    setIsEditingName(true);
-                  }}
-                />
-              )}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <MyButton
-                onClick={() => setViewMode('panel')}
-                className="view-toggle-button view-toggle-button-hover"
-                style={{
-                  backgroundColor: viewMode === 'panel' ? '#1890ff' : '#333',
-                  color: '#fff',
-                  borderColor: '#555',
-                  borderWidth: '1px',
-                  borderStyle: 'solid',
+      <div className="carbonflow-inner-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+        <div
+          className="view-toggle-container"
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '32px',
+            padding: '12px 32px',
+            background: 'rgba(16,32,61,0.8)',
+            borderBottom: '1px solid #222',
+            boxSizing: 'border-box',
+            position: 'relative',
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {isEditingName ? (
+              <Input
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onPressEnter={saveWorkflowName}
+                style={{ width: 220 }}
+                size="small"
+                autoFocus
+                maxLength={50}
+              />
+            ) : (
+              <span style={{ fontSize: 18, fontWeight: 500, color: '#fff' }}>{workflowName}</span>
+            )}
+            {isEditingName ? (
+              <AntButton icon={<CheckOutlined />} size="small" type="primary" onClick={saveWorkflowName} />
+            ) : (
+              <AntButton
+                icon={<EditOutlined />}
+                size="small"
+                onClick={() => {
+                  setEditingName(workflowName);
+                  setIsEditingName(true);
                 }}
-              >
-                数据操作台面板
-              </MyButton>
-              <MyButton
-                onClick={() => setViewMode('flow')}
-                className="view-toggle-button view-toggle-button-hover"
-                style={{
-                  backgroundColor: viewMode === 'flow' ? '#1890ff' : '#333',
-                  color: '#fff',
-                  borderColor: '#555',
-                  borderWidth: '1px',
-                  borderStyle: 'solid',
-                }}
-              >
-                流程图面板
-              </MyButton>
-              <MyButton
-                onClick={() => setShowAnalysis(true)}
-                style={{
-                  backgroundColor: '#faad14',
-                  color: 'white',
-                }}
-              >
-                可视化分析
-              </MyButton>
-              <MyButton
-                onClick={() => setViewMode('check')}
-                className="view-toggle-button view-toggle-button-hover"
-                style={{
-                  backgroundColor: viewMode === 'check' ? '#1890ff' : '#333',
-                  color: '#fff',
-                  borderColor: '#555',
-                  borderWidth: '1px',
-                  borderStyle: 'solid',
-                }}
-              >
-                数据查验面板
-              </MyButton>
-            </div>
+              />
+            )}
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <MyButton
+              onClick={() => setViewMode('panel')}
+              className="view-toggle-button view-toggle-button-hover"
+              style={{
+                backgroundColor: viewMode === 'panel' ? '#1890ff' : '#333',
+                color: '#fff',
+                borderColor: '#555',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              数据操作台面板
+            </MyButton>
+            <MyButton
+              onClick={() => setViewMode('flow')}
+              className="view-toggle-button view-toggle-button-hover"
+              style={{
+                backgroundColor: viewMode === 'flow' ? '#1890ff' : '#333',
+                color: '#fff',
+                borderColor: '#555',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              流程图面板
+            </MyButton>
 
+            <MyButton
+              onClick={() => setViewMode('check')}
+              className="view-toggle-button view-toggle-button-hover"
+              style={{
+                backgroundColor: viewMode === 'check' ? '#1890ff' : '#333',
+                color: '#fff',
+                borderColor: '#555',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              数据查验面板
+            </MyButton>
+            <MyButton
+              onClick={() => setViewMode('analysis')}
+              className="view-toggle-button view-toggle-button-hover"
+              style={{
+                backgroundColor: viewMode === 'analysis' ? '#1890ff' : '#333',
+                color: '#fff',
+                borderColor: '#555',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              可视化分析
+            </MyButton>
+          </div>
+        </div>
+
+        <div style={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {viewMode === 'panel' && (
-            <div className="carbon-panel-container" style={{ height: '100vh', width: '100%' }}>
+            <div className="carbon-panel-container" style={{ height: '100%', width: '100%' }}>
               <CarbonCalculatorPanelClient />
             </div>
           )}
           {viewMode === 'flow' && (
-            <div className="editor-layout">
+            <div className="editor-layout" style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
               <div className="editor-header">
                 <div className="header-left" />
                 <div className="header-right">
@@ -1187,8 +1195,8 @@ const CarbonFlowInner = () => {
                   </AntButton>
                 </div>
               </div>
-              <div className="main-content">
-                <div className="editor-sider" style={{ width: siderWidth }}>
+              <div className="main-content" style={{flexGrow: 1, display: 'flex', overflow: 'hidden'}}>
+                <div className="editor-sider" style={{ width: siderWidth, flexShrink: 0 }}>
                   <div className="file-manager">
                     <h3>节点类型</h3>
                     <div className="node-types">
@@ -1214,8 +1222,8 @@ const CarbonFlowInner = () => {
                 <div className="ai-summary-floating-container">
                   <CarbonFlowAISummary setSelectedNode={setSelectedNode} />
                 </div>
-                <div className="editor-content">
-                  <div className="reactflow-wrapper">
+                <div className="editor-content" style={{flexGrow: 1, display: 'flex', flexDirection: 'column'}}>
+                  <div className="reactflow-wrapper" style={{flexGrow: 1, position: 'relative'}}>
                     <ReactFlow
                       nodes={nodes}
                       edges={edges}
@@ -1440,15 +1448,13 @@ const CarbonFlowInner = () => {
             </div>
           )}
           {viewMode === 'check' && (
-            <div
-              className="carbon-panel-container flex items-center justify-center"
-              style={{ height: '100vh', width: '100%' }}
-            >
-              <div style={{ fontSize: 22, color: '#aaa', textAlign: 'center' }}>数据查验面板开发中...</div>
-            </div>
+            <DataCheckPanel />
+          )}
+          {viewMode === 'analysis' && (
+            <VisualizationAnalysis onBack={() => setViewMode('flow')} />
           )}
         </div>
-      )}
+      </div>
     </>
   );
 };

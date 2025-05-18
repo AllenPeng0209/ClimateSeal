@@ -2,6 +2,7 @@ import React from 'react';
 import { Button, Card, Row, Col, Progress, List } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { useCarbonFlowStore } from './CarbonFlow/CarbonFlowBridge';
+import type { NodeData } from '~/types/nodes';
 
 interface VisualizationAnalysisProps {
   onBack: () => void;
@@ -56,9 +57,17 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
     nodes,
     aiSummary,
     sceneInfo: { productName = '', standard = '', boundary = '' },
+    BoundaryType,
+    CredibilityScoreLevel,
+    CarbonEmissionStandard
   } = store.getCarbonFlowData();
 
-  const totalCarbonFootprint = nodes.map(x => x.data.carbonFootprint).reduce((a,b)=>Number(a)+Number(b || 0), 0).toFixed(2)
+  const totalCarbonFootprint = parseFloat(
+    nodes
+      .map((x: Node<NodeData>) => x.data.carbonFootprint)
+      .reduce((a: number, b: string | number) => Number(a) + Number(b || 0), 0)
+      .toFixed(2),
+  );
   const scoreColor = getScoreColor(aiSummary.credibilityScore);
   const conversion = [
     { label: '家庭用电量', value: `${(totalCarbonFootprint/0.5582).toFixed(2)} kWh`, icon: '⚡️' },
@@ -85,7 +94,15 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
         lifecycleStage = "寿命终止阶段"
         break;
     }
-    return Number(((nodes.filter(x=>x.data.lifecycleStage === lifecycleStage).map(x => x.data.carbonFootprint).reduce((a,b)=>Number(a)+Number(b || 0), 0)/totalCarbonFootprint || 0) * 100).toFixed(2));
+    return Number(
+        (
+            (nodes
+            .filter((x: Node<NodeData>) => x.data.lifecycleStage === lifecycleStage)
+            .map((x: Node<NodeData>) => x.data.carbonFootprint)
+            .reduce((a: number, b: string | number) => Number(a) + Number(b || 0), 0) 
+            / (totalCarbonFootprint || 1)) * 100 // Avoid division by zero
+        ).toFixed(2)
+    );
   }
 
   const lifecycle = !boundary
@@ -117,7 +134,7 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
 
     // 转为数组并计算百分比
     const result = Object.entries(summary).map(([label, total]) => {
-      const percent = Number(((total / totalCarbonFootprint || 0) * 100).toFixed(2));
+      const percent = Number(((total / (totalCarbonFootprint || 1)) * 100).toFixed(2)); // Avoid division by zero
       return { name: label, percent };
     });
 
@@ -137,18 +154,6 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
         color: '#e0e0e0',
         zIndex: 10
       }}>
-        {/* 顶部导航 */}
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            type="primary"
-            onClick={onBack}
-            style={{ marginRight: 16 }}
-          >
-            返回
-          </Button>
-          <h2 style={{ color: '#fff', margin: 0, fontWeight: 600 }}>可视化分析</h2>
-        </div>
 
         {/* 产品信息和可信得分上下对齐 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
