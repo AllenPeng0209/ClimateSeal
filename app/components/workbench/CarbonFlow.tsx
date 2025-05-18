@@ -6,8 +6,6 @@ import ReactFlow, {
   type Edge,
   type OnConnect,
   type ReactFlowInstance,
-  type NodeChange,
-  type EdgeChange,
   useNodesState,
   useEdgesState,
   addEdge,
@@ -27,7 +25,7 @@ import { ManufacturingNode } from './CarbonFlow/nodes/ManufacturingNode';
 import { DistributionNode } from './CarbonFlow/nodes/DistributionNode';
 import { UsageNode } from './CarbonFlow/nodes/UsageNode';
 import { DisposalNode } from './CarbonFlow/nodes/DisposalNode';
-import { NodeProperties, type NodePropertiesProps } from './CarbonFlow/nodes/NodeProperties';
+import { NodeProperties } from './CarbonFlow/nodes/NodeProperties';
 import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
 import { CarbonFlowActionHandler } from './CarbonFlow/action/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
@@ -77,8 +75,9 @@ import { supabase } from '~/lib/supabase';
 // import { CarbonCalculatorPanelClient } from './CarbonFlow/panel';
 import { CarbonCalculatorPanelClient } from './CarbonFlow/carbonpanel';
 import { CarbonFlowAISummary } from './CarbonFlow/score/AISummary';
-import { VisualizationAnalysis } from './VisualizationAnalysis';
-import { DataCheckPanel } from './CarbonFlow/DataCheckPanel';
+import { DataCheckPanel } from './CarbonFlow/checkboard/DataCheckPanel';
+import ReportGenerator from './CarbonFlow/report/ReportGenerator';
+import { VisualizationAnalysis } from './CarbonFlow/visualization/VisualizationAnalysisv1';
 
 const { darkAlgorithm } = theme;
 
@@ -129,10 +128,11 @@ const CarbonFlowInner = () => {
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null);
   const [siderWidth, setSiderWidth] = useState(250);
   const [isResizing, setIsResizing] = useState(false);
+
   const { project, fitView } = useReactFlow();
   const isDraggingRef = useRef(false);
 
-  const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'check' | 'analysis'>('panel');
+  const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'check' | 'analysis' | 'report'>('panel');
 
   const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
   const [checkpointName, setCheckpointName] = useState('');
@@ -545,6 +545,7 @@ const CarbonFlowInner = () => {
       };
       nodesByType.finalProduct.push(finalProductNode);
     }
+
 
     const layoutNodes = [...nodes];
     if (!layoutNodes.find((n) => n.type === 'finalProduct')) {
@@ -1137,6 +1138,19 @@ const CarbonFlowInner = () => {
             >
               可视化分析
             </MyButton>
+            <MyButton
+              onClick={() => setViewMode('report')}
+              className="view-toggle-button view-toggle-button-hover"
+              style={{
+                backgroundColor: viewMode === 'report' ? '#1890ff' : '#333',
+                color: '#fff',
+                borderColor: '#555',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              生成报告
+            </MyButton>
           </div>
         </div>
 
@@ -1147,55 +1161,24 @@ const CarbonFlowInner = () => {
             </div>
           )}
           {viewMode === 'flow' && (
-            <div className="editor-layout" style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div
+              className="editor-layout"
+              style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}
+            >
               <div className="editor-header">
                 <div className="header-left" />
                 <div className="header-right">
-                  <MyButton onClick={triggerFileInput}>上传文件</MyButton>
-                  <MyButton onClick={handleCarbonFactorMatch}>碳因子匹配</MyButton>
-                  <MyButton onClick={deleteSelectedNode} variant="destructive" disabled={!selectedNode}>
+  
+                  {/* <MyButton onClick={deleteSelectedNode} variant="destructive" disabled={!selectedNode}>
                     删除节点
-                  </MyButton>
+                  </MyButton> */}
                   <MyButton onClick={autoLayout}>自动布局</MyButton>
-                  <MyButton
-                    onClick={autoCompleteMissingFields}
-                    style={{
-                      backgroundColor: '#52c41a',
-                      color: 'white',
-                      marginLeft: '8px',
-                    }}
-                  >
-                    一键AI补全
-                  </MyButton>
-                  <MyButton
-                    onClick={() => {
-                      message.info('报告生成功能待实现');
-                    }}
-                    style={{
-                      backgroundColor: '#1890ff',
-                      color: 'white',
-                      marginLeft: 'auto',
-                    }}
-                  >
-                    生成报告
-                  </MyButton>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    style={{ display: 'none' }}
-                    accept=".csv,.txt,.pdf,.json"
-                  />
-                  <AntButton
-                    icon={<HistoryOutlined />}
-                    onClick={() => setIsCheckpointModalVisible(true)}
-                    style={{ marginLeft: '8px' }}
-                  >
-                    检查点管理
-                  </AntButton>
+           
+
+     
                 </div>
               </div>
-              <div className="main-content" style={{flexGrow: 1, display: 'flex', overflow: 'hidden'}}>
+              <div className="main-content" style={{ flexGrow: 1, display: 'flex', overflow: 'hidden' }}>
                 <div className="editor-sider" style={{ width: siderWidth, flexShrink: 0 }}>
                   <div className="file-manager">
                     <h3>节点类型</h3>
@@ -1222,8 +1205,8 @@ const CarbonFlowInner = () => {
                 <div className="ai-summary-floating-container">
                   <CarbonFlowAISummary setSelectedNode={setSelectedNode} />
                 </div>
-                <div className="editor-content" style={{flexGrow: 1, display: 'flex', flexDirection: 'column'}}>
-                  <div className="reactflow-wrapper" style={{flexGrow: 1, position: 'relative'}}>
+                <div className="editor-content" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <div className="reactflow-wrapper" style={{ flexGrow: 1, position: 'relative' }}>
                     <ReactFlow
                       nodes={nodes}
                       edges={edges}
@@ -1447,12 +1430,9 @@ const CarbonFlowInner = () => {
               </Modal>
             </div>
           )}
-          {viewMode === 'check' && (
-            <DataCheckPanel />
-          )}
-          {viewMode === 'analysis' && (
-            <VisualizationAnalysis onBack={() => setViewMode('flow')} />
-          )}
+          {viewMode === 'check' && <DataCheckPanel />}
+          {viewMode === 'analysis' && <VisualizationAnalysis onBack={() => setViewMode('flow')} />}
+          {viewMode === 'report' && <ReportGenerator />}
         </div>
       </div>
     </>
