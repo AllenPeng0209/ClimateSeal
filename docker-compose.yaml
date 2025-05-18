@@ -1,42 +1,26 @@
 services:
   app-prod:
-    image: climateseals-ai-production:v1
+    image: crpi-bvovg2g7y33dn86o.cn-shanghai.personal.cr.aliyuncs.com/climateseal/production:v1
     build:
       context: .
       dockerfile: Dockerfile
       target: climateseals-ai-production  
     ports:
       - '5173:5173'
-    env_file: '.env'
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - COMPOSE_PROFILES=production
-      # No strictly needed but serving as hints for Coolify
       - PORT=5173
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - HuggingFace_API_KEY=${HuggingFace_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
-      - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
-      - OLLAMA_API_BASE_URL=${OLLAMA_API_BASE_URL}
-      - XAI_API_KEY=${XAI_API_KEY}
-      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
-      - TOGETHER_API_BASE_URL=${TOGETHER_API_BASE_URL}
-      - AWS_BEDROCK_CONFIG=${AWS_BEDROCK_CONFIG}
-      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
-      - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
       - RUNNING_IN_DOCKER=true
-      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
-      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
+      - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     command: pnpm run dockerstart
-    profiles:
-      - production
 
   app-dev:
-    image: climateseals-ai-development/development:v1
+    image: climateseals-ai-development:v1
     build:
       target: climateseals-ai-development
     env_file: '.env'
@@ -48,22 +32,9 @@ services:
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true
       - PORT=5173
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - HuggingFace_API_KEY=${HuggingFace_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
-      - XAI_API_KEY=${XAI_API_KEY}
-      - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
-      - OLLAMA_API_BASE_URL=${OLLAMA_API_BASE_URL}
-      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
-      - TOGETHER_API_BASE_URL=${TOGETHER_API_BASE_URL}
-      - AWS_BEDROCK_CONFIG=${AWS_BEDROCK_CONFIG}
+      - RUNNING_IN_DOCKER=true
       - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
       - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
-      - RUNNING_IN_DOCKER=true
-      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
-      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
@@ -79,16 +50,19 @@ services:
 
   app-prebuild:
     image: crpi-bvovg2g7y33dn86o.cn-shanghai.personal.cr.aliyuncs.com/climateseal/production:v1
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: climateseals-ai-production
     ports:
       - '5173:5173'
+    env_file: '.env'
     environment:
       - NODE_ENV=production
-      - COMPOSE_PROFILES=production
-      # No strictly needed but serving as hints for Coolify
       - PORT=5173
-      - OLLAMA_API_BASE_URL=http://127.0.0.1:11434
-      - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
       - RUNNING_IN_DOCKER=true
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
+      - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     command: pnpm run dockerstart

@@ -20,4 +20,7 @@ interface Env {
   AWS_BEDROCK_CONFIG: string;
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
+  DASHSCOPE_API_KEY: string;
 }
