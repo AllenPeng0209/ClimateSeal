@@ -1,10 +1,10 @@
 services:
   app-prod:
-    image: bolt-ai:production
+    image: climateseals-ai-production:v1
     build:
       context: .
       dockerfile: Dockerfile
-      target: bolt-ai-production  
+      target: climateseals-ai-production  
     ports:
       - '5173:5173'
     env_file: '.env'
@@ -36,9 +36,9 @@ services:
       - production
 
   app-dev:
-    image: bolt-ai:development
+    image: climateseals-ai-development/development:v1
     build:
-      target: bolt-ai-development
+      target: climateseals-ai-development
     env_file: '.env'
     environment:
       - NODE_ENV=development
@@ -78,7 +78,7 @@ services:
     profiles: ['development', 'default']
 
   app-prebuild:
-    image: ghcr.io/stackblitz-labs/bolt.diy:latest
+    image: crpi-bvovg2g7y33dn86o.cn-shanghai.personal.cr.aliyuncs.com/climateseal/production:v1
     ports:
       - '5173:5173'
     environment:
