@@ -325,7 +325,7 @@ body.resizing {
 /* 当左侧面板宽度变化时，AI总结容器位置同步变化 */
 @media (min-width: 768px) {
   .editor-sider[style*="width"] + .ai-summary-floating-container {
-    left: calc(var(--sider-width, 230px) + 1px);
+    left: calc(var(--sider-width, 255px) + 1px);
   }
 }
 
