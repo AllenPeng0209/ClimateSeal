@@ -157,6 +157,32 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const [isAIFileParseModalVisible, setIsAIFileParseModalVisible] = useState(false); // <-- New state for AI File Parse Modal
   const [selectedFileForParse, setSelectedFileForParse] = useState<UploadedFile | null>(null); // <-- New state for selected file in AI Parse Modal
 
+  // ===== State for Current Task Progress =====
+  interface TaskItem {
+    key: string; // Unique key for each task
+    name: 'AI文件解析' | 'AI因子匹配' | 'AI转换参数补充' | 'AI运输数据补充';
+    status: '进行中' | '已完成';
+    startTime: string; // ISO string or formatted date string
+    completionTime?: string; // ISO string or formatted date string, optional
+  }
+  const [currentTasks, setCurrentTasks] = useState<TaskItem[]>([]);
+  // ===== End State for Current Task Progress =====
+
+  // ===== State for dynamic card height =====
+  const [modelScoreCardHeight, setModelScoreCardHeight] = useState<string | number>('auto');
+
+  // Effect to sync Model Score card height with Target Scope card height
+  useEffect(() => {
+    const targetScopeCardElement = document.getElementById('targetScopeCard');
+    if (targetScopeCardElement) {
+      const height = targetScopeCardElement.offsetHeight;
+      setModelScoreCardHeight(height);
+    }
+    // Optional: ResizeObserver to handle dynamic changes if targetScopeCard changes height
+    // This might be overly complex if the height is relatively static after initial render
+    // For now, we set it once on mount/workflowId change (if relevant)
+  }, [sceneInfo]); // Re-run if sceneInfo changes, as it might affect targetScopeCard height
+
   // ===== 辅助函数：记录工作流操作 =====
   const logWorkflowAction = async (actionDetails: {
     action_type: string;
@@ -2042,6 +2068,40 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       }));
   }, [nodes, selectedFileForParse]);
 
+  // --- Columns for Current Task Progress Table ---
+  const taskTableColumns: TableProps<TaskItem>['columns'] = [
+    {
+      title: '任务名称',
+      dataIndex: 'name',
+      key: 'name',
+      width: 150,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 80,
+      render: (status: TaskItem['status']) => {
+        let color = status === '已完成' ? 'green' : 'blue';
+        return <Tag color={color}>{status}</Tag>;
+      },
+    },
+    {
+      title: '开始时间',
+      dataIndex: 'startTime',
+      key: 'startTime',
+      width: 150,
+    },
+    {
+      title: '完成时间',
+      dataIndex: 'completionTime',
+      key: 'completionTime',
+      width: 150,
+      render: (time?: string) => time || '-',
+    },
+  ];
+  // --- End Columns for Current Task Progress Table ---
+
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
       {/* Wrapper for Card Rows to manage height distribution */}
@@ -2050,20 +2110,85 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           {/* 2. Upper Row - Fixed proportional height (e.g., 30%) */}
           <Row gutter={16} className="h-[30%] flex-shrink-0"> {/* Changed height to 30% */}
             {/* New Col to stack Scene Info and File Upload */}
-            <Col span={17} className="flex flex-col h-full space-y-4">
+            <Col span={14} className="flex flex-col h-full space-y-4"> {/* Changed span to 14 */}
               {/* Scene Info Card */}
               <Card
-                title="场景信息"
+                title="目标与范围"
                 size="small"
                 extra={<Button type="link" icon={<SettingOutlined />} onClick={handleOpenSettings}>设置</Button>}
-                className="bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor" // flex-grow min-h-0 removed for natural height
-                bodyStyle={{ overflow: 'auto' }}
+                className="flex-shrink-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor" // Added flex-shrink-0
+                bodyStyle={{ overflow: 'auto', padding: '16px' }}
+                id="targetScopeCard" // Added ID for height reference
               >
-                <Space direction="vertical" className="w-full">
-                  <div>预期核验等级: {sceneInfo?.verificationLevel || '未设置'}</div>
-                  <div>满足标准: {sceneInfo?.standard || '未设置'}</div>
-                  <div>核算产品: {sceneInfo?.productName || '未设置'}</div>
-                </Space>
+                <Row gutter={24} className="w-full">
+                  {/* Left Column */}
+                  <Col span={5} className="border-r border-bolt-elements-borderColor pr-4"> {/* Adjusted span to 5 */}
+                    <div className="text-sm font-semibold text-bolt-elements-textSecondary mb-1">核算产品:</div>
+                    <Tooltip title={sceneInfo?.productName || '未设置'}>
+                      <div className="text-sm text-bolt-elements-textPrimary truncate">
+                        {sceneInfo?.productName || '未设置'}
+                      </div>
+                    </Tooltip>
+                  </Col>
+
+                  {/* Middle Column */}
+                  <Col span={9} className="border-r border-bolt-elements-borderColor pr-4 pl-4"> {/* Adjusted span to 9 */}
+                    <Tooltip title={sceneInfo?.dataCollectionStartDate && sceneInfo?.dataCollectionEndDate
+                        ? `${new Date(sceneInfo.dataCollectionStartDate).toLocaleDateString()} - ${new Date(sceneInfo.dataCollectionEndDate).toLocaleDateString()}`
+                        : '未设置'}>
+                      <div className="text-sm text-bolt-elements-textPrimary mb-2 truncate">
+                        数据收集时间范围: 
+                        {sceneInfo?.dataCollectionStartDate && sceneInfo?.dataCollectionEndDate
+                          ? `${new Date(sceneInfo.dataCollectionStartDate).toLocaleDateString()} - ${new Date(sceneInfo.dataCollectionEndDate).toLocaleDateString()}`
+                          : '未设置'}
+                      </div>
+                    </Tooltip>
+                    <Tooltip title={sceneInfo?.totalOutputValue && sceneInfo?.totalOutputUnit
+                        ? `${sceneInfo.totalOutputValue} ${sceneInfo.totalOutputUnit}`
+                        : '未设置'}>
+                      <div className="text-sm text-bolt-elements-textPrimary mb-2 truncate">
+                        总产量: 
+                        {sceneInfo?.totalOutputValue && sceneInfo?.totalOutputUnit
+                          ? `${sceneInfo.totalOutputValue} ${sceneInfo.totalOutputUnit}`
+                          : '未设置'}
+                      </div>
+                    </Tooltip>
+                    <Tooltip title={sceneInfo?.benchmarkValue && sceneInfo?.benchmarkUnit
+                        ? `${sceneInfo.benchmarkValue} ${sceneInfo.benchmarkUnit}`
+                        : '未设置'}>
+                      <div className="text-sm text-bolt-elements-textPrimary truncate">
+                        核算基准: 
+                        {sceneInfo?.benchmarkValue && sceneInfo?.benchmarkUnit
+                          ? `${sceneInfo.benchmarkValue} ${sceneInfo.benchmarkUnit}`
+                          : '未设置'}
+                      </div>
+                    </Tooltip>
+                  </Col>
+
+                  {/* Right Column */}
+                  <Col span={10} className="pl-4"> {/* Adjusted span to 10 */}
+                    <Tooltip title={sceneInfo?.verificationLevel || '未设置'}>
+                      <div className="text-sm text-bolt-elements-textPrimary mb-2 truncate">
+                        预期核验级别: {sceneInfo?.verificationLevel || '未设置'}
+                      </div>
+                    </Tooltip>
+                    <Tooltip title={sceneInfo?.standard || '未设置'}>
+                      <div className="text-sm text-bolt-elements-textPrimary mb-2 truncate">
+                        满足标准: {sceneInfo?.standard || '未设置'}
+                      </div>
+                    </Tooltip>
+                    <Tooltip title={sceneInfo?.lifecycleType === 'full' ? '全生命周期 (摇篮到坟墓)' 
+                       : sceneInfo?.lifecycleType === 'half' ? '半生命周期 (摇篮到大门)' 
+                       : '未设置'}>
+                      <div className="text-sm text-bolt-elements-textPrimary truncate">
+                        生命周期范围: 
+                        {sceneInfo?.lifecycleType === 'full' ? '全生命周期 (摇篮到坟墓)' 
+                         : sceneInfo?.lifecycleType === 'half' ? '半生命周期 (摇篮到大门)' 
+                         : '未设置'}
+                      </div>
+                    </Tooltip>
+                  </Col>
+                </Row>
               </Card>
 
               {/* AI Toolbox Card (formerly File Upload Card) */}
@@ -2090,30 +2215,65 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               </Card>
             </Col>
 
-            {/* Model Score Card (remains as the second item in the Row) */}
-            <Col span={7} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
+            {/* Model Score and Task Progress Column */}
+            <Col span={10} className="flex flex-col h-full space-y-4"> {/* Changed span to 10 */}
+              {/* Model Score Card - REVISED STRUCTURE */}
               <Card
                 title="模型评分"
                 size="small"
-                className="flex-grow min-h-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col" 
-                bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'auto' }}
-                >
-                 <div className="text-center mb-4 flex-grow flex flex-col justify-center">
-                    <div className="text-sm text-bolt-elements-textSecondary mb-1">可信得分</div>
-                    <div className="text-4xl font-bold text-bolt-elements-textPrimary">
-                        {typeof modelScore.credibilityScore === 'number' && !isNaN(modelScore.credibilityScore)
-                            ? Math.round(modelScore.credibilityScore )
-                            : 0}
+                className="flex-shrink-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30"
+                style={{ minHeight: modelScoreCardHeight }} // Apply dynamic height
+                bodyStyle={{ display: 'flex', padding: '12px'}} // Removed minHeight from here
+              >
+                <Row gutter={0} align="middle" className="w-full h-full"> {/* gutter={0} to use padding on Cols for spacing */}
+                  {/* Left Column: Overall Score */}
+                  <Col span={10} className="text-center flex flex-col justify-center items-center border-r border-bolt-elements-borderColor h-full pr-3"> {/* Added h-full and adjusted padding */}
+                    <div className="text-5xl font-bold text-bolt-elements-textPrimary leading-none mb-1">
+                      {typeof modelScore.credibilityScore === 'number' && !isNaN(modelScore.credibilityScore)
+                        ? Math.round(modelScore.credibilityScore)
+                        : 0}
                     </div>
-                 </div>
-                 <div className="flex-shrink-0">
-                     <Row gutter={[16, 8]}>
-                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">模型完整度: {renderScore(modelScore.completeness)}/100</Col>
-                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">因子可追溯性: {renderScore(modelScore.traceability)}/100</Col>
-                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">质量平衡: {renderScore(modelScore.massBalance)}/100</Col>
-                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">数据验证性: {renderScore(modelScore.validation)}/100</Col>
-                     </Row>
-                 </div>
+                    <div className="text-xs text-bolt-elements-textSecondary whitespace-nowrap mt-1">
+                      当前可信总分
+                    </div>
+                  </Col>
+
+                  {/* Right Column: Sub Scores - Arranged in two rows */}
+                  <Col span={14} className="flex flex-col justify-center h-full pl-3"> {/* Added h-full and adjusted padding */}
+                    <Row gutter={[8, 4]}> {/* Adjusted vertical gutter to 4 */}
+                      <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        模型完整度: {renderScore(modelScore.completeness)}/100
+                      </Col>
+                      <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        因子可追溯性: {renderScore(modelScore.traceability)}/100
+                      </Col>
+                    </Row>
+                    <Row gutter={[8, 4]} className="mt-1"> {/* Adjusted vertical gutter and margin-top */}
+                      <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        质量平衡: {renderScore(modelScore.massBalance)}/100
+                      </Col>
+                      <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        数据验证性: {renderScore(modelScore.validation)}/100
+                      </Col>
+                    </Row>
+                  </Col>
+                </Row>
+              </Card>
+              {/* New Current Task Progress Card */}
+              <Card
+                title="当前任务进程"
+                size="small"
+                className="flex-grow min-h-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col"
+                bodyStyle={{ flexGrow: 1, overflow: 'auto', padding: '8px' }}
+              >
+                <Table
+                  columns={taskTableColumns}
+                  dataSource={currentTasks}
+                  size="small"
+                  pagination={false}
+                  locale={{ emptyText: <Empty description="暂无进行中的任务" /> }}
+                  scroll={{ y: 'calc(100% - 30px)' }}
+                />
               </Card>
             </Col>
           </Row>
@@ -2143,13 +2303,19 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
 
              {/* 3.2 Emission Source List (Bottom Right) - Adjusted span to 19 */}
              <Col span={19} className="flex flex-col h-full">
-               <Card title={`排放源清单${selectedStage === '全部' ? '' : ` - ${selectedStage}`}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
+               <Card 
+                 title={`排放源清单${selectedStage === '全部' ? '' : ` - ${selectedStage}`}`}
+                 size="small" 
+                 className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table"
+                 extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button>} // Moved button here
+               >
+                    {/* The filter-controls div below will be removed or its content (if any other than the button) will be moved */}
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
-                        <Space> {/* Buttons for the left side */}
+                        <Space> {/* Buttons for the left side - kept if other buttons exist, otherwise this Space can be removed */}
                             {/* <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button> */} {/* Removed old button */}
                             {/* The AI补全数据 button that was here is now moved to AI工具箱 */}
                         </Space>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
+                        {/* Button was here, now moved to Card's extra prop */}
                     </div>
                     <div className="flex-grow overflow-auto emission-source-table-scroll-container">
                         {/* --- Use new columns and filtered nodes --- */}
