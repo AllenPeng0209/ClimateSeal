@@ -2098,17 +2098,59 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
             <Col span={17} className="flex flex-col h-full space-y-4">
               {/* Scene Info Card */}
               <Card
-                title="场景信息"
+                title="目标与范围" // Changed title here
                 size="small"
                 extra={<Button type="link" icon={<SettingOutlined />} onClick={handleOpenSettings}>设置</Button>}
                 className="bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor"
-                bodyStyle={{ overflow: 'auto' }}
+                bodyStyle={{ overflow: 'auto', padding: '16px' }} // Added padding
               >
-                <Space direction="vertical" className="w-full">
-                  <div>预期核验等级: {sceneInfo?.verificationLevel || '未设置'}</div>
-                  <div>满足标准: {sceneInfo?.standard || '未设置'}</div>
-                  <div>核算产品: {sceneInfo?.productName || '未设置'}</div>
-                </Space>
+                <Row gutter={24} className="w-full">
+                  {/* Left Column */}
+                  <Col span={8} className="border-r border-bolt-elements-borderColor pr-4">
+                    <div className="text-sm font-semibold text-bolt-elements-textSecondary mb-1">核算产品:</div>
+                    <div className="text-sm text-bolt-elements-textPrimary break-words">
+                      {sceneInfo?.productName || '未设置'}
+                    </div>
+                  </Col>
+
+                  {/* Middle Column */}
+                  <Col span={8} className="border-r border-bolt-elements-borderColor pr-4 pl-4">
+                    <div className="text-sm text-bolt-elements-textPrimary mb-2">
+                      数据收集时间范围: 
+                      {sceneInfo?.dataCollectionStartDate && sceneInfo?.dataCollectionEndDate
+                        ? `${new Date(sceneInfo.dataCollectionStartDate).toLocaleDateString()} - ${new Date(sceneInfo.dataCollectionEndDate).toLocaleDateString()}`
+                        : '未设置'}
+                    </div>
+                    <div className="text-sm text-bolt-elements-textPrimary mb-2">
+                      总产量: 
+                      {sceneInfo?.totalOutputValue && sceneInfo?.totalOutputUnit
+                        ? `${sceneInfo.totalOutputValue} ${sceneInfo.totalOutputUnit}`
+                        : '未设置'}
+                    </div>
+                    <div className="text-sm text-bolt-elements-textPrimary">
+                      核算基准: 
+                      {sceneInfo?.benchmarkValue && sceneInfo?.benchmarkUnit
+                        ? `${sceneInfo.benchmarkValue} ${sceneInfo.benchmarkUnit}`
+                        : '未设置'}
+                    </div>
+                  </Col>
+
+                  {/* Right Column */}
+                  <Col span={8} className="pl-4">
+                    <div className="text-sm text-bolt-elements-textPrimary mb-2">
+                      预期核验级别: {sceneInfo?.verificationLevel || '未设置'}
+                    </div>
+                    <div className="text-sm text-bolt-elements-textPrimary mb-2">
+                      满足标准: {sceneInfo?.standard || '未设置'}
+                    </div>
+                    <div className="text-sm text-bolt-elements-textPrimary">
+                      生命周期范围: 
+                      {sceneInfo?.lifecycleType === 'full' ? '全生命周期 (摇篮到坟墓)' 
+                       : sceneInfo?.lifecycleType === 'half' ? '半生命周期 (摇篮到大门)' 
+                       : '未设置'}
+                    </div>
+                  </Col>
+                </Row>
               </Card>
 
               {/* AI Toolbox Card (formerly File Upload Card) */}
