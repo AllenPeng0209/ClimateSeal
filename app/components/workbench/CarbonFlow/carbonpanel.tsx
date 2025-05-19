@@ -257,6 +257,89 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     await supabase.from('workflow_nodes').delete().eq('workflow_id', workflowId).in('node_id', nodeIds);
   }
 
+  const convertDbRecordsToNodeData = (records: any[]): NodeData[] => {
+    return records.map(record => {
+      // 基础字段映射
+      const nodeData: Partial<NodeData> = {
+        nodeId: record.node_id,
+        nodeType: record.node_type,
+        workflowId: record.workflow_id,
+        label: record.label || record.node_name, // 支持 label 或 node_name
+        quantity: String(record.quantity ?? ''), // 确保转为字符串
+        activityUnit: record.activity_unit || '',
+        carbonFactor: String(record.carbon_factor ?? ''),
+        carbonFactorName: record.carbon_factor_name || '',
+        carbonFactorUnit: record.carbon_factor_unit || '',
+        emissionType: record.emission_type || '',
+        supplementaryInfo: record.supplementary_info || '',
+        activitydataSource: record.activity_data_source || '',
+        carbonFactordataSource: record.carbon_factor_data_source || '',
+        emissionFactorGeographicalRepresentativeness: record.emission_factor_geographical_representativeness || '',
+        emissionFactorTemporalRepresentativeness: record.emission_factor_temporal_representativeness || '',
+        activityUUID: record.activity_uuid || '',
+        unitConversion: String(record.unit_conversion ?? ''),
+      };
+
+      // 处理证据文件
+      if (record.evidence_files) {
+        nodeData.hasEvidenceFiles = true;
+        nodeData.evidenceFiles = Array.isArray(record.evidence_files) ? record.evidence_files : [];
+        nodeData.evidenceVerificationStatus = record.evidence_verification_status || '未验证';
+      } else {
+        nodeData.hasEvidenceFiles = false;
+        nodeData.evidenceFiles = [];
+        nodeData.evidenceVerificationStatus = '未验证';
+      }
+
+      // 处理运输相关字段
+      if (record.node_type === 'distribution') {
+        nodeData.startPoint = record.start_point || '';
+        nodeData.endPoint = record.end_point || '';
+        nodeData.transportationType = record.transportation_mode || '';
+        nodeData.distance = record.transportation_distance || 0;
+      }
+
+      // 确保所有必需字段都有默认值
+      return {
+        ...nodeData,
+        dataRisk: record.data_risk || undefined,
+        backgroundDataSourceTab: record.background_data_source_tab || 'database',
+      } as NodeData;
+    });
+  };
+
+  const getWorkflowNodes = async (workflowId: string): Promise<NodeData[]> => {
+    if (!workflowId) {
+      console.warn('getWorkflowNodes called without workflowId');
+      return [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('workflow_nodes')
+        .select("*")
+        .eq('workflow_id', workflowId);
+
+      if (error) {
+        console.error('Error fetching workflow nodes:', error);
+        throw error;
+      }
+
+      if (!data || !Array.isArray(data)) {
+        console.warn('No data returned from workflow_nodes query');
+        return [];
+      }
+
+      console.log('Raw workflow nodes data:', data);
+      const convertedData = convertDbRecordsToNodeData(data);
+      console.log('Converted workflow nodes:', convertedData);
+
+      return convertedData;
+    } catch (err) {
+      console.error('Exception in getWorkflowNodes:', err);
+      throw err;
+    }
+  }
 
   // ===== 证据文件（Drawer 内 Upload）状态 =====
   const [drawerEvidenceFiles, setDrawerEvidenceFiles] = useState<UploadedFile[]>([]);
@@ -315,8 +398,26 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   }, [isSettingsModalVisible, sceneInfo, settingsForm]); // Added sceneInfo and settingsForm
 
   useEffect(() => {
+    console.log('workFlow changed in CarbonCalculatorPanel:', workFlow);
     const _sceneInfo = workFlow.sceneInfo || {};
     setSceneInfo(_sceneInfo); // Initialize sceneInfo from workFlow
+    getWorkflowNodes(workFlow.id).then(fetchedNodes => {
+      console.log('Fetched nodes from workFlow(useEffect):', fetchedNodes);
+      // 把NodeData转换成Node<NodeData>
+      const nodeList = fetchedNodes.map(node => {
+        return {
+          id: node.nodeId,
+          type: node.nodeType,
+          position: { x: 0, y: 0 }, // 默认位置，实际位置可能需要后续调整
+          data: node as NodeData, // 确保data字段符合NodeData类型
+        } as Node<NodeData>;
+
+      });
+      setStoreNodes(nodeList); // Set nodes in the store
+    }).catch(error => {
+      console.error('Error fetching nodes from workFlow:', error);
+      message.error('获取工作流节点失败，请稍后重试。');
+    })
   }, [workFlow])
 
   // Helper function to filter nodes for the main table based on selectedStage
@@ -721,6 +822,8 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
 
          await saveWorkflowNodes(updatedNodes.map(node => {
           let nodeData = node.data
+          nodeData.positionX = node.position.x; 
+          nodeData.positionY = node.position.y; 
           nodeData.workflowId = workflowId; 
           return nodeData;
         })) // Save only the data part
@@ -880,6 +983,9 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
          console.log('NodeData:', nodeData);
          nodeData.nodeId = newSourceId; // Ensure nodeId is set
          nodeData.nodeType = selectedNodeType; // Ensure nodeType is set
+
+         nodeData.positionX = position.x; 
+         nodeData.positionY = position.y; 
          nodeData.workflowId = workflowId; // Ensure workflowId is set
          await saveWorkflowNodes([nodeData])
 
@@ -929,7 +1035,6 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
 
      handleCloseEmissionDrawer();
    };
-
 
 
   // 修改文件删除函数
@@ -2531,11 +2636,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item 
-                name="functionalUnit" 
-                label="功能单位"
-                // rules={[{ required: false }]} // PRD: 非必填
-              >
+              <Form.Item label="功能单位">
                 <Input placeholder="请填写" />
               </Form.Item>
             </Col>
@@ -2800,7 +2901,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                     message: '请输入排放因子名称' 
                   }]}
                 >
-                  <Input placeholder="请输入排放因子名称，例如：水" className="panel-sider-input" />
+                  <Input placeholder="请输入排放因子名称" className="panel-sider-input" />
                 </Form.Item>
                 <Row gutter={16}>
                   <Col span={12}>
@@ -3545,46 +3646,6 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           </Col>
         </Row>
       </Modal>
-
-      {/* 工作流名称编辑区 */}
-      <Row align="middle" style={{ marginBottom: 8 }}>
-        <Col>
-          {isEditingName ? (
-            <Input
-              value={editingName}
-              onChange={e => setEditingName(e.target.value)}
-              onPressEnter={saveWorkflowName}
-              style={{ width: 220, marginRight: 8 }}
-              size="small"
-              autoFocus
-              maxLength={50}
-            />
-          ) : (
-            <span style={{ fontSize: 20, fontWeight: 600 }}>{workflowName}</span>
-          )}
-        </Col>
-        <Col>
-          {isEditingName ? (
-            <Button
-              icon={<CheckOutlined />}
-              size="small"
-              type="primary"
-              onClick={saveWorkflowName}
-              style={{ marginLeft: 4 }}
-            />
-          ) : (
-            <Button
-              icon={<EditOutlined />}
-              size="small"
-              onClick={() => {
-                setEditingName(workflowName);
-                setIsEditingName(true);
-              }}
-              style={{ marginLeft: 8 }}
-            />
-          )}
-        </Col>
-      </Row>
     </div>
   );
 }
@@ -3684,7 +3745,7 @@ const customStyles = `
 .emission-source-table .ant-pagination-next:not(.ant-pagination-disabled):hover,
 .emission-source-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover,
 .emission-source-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover {
-    background-color: var(--bolt-hover-background, #383838) !important; /* Slightly lighter for hover */
+    background-color: var(--bolt-hover-background, #383838) !important;
     border-color: var(--bolt-primary, #5165f9) !important;
 }
 
@@ -3742,14 +3803,13 @@ const customStyles = `
 
 /* Styles for the SELECT DROPDOWN itself (when it's open) */
 /* This needs to be less specific if AntD portals the dropdown to body root */
-/* If .emission-source-table is a parent, this might not work directly. */
 /* A global .ant-select-dropdown style for dark theme might be needed, */
 /* or use AntD's ConfigProvider for theme tokens. */
 /* For now, attempting to scope it: */
 .ant-select-dropdown[class*="ant-select-dropdown-placement"] { /* General for all dropdowns if not themed by ConfigProvider */
     background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
     border: 1px solid var(--bolt-elements-borderColor, #444) !important;
-    box-shadow: 0 3px 6px -4px rgba(0, 0, 0, 0.22), 0 6px 16px 0 rgba(0, 0, 0, 0.18), 0 9px 28px 8px rgba(0, 0, 0, 0.15) !important; /* Darker shadow */
+    box-shadow: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 9px 28px 8px rgba(0, 0, 0, 0.25) !important; /* Darker shadow */
     border-radius: 4px;
 }
 
@@ -3942,86 +4002,6 @@ const customStyles = `
 .upload-modal-file-table .ant-select-selection-placeholder {
   line-height: 28px !important; /* Adjust line height for vertical centering */
 }
-  background-color: var(--bolt-primary, #5165f9) !important;
-  color: var(--bolt-primary-contrast-text, #fff) !important;
-  border-left-color: var(--bolt-primary-glow, #8da0ff) !important; /* Brighter left border */
-  font-weight: 500 !important; /* Semi-bold */
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05) !important; /* Very subtle inner shadow */
-}
-
-/* Readjust 'All' button styles to ensure they integrate and override correctly */
-.lifecycle-all-button { /* This is for non-selected state of 'All' button */
-  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.15) !important; /* More prominent base */
-  color: var(--bolt-elements-textPrimary) !important;
-  /* border-left and transition are handled by common .lifecycle-nav-bar .ant-btn */
-}
-
-.lifecycle-all-button:hover:not(.ant-btn-primary) { /* Hover for 'All' button when NOT selected */
-  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.25) !important;
-  border-left-color: var(--bolt-primary, #5165f9) !important;
-  color: var(--bolt-primary) !important;
-}
-
-/* .lifecycle-all-button.ant-btn-primary (selected 'All' button) styles remain as they are, they are specific enough */
-
-/* Custom class to make modal select smaller */
-.custom-modal-select-small .ant-select-selector {
-  height: 40px !important;
-  padding: 10px 8px !important;
-
-  margin-left: 2px !important;
-  display: flex !important; /* For vertical alignment */
-  align-items: center !important; /* For vertical alignment */
-}
-
-.custom-modal-input-small .ant-input {
-  height: 40px !important;
-  padding: 10px 0px !important;
-  margin-left: 2px !important;
-}
-
-
-.background-data-match-select .ant-select-selector {
-  height: 40px !important;
-
-.lifecycle-all-button:hover {
-  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.2) !important;
-  border-left-color: var(--bolt-primary, #5165f9) !important;
-}
-
-.lifecycle-all-button.ant-btn-primary { /* When selected */
-  background: linear-gradient(90deg, var(--bolt-primary, #5165f9) 0%, rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.7) 100%) !important;
-  color: #fff !important;
-  border-left: 3px solid var(--bolt-primary-glow, #8da0ff) !important;
-  box-shadow: 0 0 10px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5), inset 0 0 5px rgba(255,255,255,0.2) !important;
-  font-weight: bold !important;
-}
-
-/* Common styles for all lifecycle navigation buttons */
-.lifecycle-nav-bar .ant-btn {
-  border-left: 3px solid transparent !important;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important;
-  padding-left: 13px !important; /* Adjust padding to maintain text alignment with border */
-  text-align: left !important;
-  display: block !important; 
-  border-radius: 4px !important; /* Slightly rounded corners for all */
-}
-
-/* Default state for non-'All', non-selected text buttons */
-.lifecycle-nav-bar .ant-btn-text:not(.lifecycle-all-button):not(.ant-btn-primary) {
-    color: var(--bolt-elements-textSecondary) !important; /* Dimmer text for inactive tabs */
-    background-color: transparent !important;
-}
-
-/* Hover style for non-selected, non-'All' lifecycle buttons (text buttons) */
-.lifecycle-nav-bar .ant-btn-text:not(.lifecycle-all-button):not(.ant-btn-primary):hover {
-  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.1) !important; /* Use primary color based hover */
-  border-left-color: var(--bolt-primary, #5165f9) !important;
-  color: var(--bolt-primary) !important; /* Text brightens to primary color */
-}
-
-/* Selected style for non-'All' lifecycle buttons */
-.lifecycle-nav-bar .ant-btn-primary:not(.lifecycle-all-button) {
   background-color: var(--bolt-primary, #5165f9) !important;
   color: var(--bolt-primary-contrast-text, #fff) !important;
   border-left-color: var(--bolt-primary-glow, #8da0ff) !important; /* Brighter left border */
