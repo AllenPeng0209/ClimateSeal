@@ -168,6 +168,21 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const [currentTasks, setCurrentTasks] = useState<TaskItem[]>([]);
   // ===== End State for Current Task Progress =====
 
+  // ===== State for dynamic card height =====
+  const [modelScoreCardHeight, setModelScoreCardHeight] = useState<string | number>('auto');
+
+  // Effect to sync Model Score card height with Target Scope card height
+  useEffect(() => {
+    const targetScopeCardElement = document.getElementById('targetScopeCard');
+    if (targetScopeCardElement) {
+      const height = targetScopeCardElement.offsetHeight;
+      setModelScoreCardHeight(height);
+    }
+    // Optional: ResizeObserver to handle dynamic changes if targetScopeCard changes height
+    // This might be overly complex if the height is relatively static after initial render
+    // For now, we set it once on mount/workflowId change (if relevant)
+  }, [sceneInfo]); // Re-run if sceneInfo changes, as it might affect targetScopeCard height
+
   // ===== 辅助函数：记录工作流操作 =====
   const logWorkflowAction = async (actionDetails: {
     action_type: string;
@@ -2095,18 +2110,19 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           {/* 2. Upper Row - Fixed proportional height (e.g., 30%) */}
           <Row gutter={16} className="h-[30%] flex-shrink-0"> {/* Changed height to 30% */}
             {/* New Col to stack Scene Info and File Upload */}
-            <Col span={17} className="flex flex-col h-full space-y-4">
+            <Col span={14} className="flex flex-col h-full space-y-4"> {/* Changed span to 14 */}
               {/* Scene Info Card */}
               <Card
-                title="目标与范围" // Changed title here
+                title="目标与范围"
                 size="small"
                 extra={<Button type="link" icon={<SettingOutlined />} onClick={handleOpenSettings}>设置</Button>}
-                className="bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor"
-                bodyStyle={{ overflow: 'auto', padding: '16px' }} // Added padding
+                className="flex-shrink-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor" // Added flex-shrink-0
+                bodyStyle={{ overflow: 'auto', padding: '16px' }}
+                id="targetScopeCard" // Added ID for height reference
               >
                 <Row gutter={24} className="w-full">
                   {/* Left Column */}
-                  <Col span={8} className="border-r border-bolt-elements-borderColor pr-4">
+                  <Col span={5} className="border-r border-bolt-elements-borderColor pr-4"> {/* Adjusted span to 5 */}
                     <div className="text-sm font-semibold text-bolt-elements-textSecondary mb-1">核算产品:</div>
                     <div className="text-sm text-bolt-elements-textPrimary break-words">
                       {sceneInfo?.productName || '未设置'}
@@ -2114,7 +2130,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                   </Col>
 
                   {/* Middle Column */}
-                  <Col span={8} className="border-r border-bolt-elements-borderColor pr-4 pl-4">
+                  <Col span={9} className="border-r border-bolt-elements-borderColor pr-4 pl-4"> {/* Adjusted span to 9 */}
                     <div className="text-sm text-bolt-elements-textPrimary mb-2">
                       数据收集时间范围: 
                       {sceneInfo?.dataCollectionStartDate && sceneInfo?.dataCollectionEndDate
@@ -2136,7 +2152,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                   </Col>
 
                   {/* Right Column */}
-                  <Col span={8} className="pl-4">
+                  <Col span={10} className="pl-4"> {/* Adjusted span to 10 */}
                     <div className="text-sm text-bolt-elements-textPrimary mb-2">
                       预期核验级别: {sceneInfo?.verificationLevel || '未设置'}
                     </div>
@@ -2178,13 +2194,14 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
             </Col>
 
             {/* Model Score and Task Progress Column */}
-            <Col span={7} className="flex flex-col h-full space-y-4">
+            <Col span={10} className="flex flex-col h-full space-y-4"> {/* Changed span to 10 */}
               {/* Model Score Card - REVISED STRUCTURE */}
               <Card
                 title="模型评分"
                 size="small"
                 className="flex-shrink-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30"
-                bodyStyle={{ display: 'flex', padding: '12px', minHeight: '120px' }} // Ensure a minimum height and flex display
+                style={{ minHeight: modelScoreCardHeight }} // Apply dynamic height
+                bodyStyle={{ display: 'flex', padding: '12px'}} // Removed minHeight from here
               >
                 <Row gutter={0} align="middle" className="w-full h-full"> {/* gutter={0} to use padding on Cols for spacing */}
                   {/* Left Column: Overall Score */}
@@ -2264,13 +2281,19 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
 
              {/* 3.2 Emission Source List (Bottom Right) - Adjusted span to 19 */}
              <Col span={19} className="flex flex-col h-full">
-               <Card title={`排放源清单${selectedStage === '全部' ? '' : ` - ${selectedStage}`}`} size="small" className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table">
+               <Card 
+                 title={`排放源清单${selectedStage === '全部' ? '' : ` - ${selectedStage}`}`}
+                 size="small" 
+                 className="flex-grow flex flex-col min-h-0 bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor emission-source-table"
+                 extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button>} // Moved button here
+               >
+                    {/* The filter-controls div below will be removed or its content (if any other than the button) will be moved */}
                     <div className="mb-4 flex-shrink-0 filter-controls flex justify-between items-center">
-                        <Space> {/* Buttons for the left side */}
+                        <Space> {/* Buttons for the left side - kept if other buttons exist, otherwise this Space can be removed */}
                             {/* <Button icon={<DatabaseOutlined />} onClick={handleCarbonFactorMatch}>碳因子匹配</Button> */} {/* Removed old button */}
                             {/* The AI补全数据 button that was here is now moved to AI工具箱 */}
                         </Space>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmissionSource}>新增排放源</Button> {/* Button for the right side */}
+                        {/* Button was here, now moved to Card's extra prop */}
                     </div>
                     <div className="flex-grow overflow-auto emission-source-table-scroll-container">
                         {/* --- Use new columns and filtered nodes --- */}
