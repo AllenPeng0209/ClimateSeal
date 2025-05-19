@@ -323,7 +323,7 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
                           showInfo={false}
                           strokeColor={getStageColor(item.stage)}
                           trailColor="#555"
-                          style={{ lineHeight: '12px' }}
+                          size="small"
                         />
                       }
                     />
@@ -367,7 +367,7 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
                           showInfo={false}
                           strokeColor="#faad14"
                           trailColor="#555"
-                          style={{ lineHeight: '12px' }}
+                          size="small"
                         />
                       }
                     />
@@ -414,7 +414,7 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
                       showInfo={false}
                       strokeColor="#52c41a"
                       trailColor="#555"
-                      style={{ lineHeight: '12px' }}
+                      size="small"
                     />
                   </div>
                   <span

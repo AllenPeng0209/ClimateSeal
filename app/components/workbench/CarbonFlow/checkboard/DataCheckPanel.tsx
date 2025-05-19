@@ -332,38 +332,43 @@ export const DataCheckPanel: React.FC<DataCheckPanelProps> = () => {
   ];
 
   return (
-    <div style={{ padding: '20px', height: '100%', overflow: 'auto', backgroundColor: '#0f172a' }}>
-      <Space style={{ marginBottom: 16 }}>
+    <div style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Space style={{ marginBottom: 16, display: 'flex', alignItems: 'center' }}>
         <Input
-          placeholder="搜索排放源名称或节点名称"
-          onChange={(e) => handleSearch(e.target.value)}
-          style={{ width: 300 }}
-          value={searchText}
           prefix={<SearchOutlined />}
+          placeholder="搜索排放源名称或节点名称"
+          value={searchText}
+          onChange={(e) => handleSearch(e.target.value)}
+          style={{ width: 240 }}
+          className="data-check-input"
         />
         <Select
-          placeholder="按生命周期阶段筛选"
-          style={{ width: 200 }}
-          onChange={handleLifecycleFilterChange}
           value={lifecycleFilter}
+          onChange={handleLifecycleFilterChange}
+          placeholder="按生命周期阶段筛选"
           allowClear
+          
+          className="data-check-select"
         >
           {Object.entries(nodeTypeToLifecycleStageMap).map(([value, label]) => (
-            <Option key={value} value={value}>{label}</Option>
+            <Option key={value} value={value}>
+              {label}
+            </Option>
           ))}
         </Select>
-        <Button icon={<UndoOutlined />} onClick={resetFilters}>重置筛选</Button>
+ 
       </Space>
-      <Table
-        columns={columns}
-        dataSource={filteredNodes}
-        rowKey="id"
-        bordered
-        size="small"
-        scroll={{ x: 'max-content', y: 'calc(100vh - 200px)' }}
-        pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ['20', '50', '100', '200'] }}
-        sticky
-      />
+      <div style={{ flexGrow: 1, overflow: 'auto' }}>
+        <Table
+          columns={columns}
+          dataSource={filteredNodes}
+          rowKey="id"
+          bordered
+          size="small"
+          scroll={{ x: 'max-content', y: 'calc(100vh - 200px)' }}
+          sticky
+        />
+      </div>
       <style>{`
         .ant-table {
           background-color: #1e293b !important;
@@ -419,6 +424,35 @@ export const DataCheckPanel: React.FC<DataCheckPanelProps> = () => {
         }
         .ant-tag {
           border: none;
+        }
+        .data-check-input {
+          width: 240px;
+          height: 46px !important;
+          top: 3px !important;
+          background-color: #334155 !important;
+          color: #e2e8f0 !important;
+          border-color: #475569 !important;
+        }
+        .data-check-select {
+          margin-left: 30px;
+          margin-top: 5px;
+          width: 80px;
+          height: 32px !important;
+          background-color: #334155 !important;
+          color: #e2e8f0 !important;
+          border-color: #475569 !important;
+          border-radius: 4px !important;
+          font-size: 12px !important;
+          font-weight: 500 !important;
+          
+          background: rgba(10, 25, 47, 0.8) !important;
+          border: 0px solid rgba(100, 255, 218, 0.3) !important;
+          border-radius: 0px !important;
+          align-items: center !important;
+          width: 100% !important;
+          /* 宽度为120% */
+    
+
         }
       `}</style>
     </div>
