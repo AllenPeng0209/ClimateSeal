@@ -408,7 +408,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
         return {
           id: node.nodeId,
           type: node.nodeType,
-          position: { x: node.positionX, y: node.positionY },
+          position: { x: node.positionX || 0, y: node.positionY || 0 },
           data: node as NodeData, // 确保data字段符合NodeData类型
         } as Node<NodeData>;
 
