@@ -1,48 +1,114 @@
 import { create } from 'zustand';
 import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '~/types/nodes';
-import type { CarbonFlowData, AISummary } from '~/types/carbonFlow';
-import type { CarbonFlowAction } from '~/types/actions';
+import type { Workflow } from '~/types/workflow';
+import type { Workflow } from '~/types/workflow';
+import type { SceneInfoType } from '~/types/scene';
+import type { AISummaryReport } from '~/types/aiSummary';
 
-type SceneInfoType = {
-  verificationLevel?: string;
-  standard?: string;
-  productName?: string;
-  boundary?: string;
-};
+// Helper to generate a simple UUID (for placeholder workflowId)
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
 
-// 定义CarbonFlow数据存储
-interface CarbonFlowStore {
-  nodes: Node<NodeData>[];
-  edges: Edge[];
-  aiSummary: AISummary | null;
-  sceneInfo: SceneInfoType | null;
-  setNodes: (nodes: Node<NodeData>[]) => void;
-  setEdges: (edges: Edge[]) => void;
-  setAiSummary: (aiSummary: AISummary | null) => void;
-  setSceneInfo: (sceneInfo: SceneInfoType | {}) => void;
-  getCarbonFlowData: () => CarbonFlowData;
+    return v.toString(16);
+  });
 }
 
-// 创建Zustand存储
-export const useCarbonFlowStore = create<CarbonFlowStore>((set, get) => ({
+const initialSceneInfo: SceneInfoType = {
+  workflowId: '', // Will be set from the main workflowId
+  verificationLevel: undefined,
+  standard: undefined,
+  productName: undefined,
+  taskName: undefined,
+  productSpecs: undefined,
+  productDesc: undefined,
+  dataCollectionStartDate: undefined,
+  dataCollectionEndDate: undefined,
+  totalOutputValue: undefined,
+  totalOutputUnit: undefined,
+  benchmarkValue: undefined,
+  benchmarkUnit: undefined,
+  conversionFactor: undefined,
+  functionalUnit: undefined,
+  lifecycleType: undefined,
+  calculationBoundaryHalfLifecycle: [],
+  calculationBoundaryFullLifecycle: [],
+};
+
+const initialWorkflowState: Workflow = {
+  workflowId: generateUUID(),
   nodes: [],
   edges: [],
-  aiSummary: {},
-  sceneInfo: {},
-  setNodes: (nodes) => set({ nodes }),
-  setEdges: (edges) => set({ edges }),
-  setAiSummary: (aiSummary) => set({ aiSummary }),
-  setSceneInfo: (sceneInfo) => set({ sceneInfo }),
-  getCarbonFlowData: () => {
-    const { nodes, edges, aiSummary, sceneInfo } = get();
-    return { nodes, edges, aiSummary, sceneInfo };
-  },
+  sceneInfo: { ...initialSceneInfo }, // Ensure sceneInfo is a copy and non-null
+  aiSummary: undefined,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+
+  // Initialize other optional fields from Workflow interface as needed
+  name: undefined,
+  description: undefined,
+  status: 'draft', // Default status
+  isPublic: false,
+  user: undefined,
+  collaborators: [],
+  productId: undefined,
+  knowledgeUnits: [],
+  uploadedFiles: [],
+  productCarbonFootprintReport: undefined,
+  editorState: undefined,
+  lastModifiedBy: undefined,
+  comments: [],
+  actionLogs: [],
+  conversationHistory: [],
+  aiTodoSummary: undefined,
+  aiRiskAssessmentResults: [],
+};
+initialWorkflowState.sceneInfo.workflowId = initialWorkflowState.workflowId; // Sync workflowId to sceneInfo
+
+// 创建Zustand存储，状态为整个Workflow对象
+export const useCarbonFlowStore = create<Workflow>((set, get) => ({
+  ...initialWorkflowState,
+
+  // Actions to modify parts of the Workflow state
+  setNodes: (nodes: Node<NodeData>[]) => set((state) => ({ ...state, nodes, updatedAt: new Date().toISOString() })),
+
+  setEdges: (edges: Edge[]) => set((state) => ({ ...state, edges, updatedAt: new Date().toISOString() })),
+
+  setAiSummary: (aiSummary: AISummaryReport | undefined) =>
+    set((state) => ({ ...state, aiSummary, updatedAt: new Date().toISOString() })),
+
+  // To update the entire sceneInfo object or specific fields within it
+  setSceneInfo: (sceneInfo: Partial<SceneInfoType> | SceneInfoType) =>
+    set((state) => ({
+      ...state,
+      sceneInfo: { ...state.sceneInfo, ...sceneInfo },
+      updatedAt: new Date().toISOString(),
+    })),
+
+  setWorkflowName: (name: string) => set((state) => ({ ...state, name, updatedAt: new Date().toISOString() })),
+
+  setWorkflowStatus: (status: string) => set((state) => ({ ...state, status, updatedAt: new Date().toISOString() })),
+
+  // Action to replace the entire workflow state, useful for loading a workflow
+  loadWorkflow: (workflow: Workflow) => set(() => ({ ...workflow, updatedAt: new Date().toISOString() })),
+
+  // Get the current entire workflow state
+  getWorkflowState: (): Workflow => get(),
+
+  // Example of an action that modifies a nested property within sceneInfo
+  setProductName: (productName: string) =>
+    set((state) => ({
+      ...state,
+      sceneInfo: { ...state.sceneInfo, productName },
+      updatedAt: new Date().toISOString(),
+    })),
 }));
 
 // 事件发射器
 export const emitCarbonFlowData = () => {
-  const data = useCarbonFlowStore.getState().getCarbonFlowData();
+  const data = useCarbonFlowStore.getState(); // Corrected: getState() returns the Workflow object directly
   const event = new CustomEvent('carbonFlowDataUpdate', { detail: data });
   window.dispatchEvent(event);
 
@@ -50,8 +116,8 @@ export const emitCarbonFlowData = () => {
 };
 
 // 订阅CarbonFlow数据更新
-export const subscribeToCarbonFlowData = (callback: (data: CarbonFlowData) => void) => {
-  const handleUpdate = (event: CustomEvent<CarbonFlowData>) => {
+export const subscribeToCarbonFlowData = (callback: (data: Workflow) => void) => {
+  const handleUpdate = (event: CustomEvent<Workflow>) => {
     callback(event.detail);
   };
 
@@ -62,28 +128,3 @@ export const subscribeToCarbonFlowData = (callback: (data: CarbonFlowData) => vo
     window.removeEventListener('carbonFlowDataUpdate', handleUpdate as EventListener);
   };
 };
-
-// 批量应用 CarbonFlowAction 到 CarbonFlowStore
-export function applyCarbonFlowActions(actions: CarbonFlowAction[]) {
-  const { nodes, setNodes } = useCarbonFlowStore.getState();
-  const newNodes = [...nodes]; // Use const as it's reassigned via push
-
-  actions.forEach((action) => {
-    if (action.type === 'carbonflow') {
-      if (action.operation === 'create') {
-        // Ensure action.data is a string before parsing
-        const dataToParse = typeof action.data === 'string' ? action.data : '{}';
-        const nodeData = JSON.parse(dataToParse);
-        newNodes.push({
-          id: action.nodeId || `node_${Date.now()}_${Math.random()}`,
-          type: nodeData.lifecycleStage || 'default',
-          position: { x: 100, y: 100 }, // 可根据需要自定义布局
-          data: nodeData,
-        });
-      }
-      // TODO: 支持 update/delete/connect 等操作
-    }
-  });
-
-  setNodes(newNodes);
-} 

@@ -1,101 +1,23 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import type { Node } from 'reactflow';
-import {
-  Tag,
-  Collapse,
-  Progress,
-  Empty,
-  Typography,
-} from 'antd';
+import { Tag, Collapse, Progress, Empty, Typography } from 'antd';
 import { UpOutlined, DownOutlined } from '@ant-design/icons';
+import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowStore';
+import './AISummary.css';
+import type { AISummaryReport } from '~/types/aiSummary';
+import { initialAiSummaryReport } from '~/types/aiSummary';
 import type {
   NodeData,
   ProductNodeData,
   ManufacturingNodeData,
   DistributionNodeData,
-  // UsageNodeData, // Not explicitly used in calc, but good to have for future
-  // DisposalNodeData, // Not explicitly used in calc, but good to have for future
 } from '~/types/nodes';
-import { useCarbonFlowStore } from '../CarbonFlowStore';
-// It's good practice to create a dedicated CSS file for the component.
-// Ensure styles from CarbonFlow.css related to AI summary are moved here or new styles are created.
-import './AISummary.css'; 
 
-export interface AISummaryReport {
-  credibilityScore: number;
-  missingLifecycleStages: string[];
-  isExpanded: boolean;
-  modelCompleteness: {
-    score: number;
-    lifecycleCompleteness: number;
-    nodeCompleteness: number;
-    incompleteNodes: {
-      id: string;
-      label: string;
-      missingFields: string[];
-    }[];
-  };
-  massBalance: {
-    score: number;
-    ratio: number;
-    incompleteNodes: {
-      id: string;
-      label: string;
-      missingFields: string[];
-    }[];
-  };
-  dataTraceability: {
-    score: number;
-    coverage: number;
-    incompleteNodes: {
-      id: string;
-      label: string;
-      missingFields: string[];
-    }[];
-  };
-  validation: {
-    score: number;
-    consistency: number;
-    incompleteNodes: {
-      id: string;
-      label: string;
-      missingFields: string[];
-    }[];
-  };
-  expandedSection: 'overview' | 'details' | null;
-}
-
-const initialAiSummaryReport: AISummaryReport = {
-  credibilityScore: 0,
-  missingLifecycleStages: [],
-  isExpanded: true,
-  modelCompleteness: {
-    score: 0,
-    lifecycleCompleteness: 0,
-    nodeCompleteness: 0,
-    incompleteNodes: [],
-  },
-  massBalance: {
-    score: 0,
-    ratio: 0,
-    incompleteNodes: [],
-  },
-  dataTraceability: {
-    score: 0,
-    coverage: 0,
-    incompleteNodes: [],
-  },
-  validation: {
-    score: 0,
-    consistency: 0,
-    incompleteNodes: [],
-  },
-  expandedSection: null,
-};
 
 interface CarbonFlowAISummaryProps {
   setSelectedNode: (node: Node<NodeData> | null) => void;
 }
+
 
 export const CarbonFlowAISummary = ({ setSelectedNode }: CarbonFlowAISummaryProps) => {
   const nodes = useCarbonFlowStore(state => state.nodes);

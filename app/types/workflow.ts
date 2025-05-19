@@ -1,7 +1,6 @@
 import type { Node, Edge } from 'reactflow';
 import type { NodeData } from './nodes';
 import type { SceneInfoType } from './scene';
-import type { ModelScoreType } from './scores';
 import type { UploadedFile } from './files';
 import type { Comment } from './comments';
 import type { WorkflowActionLog } from './workflowActions';
@@ -11,6 +10,7 @@ import type { Product } from './products'; // Import the new products type
 import type { User } from './users'; // Import the new products type
 import type { ConversationThread } from './conversations'; // Import the new ConversationThread type
 import type { KnowledgeUnit } from './knowledgeUnit'; // ADDED: Import for the new unified knowledge type
+import type { AISummaryReport } from './aiSummary'; // Import the new AISummaryReport type
 /*
  * The WorkflowActionLog type from './workflowActions.ts' is now used for the actionLogs field.
  * This provides a detailed structure for logging actions, consistent with database schema.
@@ -34,7 +34,7 @@ export interface Workflow {
   sceneInfo: SceneInfoType;
   nodes: Node<NodeData>[];
   edges: Edge[];
-  modelScore?: ModelScoreType; // 或者直接用 aiSummary 的原始类型
+  aiSummary?: AISummaryReport; // 新增字段：用于存储AI的当前todo总表
   uploadedFiles?: UploadedFile[]; // 如果有不直接关联到节点的全局文件列表
   productCarbonFootprintReport?: ProductFootprintReportData; // New field for the PCF report
   editorState?: any; // 保存编辑器UI状态，例如缩放、视图位置等
