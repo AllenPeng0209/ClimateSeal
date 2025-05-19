@@ -177,7 +177,8 @@
     "unist-util-visit": "^5.0.0",
     "xlsx": "^0.18.5",
     "zod": "^3.24.3",
-    "zustand": "^5.0.3"
+    "zustand": "^5.0.3",
+    "moment": "^2.29.4"
   },
   "devDependencies": {
     "@blitz/eslint-plugin": "0.1.0",

@@ -51,7 +51,7 @@ import type { Node, Edge as ReactFlowEdge } from 'reactflow'; // Edge is kept fo
 import type { NodeData, ProductNodeData, FinalProductNodeData } from '~/types/nodes'; 
 import type { TableProps, ColumnType } from 'antd/es/table';
 import type { FilterDropdownProps } from 'antd/es/table/interface';
-import { useLoaderData } from '@remix-run/react'; 
+import { data, useLoaderData } from '@remix-run/react'; 
 import type { CarbonFlowAction } from '~/types/actions';
 import { supabase } from '~/lib/supabase';
 import type { UploadChangeParam } from 'antd/es/upload';
@@ -67,6 +67,8 @@ import type {
   // FileRecord, // FileRecord is defined but never used
   WorkflowFileRecord,
 } from '~/types/files'; // Restored FileRecord, WorkflowFileRecord
+import type { Workflow } from '~/types/workflow';
+import moment from 'moment';
 
 // File types enum based on PRD
 const RawFileTypes = [
@@ -106,7 +108,7 @@ const nodeTypeToLifecycleStageMap: Record<string, string> = Object.fromEntries(
 // --- 结束映射关系 ---
 
 // Add workflowId to props
-export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflowName }: { workflowId: string, workflowName: string }) {
+export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflowName, workFlow }: { workflowId: string, workflowName: string, workFlow: Workflow }) {
   const [settingsForm] = Form.useForm(); // Added for the settings modal form instance
   const [sceneInfo, setSceneInfo] = useState<SceneInfoType>({}); // Placeholder state
   const [modelScore, setModelScore] = useState<ModelScoreType>({}); // Placeholder state
@@ -196,7 +198,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     ai_response_summary?: string;
   }) => {
     try {
-      const { error } = await supabase.from('Workflow_Actions').insert([
+      const { error } = await supabase.from('workflow_action_logs').insert([
         {
           workflow_id: workflowId, // Assumes workflowId is available in this scope
           ...actionDetails,
@@ -211,6 +213,13 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     }
   };
   // ===== 结束辅助函数 =====
+
+  const saveWorkflowSceneInfo = async (sceneInfo: SceneInfoType) => {
+    const { error } = await supabase
+      .from('workflows')
+      .update({ scene_info: sceneInfo })
+      .eq('id', workflowId);
+  }
 
   // ===== 证据文件（Drawer 内 Upload）状态 =====
   const [drawerEvidenceFiles, setDrawerEvidenceFiles] = useState<UploadedFile[]>([]);
@@ -262,9 +271,16 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
         calculationBoundaryFullLifecycle: derivedLifecycleType === 'full' 
                                            ? fullLifecycleSelectedStages 
                                            : (derivedLifecycleType === 'half' ? [] : initialFullStages),
+        dataCollectionStartDate: sceneInfo.dataCollectionStartDate && moment(sceneInfo.dataCollectionStartDate),
+        dataCollectionEndDate: sceneInfo.dataCollectionEndDate && moment(sceneInfo.dataCollectionEndDate),
       });
     }
   }, [isSettingsModalVisible, sceneInfo, settingsForm]); // Added sceneInfo and settingsForm
+
+  useEffect(() => {
+    const _sceneInfo = workFlow.sceneInfo || {};
+    setSceneInfo(_sceneInfo); // Initialize sceneInfo from workFlow
+  }, [workFlow])
 
   // Helper function to filter nodes for the main table based on selectedStage
   const getFilteredNodesForTable = useCallback((): Node<NodeData>[] => {
@@ -411,7 +427,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
 
   const handleOpenSettings = () => setIsSettingsModalVisible(true);
   const handleCloseSettings = () => setIsSettingsModalVisible(false);
-  const handleSaveSettings = (values: any) => {
+  const handleSaveSettings = async (values: any) => {
     console.log('Saving settings:', values);
     let finalHalfStages: string[] = [];
     let finalFullStages: string[] = [];
@@ -421,8 +437,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     } else if (values.lifecycleType === 'full') {
       finalFullStages = fullLifecycleSelectedStages;
     }
-
-    setSceneInfo({
+    const _scenceInfo:SceneInfoType = {
       ...values, // Includes other form fields like taskName, productName etc.
       lifecycleType: values.lifecycleType, // Save the radio choice
       calculationBoundaryHalfLifecycle: finalHalfStages,
@@ -430,7 +445,10 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       // Ensure fields not directly in the form but part of sceneInfo are preserved if necessary
       productSpecs: sceneInfo.productSpecs, 
       productDesc: sceneInfo.productDesc,
-    });
+      // dataCollectionStartDate: values.dataCollectionStartDate.toISOString(),
+      // dataCollectionEndDate: values.dataCollectionEndDate.toISOString()
+    }
+    setSceneInfo(_scenceInfo);
 
     setStoreSceneInfo({
       verificationLevel: values.verificationLevel,
@@ -438,6 +456,9 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       productName: values.productName,
       boundary: values.boundary,
     });
+
+    await saveWorkflowSceneInfo(_scenceInfo);
+
     message.success('目标与范围已保存');
     handleCloseSettings();
 
@@ -3868,47 +3889,47 @@ const customStyles = `
 .upload-modal-file-table .ant-select-selection-placeholder {
   line-height: 28px !important; /* Adjust line height for vertical centering */
 }
-
-/* Ensure Tabs component in Drawer has no bottom border for the nav/header part */
-.ant-drawer-body .ant-tabs-nav {
-    border-bottom: none !important;
-    margin-bottom: 8px !important; /* Slightly reduced from 12px */
-}
-.ant-drawer-body .ant-tabs-tab {
-    padding-top: 2px !important; /* Further reduced from 4px */
-    padding-bottom: 6px !important; /* Further reduced from 8px */
+  background-color: var(--bolt-primary, #5165f9) !important;
+  color: var(--bolt-primary-contrast-text, #fff) !important;
+  border-left-color: var(--bolt-primary-glow, #8da0ff) !important; /* Brighter left border */
+  font-weight: 500 !important; /* Semi-bold */
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05) !important; /* Very subtle inner shadow */
 }
 
-/* Status color classes */
-.status-complete {
-  color: #00ff7f !important;
-  background-color: rgba(0, 255, 127, 0.15) !important;
-  padding: 2px 10px !important;
-  border-radius: 12px !important;
-  font-size: 12px !important;
-  display: inline-block !important;
-  border: 1px solid rgba(0, 255, 127, 0.3) !important;
-  box-shadow: 0 0 6px rgba(0, 255, 127, 0.4) !important;
-  text-shadow: 0 0 5px rgba(0, 255, 127, 0.5) !important;
-}
-.status-missing {
-  color: #ff4d4f !important;
-  background-color: rgba(255, 77, 79, 0.15) !important;
-  padding: 2px 10px !important;
-  border-radius: 12px !important;
-  font-size: 12px !important;
-  display: inline-block !important;
-  border: 1px solid rgba(255, 77, 79, 0.3) !important;
-  box-shadow: 0 0 6px rgba(255, 77, 79, 0.4) !important;
-  text-shadow: 0 0 5px rgba(255, 77, 79, 0.5) !important;
+/* Readjust 'All' button styles to ensure they integrate and override correctly */
+.lifecycle-all-button { /* This is for non-selected state of 'All' button */
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.15) !important; /* More prominent base */
+  color: var(--bolt-elements-textPrimary) !important;
+  /* border-left and transition are handled by common .lifecycle-nav-bar .ant-btn */
 }
 
-/* Lifecycle 'All' button styles */
-.lifecycle-all-button {
-  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.1) !important; /* Subtle primary background when not selected */
-  border-left: 3px solid transparent !important; /* Space for accent border */
-  transition: all 0.3s ease !important;
+.lifecycle-all-button:hover:not(.ant-btn-primary) { /* Hover for 'All' button when NOT selected */
+  background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.25) !important;
+  border-left-color: var(--bolt-primary, #5165f9) !important;
+  color: var(--bolt-primary) !important;
 }
+
+/* .lifecycle-all-button.ant-btn-primary (selected 'All' button) styles remain as they are, they are specific enough */
+
+/* Custom class to make modal select smaller */
+.custom-modal-select-small .ant-select-selector {
+  height: 40px !important;
+  padding: 10px 8px !important;
+
+  margin-left: 2px !important;
+  display: flex !important; /* For vertical alignment */
+  align-items: center !important; /* For vertical alignment */
+}
+
+.custom-modal-input-small .ant-input {
+  height: 40px !important;
+  padding: 10px 0px !important;
+  margin-left: 2px !important;
+}
+
+
+.background-data-match-select .ant-select-selector {
+  height: 40px !important;
 
 .lifecycle-all-button:hover {
   background-color: rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.2) !important;
@@ -4190,7 +4211,7 @@ export const CarbonCalculatorPanelClient = () => {
   const { workflow } = useLoaderData() as any;
   return (
     <ClientOnly>
-      {() => <CarbonCalculatorPanel workflowId={workflow.id} workflowName={workflow.name} />}
+      {() => <CarbonCalculatorPanel workflowId={workflow.id} workflowName={workflow.name} workFlow={workflow} />}
     </ClientOnly>
   );
 };

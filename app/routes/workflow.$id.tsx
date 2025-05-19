@@ -8,6 +8,7 @@ import { themeStore } from "~/lib/stores/theme";
 import { ClientOnly } from 'remix-utils/client-only';
 import { BaseChat } from '~/components/chat/BaseChat';
 import { supabase } from "~/lib/supabase";
+import type { SceneInfoType } from "~/types/scene";
 
 interface WorkflowResponse {
   workflow?: {
@@ -18,6 +19,7 @@ interface WorkflowResponse {
     industry_type?: string;
     editor_state?: any;
     scene_info?: any;
+    sceneInfo?: SceneInfoType;
     model_score?: any;
     is_public: boolean;
   };
@@ -34,6 +36,7 @@ interface LoaderData {
     industry_type?: string;
     editor_state?: any;
     scene_info?: any;
+    sceneInfo?: SceneInfoType;
     model_score?: any;
     is_public: boolean;
     status?: string;
@@ -97,6 +100,7 @@ export const action: ActionFunction = async ({ request }) => {
         workflow: {
           ...workflow,
           editor_state: workflow.editor_state || { nodes: [], edges: [], viewport: null },
+          sceneInfo: workflow.scene_info || {},
           scene_info: workflow.scene_info || {},
           model_score: workflow.model_score || {}
         }
@@ -147,6 +151,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
       workflow: {
         ...workflow,
         editor_state: workflow.editor_state || { nodes: [], edges: [], viewport: null },
+        sceneInfo: workflow.scene_info || {},
         scene_info: workflow.scene_info || {},
         model_score: workflow.model_score || {}
       }
