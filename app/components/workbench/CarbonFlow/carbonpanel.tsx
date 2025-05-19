@@ -24,6 +24,7 @@ import {
   Checkbox, // <-- Import Checkbox
   DatePicker, // <-- Import DatePicker
   Divider,
+  Tag, // <-- Import Tag
 } from 'antd';
 import type { FormInstance } from 'antd';
 import {
@@ -46,7 +47,7 @@ import {
 import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps, RcFile } from 'antd/es/upload/interface'; // Added RcFile here
 import { useCarbonFlowStore } from './CarbonFlowBridge';
-import type { Node, Edge } from 'reactflow'; // Edge is kept for now
+import type { Node, Edge as ReactFlowEdge } from 'reactflow'; // Edge is kept for now, aliased to avoid conflict
 import type { NodeData, ProductNodeData, FinalProductNodeData } from '~/types/nodes'; 
 import type { TableProps, ColumnType } from 'antd/es/table';
 import type { FilterDropdownProps } from 'antd/es/table/interface';
@@ -59,7 +60,13 @@ import type { UploadChangeParam } from 'antd/es/upload';
 // Import newly created type files
 import type { SceneInfoType } from '~/types/scene';
 import type { AIScoreType, ModelScoreType } from '~/types/scores';
-import type { UploadedFile, ParsedEmissionSource, ModalUploadFile, FileRecord, WorkflowFileRecord } from '~/types/files'; // Restored FileRecord, WorkflowFileRecord
+import type {
+  UploadedFile,
+  ParsedEmissionSource,
+  ModalUploadFile,
+  // FileRecord, // FileRecord is defined but never used
+  WorkflowFileRecord,
+} from '~/types/files'; // Restored FileRecord, WorkflowFileRecord
 
 // File types enum based on PRD
 const RawFileTypes = [
@@ -104,7 +111,6 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const [sceneInfo, setSceneInfo] = useState<SceneInfoType>({}); // Placeholder state
   const [modelScore, setModelScore] = useState<ModelScoreType>({}); // Placeholder state
   const [selectedStage, setSelectedStage] = useState<string>(lifecycleStages[0]);
-  const [edges, setEdges] = useState<Edge[]>([]); // <--- Add edges state
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const [isEmissionDrawerVisible, setIsEmissionDrawerVisible] = useState(false);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null); // New state to track editing node ID
@@ -1591,6 +1597,68 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     return true;
   });
 
+  // Columns for the Parse File Modal Table
+  const parsedEmissionSourceTableColumns: TableProps<ParsedEmissionSource>['columns'] = [
+    {
+      title: '序号',
+      dataIndex: 'index',
+      key: 'index',
+      width: 60,
+      render: (text: number) => text,
+    },
+    {
+      title: '生命周期阶段',
+      dataIndex: 'lifecycleStage',
+      key: 'lifecycleStage',
+      width: 150,
+    },
+    {
+      title: '排放源名称',
+      dataIndex: 'name',
+      key: 'name',
+      ellipsis: true,
+    },
+    {
+      title: '排放源类别',
+      dataIndex: 'category',
+      key: 'category',
+      width: 120,
+    },
+    {
+      title: '活动数据数值',
+      dataIndex: 'activityData',
+      key: 'activityData',
+      width: 120,
+    },
+    {
+      title: '活动数据单位',
+      dataIndex: 'activityUnit',
+      key: 'activityUnit',
+      width: 120,
+    },
+    {
+      title: '数据状态',
+      dataIndex: 'dataStatus',
+      key: 'dataStatus',
+      width: 100,
+      render: (status: string) => {
+        let color = 'default';
+        if (status === '已生效') {
+          color = 'success';
+        } else if (status === '已删除') {
+          color = 'error';
+        }
+        return <Tag color={color}>{status}</Tag>;
+      },
+    },
+    {
+      title: '补充信息',
+      dataIndex: 'supplementaryInfo',
+      key: 'supplementaryInfo',
+      ellipsis: true,
+    },
+  ];
+
   // 添加获取文件列表的函数
   const fetchWorkflowFiles = async () => {
     try {
@@ -1860,6 +1928,39 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     window.addEventListener('carbonflow-autofill-results', handler);
     return () => window.removeEventListener('carbonflow-autofill-results', handler);
   }, []);
+
+  // ADD THIS useEffect to handle parse results
+  useEffect(() => {
+    const handleFileParseResult = (event: CustomEvent) => {
+      const { fileId, sources, summary, status, error } = event.detail;
+
+      // Update the status in the main uploadedFiles list
+      setUploadedFiles(prevFiles =>
+        prevFiles.map(f =>
+          f.id === fileId ? { ...f, status: status, content: summary || f.content } : f
+        )
+      );
+
+      // If this is the file currently selected in the AI Parse Modal, update modal-specific states
+      if (selectedFileForParse?.id === fileId) {
+        if (status === 'completed') {
+          setParsedEmissionSources(sources || []);
+          // parseResultSummary state is becoming less central, summary is in selectedFileForParse.content
+          // setParseResultSummary(summary || '解析完成，请查看下方数据。');
+          message.success(`文件 ${selectedFileForParse.name} 解析成功。`);
+        } else if (status === 'failed') {
+          setParsedEmissionSources([]);
+          // setParseResultSummary(summary || `解析失败: ${error || '未知错误'}`);
+          message.error(`文件 ${selectedFileForParse.name} 解析失败: ${error || '未知错误'}`);
+        }
+      }
+    };
+
+    window.addEventListener('carbonflow-file-parse-result', handleFileParseResult as EventListener);
+    return () => {
+      window.removeEventListener('carbonflow-file-parse-result', handleFileParseResult as EventListener);
+    };
+  }, [selectedFileForParse, setUploadedFiles, setParsedEmissionSources]); // Removed setParseResultSummary
 
   // Drawer 内 Upload 组件的变更处理
   const handleEvidenceUploadChange: UploadProps['onChange'] = (info: UploadChangeParam<UploadFile>) => {
@@ -2791,7 +2892,6 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           dataSource={factorMatchModalSources.map((node, index) => ({ ...node, key: node.id, index }))} // Use nodes from state
           rowKey="id"
           size="small"
-          pagination={{ pageSize: 10 }}
           scroll={{ y: 'calc(60vh - 150px)' }}
         />
       </Modal>
@@ -3203,19 +3303,20 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                   <Col span={12} style={{ textAlign: 'right' }}>
                     <Button 
                       type="primary" 
-                      onClick={() => handleParseFile(selectedFileForParse)} 
-                      disabled={selectedFileForParse.status === 'parsing' || parsingStatus === '解析中'} // Added parsingStatus check
-                      loading={selectedFileForParse.status === 'parsing' || (currentParsingFile?.id === selectedFileForParse.id && parsingStatus === '解析中')} // Show loading on button
+                      onClick={() => selectedFileForParse && handleParseFile(selectedFileForParse)} 
+                      loading={selectedFileForParse?.status === 'parsing'} // Simplified loading state
+                      disabled={selectedFileForParse?.status === 'parsing'} // Disable if parsing
                     >
-                      {selectedFileForParse.status === 'completed' ? '重新解析' : '开始解析'}
+                      {(selectedFileForParse?.status === 'completed' || selectedFileForParse?.status === 'failed') ? '重新解析' : '开始解析'}
                     </Button>
                   </Col>
                   <Col span={24}>
                     <Typography.Text><strong>解析结果概览:</strong></Typography.Text>
                     <Card size="small" style={{ marginTop: 8, backgroundColor: 'var(--bolt-elements-background-depth-1)', borderColor: 'var(--bolt-elements-borderColor)' }}>
                       <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--bolt-elements-textPrimary)', maxHeight: 100, overflowY: 'auto' }}>
-                        {/* Display parseResultSummary if it's relevant to the selectedFileForParse, otherwise a placeholder */}
-                        {currentParsingFile?.id === selectedFileForParse.id ? parseResultSummary : (selectedFileForParse.content ? '文件已上传，等待解析或查看历史解析结果。' : '暂无概览信息。')}
+                        {selectedFileForParse?.status === 'parsing' ? '正在解析文件...' :
+                         selectedFileForParse?.status === 'pending' ? '等待解析。' :
+                         selectedFileForParse?.content || '暂无概览信息。'}
                       </pre>
                     </Card>
                   </Col>
@@ -3224,8 +3325,45 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                 {/* Placeholder for Parsed Emission Sources Table */}
                 <div style={{ marginTop: 24 }}>
                   <Typography.Title level={5} style={{ marginBottom: 16 }}>解析结果数据</Typography.Title>
-                  <Empty description="解析数据列表将在此处展示" />
-                  {/* Table for ParsedEmissionSource will go here */}
+                  {!selectedFileForParse ? (
+                    <Empty description='请从左侧选择一个文件以查看详情和解析结果' />
+                  ) : selectedFileForParse.status === 'parsing' ? (
+                    <div style={{ textAlign: 'center', padding: '20px 0' }}><Spin tip="正在解析，请稍候..." /></div>
+                  ) : selectedFileForParse.status === 'completed' ? (
+                    parsedEmissionSources.length > 0 ? (
+                      <>
+                        <Space style={{ marginBottom: 16 }}>
+                          <Button onClick={() => handleBatchSetStatus('已生效')} disabled={selectedParsedSourceKeys.length === 0}>
+                            批量生效
+                          </Button>
+                          <Button onClick={() => handleBatchSetStatus('未生效')} disabled={selectedParsedSourceKeys.length === 0}>
+                            批量置为未生效
+                          </Button>
+                          <Button danger onClick={() => handleBatchSetStatus('已删除')} disabled={selectedParsedSourceKeys.length === 0}>
+                            批量删除
+                          </Button>
+                        </Space>
+                        <Table
+                          rowSelection={{
+                            selectedRowKeys: selectedParsedSourceKeys,
+                            onChange: setSelectedParsedSourceKeys,
+                          }}
+                          columns={parsedEmissionSourceTableColumns}
+                          dataSource={parsedEmissionSources} 
+                          rowKey="key"
+                          size="small"
+                          pagination={{ pageSize: 5, size: 'small' }}
+                          scroll={{ y: 'calc(80vh - 450px)' }} 
+                        />
+                      </>
+                    ) : (
+                      <Empty description='解析完成，但未提取到有效数据点。' />
+                    )
+                  ) : selectedFileForParse.status === 'failed' ? (
+                    <Empty description={`解析失败。${selectedFileForParse.content || ''} 请检查文件或尝试重新解析。`} />
+                  ) : ( 
+                    <Empty description={'请选择文件并点击上方"开始解析"或"重新解析"按钮。'} />
+                  )}
                 </div>
 
               </div>
@@ -3335,395 +3473,140 @@ const customStyles = `
     padding: 8px;
     border-radius: 4px;
     margin-top: 16px !important; /* Add some space */
+    display: flex; /* For alignment of items like page sizer */
+    justify-content: flex-end; /* Align pagination to the right */
+    align-items: center;
 }
+
+/* Default text color for pagination items */
 .emission-source-table .ant-pagination-item a,
-.emission-source-table .ant-pagination-item-link,
-.emission-source-table .ant-pagination-item-ellipsis {
+.emission-source-table .ant-pagination-item-link { /* This applies to prev/next arrow icons and ellipsis */
     color: var(--bolt-elements-textSecondary) !important;
-}
-.emission-source-table .ant-pagination-item-active a {
-    color: var(--bolt-primary, #5165f9) !important;
-    /* background: var(--bolt-primary-background, rgba(81, 101, 249, 0.1)) !important; */
-    border-color: var(--bolt-primary, #5165f9) !important;
-}
-.emission-source-table .ant-pagination-item-active {
-    border-color: var(--bolt-primary, #5165f9) !important;
-}
-.emission-source-table .ant-pagination-disabled .ant-pagination-item-link {
-    color: var(--bolt-elements-textDisabled) !important;
-}
-.emission-source-table .ant-select-selector {
-    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-    border-color: var(--bolt-elements-borderColor) !important;
-    color: var(--bolt-elements-textPrimary) !important;
-}
-.emission-source-table .ant-select-arrow {
-    color: var(--bolt-elements-textSecondary) !important;
+    display: block; /* Ensure link fills the item for clickability */
+    height: 100%;
+    width: 100%;
+    line-height: 30px; /* Adjust if item height is different */
 }
 
-/* 空状态的样式 */
-.emission-source-table .ant-empty-description {
-    color: var(--bolt-elements-textSecondary) !important;
-}
-
-/* --- Dark Scrollbar Styles --- */
-/* Class added to the scrollable container div */
-.emission-source-table-scroll-container::-webkit-scrollbar {
-  width: 8px;  /* Width of vertical scrollbar */
-  height: 8px; /* Height of horizontal scrollbar */
-}
-
-.emission-source-table-scroll-container::-webkit-scrollbar-track {
-  background: var(--bolt-elements-background-depth-1, #2a2a2a); /* Track color slightly lighter than deep background */
-  border-radius: 4px;
-}
-
-.emission-source-table-scroll-container::-webkit-scrollbar-thumb {
-  background-color: var(--bolt-elements-textDisabled, #555); /* Thumb color */
-  border-radius: 4px;
-  border: 2px solid var(--bolt-elements-background-depth-1, #2a2a2a); /* Creates padding around thumb */
-}
-
-.emission-source-table-scroll-container::-webkit-scrollbar-thumb:hover {
-  background-color: var(--bolt-elements-textSecondary, #777); /* Thumb color on hover */
-}
-
-/* Firefox Scrollbar Styles */
-.emission-source-table-scroll-container {
-  scrollbar-width: thin; /* "auto" or "thin" */
-  scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a); /* thumb color track color */
-}
-
-/* --- Filter Control Height Adjustment & Hover Glow --- */
-
-/* Base styles + transition for smooth effect */
-.filter-controls .ant-input-affix-wrapper,
-.filter-controls .ant-select-selector,
-.filter-controls .ant-btn {
-    height: 32px !important; /* Standard Antd default height */
-    display: flex !important; /* Helps vertical alignment */
-    align-items: center !important;
-    box-sizing: border-box !important;
-    border-color: var(--bolt-elements-borderColor) !important; /* Consistent border color */
-    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important; /* Consistent background */
-    color: var(--bolt-elements-textPrimary) !important; /* Consistent text color for input/select */
-    transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out !important; /* Added transition */
-}
-
-/* Ensure the select dropdown in filter controls has a minimum width */
-.filter-controls .ant-select-selector {
-    min-width: 120px !important;
-}
-
-/* Hover State for Input/Select */
-.filter-controls .ant-input-affix-wrapper:hover,
-.filter-controls .ant-select-selector:hover {
-    border-color: var(--bolt-primary, #5165f9) !important;
-    /* Added Glow Effect */
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
-}
-
-/* Hover State for Buttons in Filter Controls */
-.filter-controls .ant-btn:hover {
-    border-color: var(--bolt-primary, #5165f9) !important;
-     /* Added Glow Effect - Adjust color/opacity slightly for buttons if desired */
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
-    /* Optional: Slightly brighten background on hover for default buttons */
-    /* background-color: var(--bolt-hover-background) !important; */
-}
-/* Keep primary button background on hover, but apply glow */
-.filter-controls .ant-btn-primary:hover {
-    /* background-color: var(--bolt-primary-hover, #4155e7) !important; /* Antd might handle this */
-    border-color: var(--bolt-primary-hover, #4155e7) !important; /* Darker border for primary */
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.7) !important; /* Slightly stronger glow */
-}
-
-/* Focus State for Input/Select (Keep existing focus ring style) */
-.filter-controls .ant-input-affix-wrapper-focused,
-.filter-controls .ant-select-focused .ant-select-selector {
-    border-color: var(--bolt-primary, #5165f9) !important;
-    box-shadow: 0 0 0 2px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.2) !important; /* Consistent focus ring */
-}
-
-/* --- Glow Effect for Top Buttons --- */
-
-/* Base transition for top buttons */
-.p-4 > .ant-row:first-child .ant-btn {
-    transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out, background-color 0.2s ease-out !important;
-}
-
-/* Hover state for top buttons */
-.p-4 > .ant-row:first-child .ant-btn:hover {
-    border-color: var(--bolt-primary, #5165f9) !important;
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.5) !important;
-}
-
-/* Adjust primary top button hover if needed */
-.p-4 > .ant-row:first-child .ant-btn-primary:hover {
-    border-color: var(--bolt-primary-hover, #4155e7) !important;
-    box-shadow: 0 0 5px 1px rgba(var(--bolt-primary-rgb, 81, 101, 249), 0.7) !important;
-}
-
-/* --- Drawer Dark Theme Styles --- */
-
-.ant-drawer-content-wrapper {
-  /* Match card background */
-  background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-}
-
-.ant-drawer-header {
-  background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-  border-bottom: 1px solid var(--bolt-elements-borderColor, #333) !important;
-}
-
-.ant-drawer-title {
-  color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-
-.ant-drawer-close {
-  color: var(--bolt-elements-textSecondary, #ccc) !important;
-}
-.ant-drawer-close:hover {
-  color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-
-.ant-drawer-body {
-  background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-  color: var(--bolt-elements-textPrimary, #fff) !important; /* Default text color in body */
-}
-
-/* Style form elements within the drawer */
-.ant-drawer-body .ant-form-item-l abel > label,
-.ant-drawer-body .ant-form-item-label {
-    color: var(--bolt-elements-textSecondary, #ccc) !important; /* Lighter label color */
-    border-bottom: none !important; /* Attempt to remove any bottom border on the label container */
-    padding-bottom: 2px !important; /* Further reduced padding, was 4px */
-    line-height: 1.2em !important; /* Adjust line-height if label text itself has large internal spacing, use em for relative sizing */
-}
-
-/* Reduce margin below the entire form item to tighten up rows */
-.ant-drawer-body .ant-form-item {
-  margin-bottom:15px !important; /* Further reduced from 12px, adjust as needed */
-}
-
-/* Target the control wrapper to see if it has top padding creating a gap */
-.ant-drawer-body .ant-form-item-control {
-  padding-top: 0px !important; /* Attempt to remove any top padding on the control wrapper */
-  /* Adding min-height to ensure control itself doesn't collapse if it was relying on padding */
-  min-height: auto !important; /* Or set to a specific value like 32px if inputs have fixed height */ 
-}
-
-/* Force styling on ALL relevant input/select elements within the drawer's form items */
-.ant-drawer-body .ant-form-item .ant-input,
-.ant-drawer-body .ant-form-item .ant-input-affix-wrapper,
-.ant-drawer-body .ant-form-item .ant-input-number,
-.ant-drawer-body .ant-form-item .ant-select-selector {
-    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-    border-color: var(--bolt-elements-borderColor, #333) !important;
-    color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-/* Ensure the input element *inside* the affix wrapper also gets the styles */
-.ant-drawer-body .ant-form-item .ant-input-affix-wrapper input.ant-input {
-    background-color: transparent !important; /* Let wrapper handle background */
-    color: var(--bolt-elements-textPrimary, #fff) !important;
-    border: none !important; /* Remove border as wrapper has it */
-}
-
-/* Placeholders */
-.ant-drawer-body .ant-form-item .ant-input-affix-wrapper input::placeholder, /* Specificity for placeholder in wrapper */
-.ant-drawer-body .ant-input-number::placeholder,
-.ant-drawer-body .ant-select-selection-placeholder {
-    color: var(--bolt-elements-textDisabled, #555) !important; /* Dimmer placeholder */
-}
-
-/* Style buttons in the drawer footer area (even if footer is null, the Form.Item acts like one) */
-.ant-drawer-body .ant-form-item:last-child {
-     /* You might need a specific class if this isn't always the last item */
-    background-color: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Match drawer body */
-    margin-top: 24px; /* Add some space above buttons */
-    padding-top: 10px; /* Padding like a footer */
-    /* border-top: 1px solid var(--bolt-elements-borderColor, #333) !important; */ /* Separator line REMOVED */
-}
-
-.ant-drawer-body .ant-btn {
-     /* Standard button styling */
-}
-.ant-drawer-body .ant-btn-primary {
-     /* Primary button styling (might inherit theme) */
-}
-.ant-drawer-body .ant-btn-default {
-     background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-     border-color: var(--bolt-elements-borderColor, #333) !important;
-     color: var(--bolt-elements-textPrimary, #fff) !important;
-}
-.ant-drawer-body .ant-btn-default:hover {
-    border-color: var(--bolt-primary, #5165f9) !important;
-    color: var(--bolt-primary, #5165f9) !important;
-}
-
-/* --- File Upload Card Styles (Add if needed) --- */
-.file-upload-card .file-upload-table .ant-table {
-    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-}
-.file-upload-card .file-upload-table .ant-table-thead > tr > th {
-  background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-  color: var(--bolt-elements-textSecondary) !important;
-  border-bottom: 1px solid var(--bolt-elements-borderColor) !important;
-}
-.file-upload-card .file-upload-table .ant-table-tbody > tr > td {
-  background: transparent !important;
-  border-bottom: 1px solid var(--bolt-elements-borderColor) !important;
-  color: var(--bolt-elements-textPrimary) !important;
-}
-.file-upload-card .file-upload-table .ant-table-cell {
-    background: inherit !important;
-}
-.file-upload-card .file-upload-table .ant-table-tbody > tr {
-    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important;
-}
-.file-upload-card .file-upload-table .ant-table-tbody > tr:hover > td {
-  background: var(--bolt-hover-background, rgba(255, 255, 255, 0.1)) !important;
-}
-/* Add similar styles for pagination, empty state, scrollbar if needed */
-.file-upload-table-container::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.file-upload-table-container::-webkit-scrollbar-track {
-  background: var(--bolt-elements-background-depth-1, #2a2a2a);
-  border-radius: 4px;
-}
-.file-upload-table-container::-webkit-scrollbar-thumb {
-  background-color: var(--bolt-elements-textDisabled, #555);
-  border-radius: 4px;
-  border: 2px solid var(--bolt-elements-background-depth-1, #2a2a2a);
-}
-.file-upload-table-container::-webkit-scrollbar-thumb:hover {
-  background-color: var(--bolt-elements-textSecondary, #777);
-}
-.file-upload-table-container {
-  scrollbar-width: thin;
-  scrollbar-color: var(--bolt-elements-textDisabled, #555) var(--bolt-elements-background-depth-1, #2a2a2a);
-}
-
-/* Pagination styles for file-upload-table */
-.file-upload-table .ant-pagination {
-    background: var(--bolt-elements-background-depth-2, #1e1e1e) !important; /* Overall pagination container */
-    padding: 8px;
-    border-radius: 4px;
-    margin-top: 16px !important;
-    display: flex;
-    justify-content: flex-end;
-}
-
-.file-upload-table .ant-pagination ul { /* In case AntD wraps LIs in a UL */
-    display: flex;
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-/* Common styles for all pagination list items (numbers, prev/next arrows, jump arrows) */
-.file-upload-table .ant-pagination-item,
-.file-upload-table .ant-pagination-prev,
-.file-upload-table .ant-pagination-next,
-.file-upload-table .ant-pagination-jump-prev,
-.file-upload-table .ant-pagination-jump-next {
+/* Individual pagination items (numbers, prev/next, ellipsis buttons) */
+.emission-source-table .ant-pagination-item,
+.emission-source-table .ant-pagination-prev,
+.emission-source-table .ant-pagination-next,
+.emission-source-table .ant-pagination-jump-prev,
+.emission-source-table .ant-pagination-jump-next {
     background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
     border: 1px solid var(--bolt-elements-borderColor, #333) !important;
-    border-radius: 2px !important; /* Consistent border-radius */
-    min-width: 32px; /* AntD default min-width for items */
+    border-radius: 4px !important; /* Updated to 4px for consistency */
+    min-width: 32px; /* AntD default min-width */
     height: 32px; /* AntD default height */
     line-height: 30px; /* AntD default line-height */
     text-align: center;
-    margin-right: 8px; /* Default spacing */
-    display: inline-block; /* Ensure they behave as blocks for sizing */
-    vertical-align: middle;
+    margin-right: 8px; /* Spacing between items */
+    display: inline-flex !important; /* Use flex for centering content */
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.3s, border-color 0.3s;
 }
 
-/* Hover styles for non-disabled pagination list items */
-.file-upload-table .ant-pagination-item:not(.ant-pagination-disabled):hover,
-.file-upload-table .ant-pagination-prev:not(.ant-pagination-disabled):hover,
-.file-upload-table .ant-pagination-next:not(.ant-pagination-disabled):hover,
-.file-upload-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover,
-.file-upload-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover {
-    background-color: var(--bolt-elements-background-depth-0, #333) !important;
+/* Hover state for non-active, non-disabled items */
+.emission-source-table .ant-pagination-item:not(.ant-pagination-item-active):not(.ant-pagination-disabled):hover,
+.emission-source-table .ant-pagination-prev:not(.ant-pagination-disabled):hover,
+.emission-source-table .ant-pagination-next:not(.ant-pagination-disabled):hover,
+.emission-source-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover,
+.emission-source-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover {
+    background-color: var(--bolt-hover-background, #383838) !important; /* Slightly lighter for hover */
     border-color: var(--bolt-primary, #5165f9) !important;
 }
 
-/* Links and icons inside pagination items */
-.file-upload-table .ant-pagination-item a, /* For numbered items */
-.file-upload-table .ant-pagination-item-link, /* For prev/next/jump arrows */
-.file-upload-table .ant-pagination-item-ellipsis { /* For ellipsis */
-    color: var(--bolt-elements-textSecondary) !important;
-    background-color: transparent !important; /* Links/icons must be transparent */
-    display: block; /* Fill the parent LI */
-    height: 100%;
-    width: 100%;
-}
-
-/* Text/icon color on hover for links/icons inside hovered LIs */
-.file-upload-table .ant-pagination-item:not(.ant-pagination-disabled):hover a,
-.file-upload-table .ant-pagination-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
-.file-upload-table .ant-pagination-next:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
-.file-upload-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
-.file-upload-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
-.file-upload-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-ellipsis, /* Ellipsis hover icon color */
-.file-upload-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover .ant-pagination-item-ellipsis {
+/* Text/icon color on hover for non-active, non-disabled items */
+.emission-source-table .ant-pagination-item:not(.ant-pagination-item-active):not(.ant-pagination-disabled):hover a,
+.emission-source-table .ant-pagination-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
+.emission-source-table .ant-pagination-next:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
+.emission-source-table .ant-pagination-jump-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-link, /* This targets the wrapper of ellipsis icon */
+.emission-source-table .ant-pagination-jump-next:not(.ant-pagination-disabled):hover .ant-pagination-item-link {
     color: var(--bolt-primary, #5165f9) !important;
 }
 
-/* Active state for numbered pagination items (LI has .ant-pagination-item-active) */
-.file-upload-table .ant-pagination-item-active {
+/* Active pagination item */
+.emission-source-table .ant-pagination-item-active {
     background-color: var(--bolt-primary, #5165f9) !important;
     border-color: var(--bolt-primary, #5165f9) !important;
 }
-.file-upload-table .ant-pagination-item-active a {
-    color: var(--bolt-primary-contrast-text, #fff) !important;
+.emission-source-table .ant-pagination-item-active a {
+    color: var(--bolt-primary-contrast-text, #fff) !important; /* Contrast color for text on primary background */
 }
 
-/* Disabled state for any pagination item (LI has .ant-pagination-disabled) */
-.file-upload-table .ant-pagination-disabled {
+/* Disabled pagination item */
+.emission-source-table .ant-pagination-disabled,
+.emission-source-table .ant-pagination-disabled:hover { /* Keep same style on hover for disabled */
     background-color: var(--bolt-elements-background-disabled, #222) !important;
-    border-color: var(--bolt-elements-borderColor) !important; /* Keep border consistent */
+    border-color: var(--bolt-elements-borderColor, #333) !important;
     cursor: not-allowed;
 }
-.file-upload-table .ant-pagination-disabled .ant-pagination-item-link,
-.file-upload-table .ant-pagination-disabled a, /* For disabled numbered items if any */
-.file-upload-table .ant-pagination-disabled .ant-pagination-item-ellipsis {
-    color: var(--bolt-elements-textDisabled) !important;
-    background-color: transparent !important; /* Link is still transparent */
+.emission-source-table .ant-pagination-disabled .ant-pagination-item-link,
+.emission-source-table .ant-pagination-disabled a {
+    color: var(--bolt-elements-textDisabled, #555) !important;
     cursor: not-allowed;
 }
-/* No hover effect change for disabled items */
-.file-upload-table .ant-pagination-disabled:hover {
-    background-color: var(--bolt-elements-background-disabled, #222) !important;
-    border-color: var(--bolt-elements-borderColor) !important;
-}
-.file-upload-table .ant-pagination-disabled:hover .ant-pagination-item-link,
-.file-upload-table .ant-pagination-disabled:hover a,
-.file-upload-table .ant-pagination-disabled:hover .ant-pagination-item-ellipsis {
-    color: var(--bolt-elements-textDisabled) !important;
-}
 
-/* Ellipsis specific text styling (if not an icon) */
-.file-upload-table li.ant-pagination-jump-prev .ant-pagination-item-ellipsis,
-.file-upload-table li.ant-pagination-jump-next .ant-pagination-item-ellipsis {
-    letter-spacing: 2px;
+/* Page size selector (e.g., "10 / page") */
+.emission-source-table .ant-pagination-options {
+    margin-left: 16px; /* Add some space to its left */
 }
-
-/* Select for page size changer (if present) */
-.file-upload-table .ant-pagination-options .ant-select-selector {
+.emission-source-table .ant-pagination-options .ant-select-selector {
     background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
-    border-color: var(--bolt-elements-borderColor) !important;
-    color: var(--bolt-elements-textPrimary) !important;
+    border-color: var(--bolt-elements-borderColor, #333) !important;
+    color: var(--bolt-elements-textPrimary, #fff) !important;
+    height: 32px !important;
+    line-height: 30px !important;
+    padding: 0 11px !important;
+    border-radius: 4px !important;
 }
-.file-upload-table .ant-pagination-options .ant-select-arrow {
-    color: var(--bolt-elements-textSecondary) !important;
+.emission-source-table .ant-pagination-options .ant-select-arrow {
+    color: var(--bolt-elements-textSecondary, #ccc) !important;
+}
+.emission-source-table .ant-pagination-options .ant-select-focused .ant-select-selector,
+.emission-source-table .ant-pagination-options .ant-select-selector:hover {
+  border-color: var(--bolt-primary, #5165f9) !important;
 }
 
-/* Empty state description in table */
-.file-upload-table .ant-empty-description {
+/* Styles for the SELECT DROPDOWN itself (when it's open) */
+/* This needs to be less specific if AntD portals the dropdown to body root */
+/* If .emission-source-table is a parent, this might not work directly. */
+/* A global .ant-select-dropdown style for dark theme might be needed, */
+/* or use AntD's ConfigProvider for theme tokens. */
+/* For now, attempting to scope it: */
+.ant-select-dropdown[class*="ant-select-dropdown-placement"] { /* General for all dropdowns if not themed by ConfigProvider */
+    background-color: var(--bolt-elements-background-depth-1, #2a2a2a) !important;
+    border: 1px solid var(--bolt-elements-borderColor, #444) !important;
+    box-shadow: 0 3px 6px -4px rgba(0, 0, 0, 0.22), 0 6px 16px 0 rgba(0, 0, 0, 0.18), 0 9px 28px 8px rgba(0, 0, 0, 0.15) !important; /* Darker shadow */
+    border-radius: 4px;
+}
+
+.ant-select-dropdown .ant-select-item {
+    color: var(--bolt-elements-textPrimary, #fff) !important;
+    padding: 5px 12px !important; /* Standard padding */
+}
+
+.ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+    background-color: var(--bolt-hover-background, #383838) !important; /* Hover color for options */
+    color: var(--bolt-primary, #5165f9) !important;
+}
+
+.ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+    background-color: var(--bolt-primary-background, rgba(81, 101, 249, 0.15)) !important; /* Selected option background */
+    color: var(--bolt-primary, #5165f9) !important;
+    font-weight: 600;
+}
+
+.ant-select-dropdown .ant-select-item-option-disabled {
+    color: var(--bolt-elements-textDisabled, #555) !important;
+    cursor: not-allowed;
+}
+
+
+/* Empty state text in table */
+.emission-source-table .ant-empty-description {
     color: var(--bolt-elements-textSecondary) !important;
 }
 
