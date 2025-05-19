@@ -2009,17 +2009,14 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       setIsEditingName(false);
       return;
     }
-    const { error } = await supabase
-      .from('workflows')
-      .update({ name: editingName })
-      .eq('id', workflowId);
-    if (error) {
-      message.error('修改失败: ' + error.message);
-      return;
+    try {
+      await saveWorkflow({ workflowId, name: editingName });
+      setWorkflowName(editingName);
+      setIsEditingName(false);
+      message.success('名称已更新');
+    } catch (error: any) {
+      message.error('修改失败: ' + (error.message || error));
     }
-    setWorkflowName(editingName);
-    setIsEditingName(false);
-    message.success('名称已更新');
   };
 
   // 解析结果数据：根据当前选中文件名过滤 nodes

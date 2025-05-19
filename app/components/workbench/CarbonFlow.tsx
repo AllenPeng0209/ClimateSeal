@@ -70,7 +70,7 @@ import type {
   DisposalNodeData,
   FinalProductNodeData,
 } from '~/types/nodes';
-import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowBridge';
+import { useCarbonFlowStore, emitCarbonFlowData, saveWorkflow } from './CarbonFlow/CarbonFlowBridge';
 import { supabase } from '~/lib/supabase';
 // import { CarbonCalculatorPanelClient } from './CarbonFlow/panel';
 import { CarbonCalculatorPanelClient } from './CarbonFlow/carbonpanel';
@@ -155,17 +155,14 @@ const CarbonFlowInner = () => {
       setIsEditingName(false);
       return;
     }
-    const { error } = await supabase
-      .from('workflows')
-      .update({ name: editingName, updated_at: new Date().toISOString() })
-      .eq('id', workflow.id);
-    if (error) {
-      message.error('修改失败: ' + error.message);
-      return;
+    try {
+      await saveWorkflow({ workflowId: workflow.id, name: editingName });
+      setWorkflowName(editingName);
+      setIsEditingName(false);
+      message.success('名称已更新');
+    } catch (error: any) {
+      message.error('修改失败: ' + (error.message || error));
     }
-    setWorkflowName(editingName);
-    setIsEditingName(false);
-    message.success('名称已更新');
   };
 
   useEffect(() => {

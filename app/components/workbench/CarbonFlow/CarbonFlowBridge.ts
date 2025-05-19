@@ -3,6 +3,7 @@ import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '~/types/nodes';
 import type { CarbonFlowData, AISummary } from '~/types/carbonFlow';
 import type { CarbonFlowAction } from '~/types/actions';
+import { supabase } from '~/lib/supabase';
 
 type SceneInfoType = {
   verificationLevel?: string;
@@ -86,4 +87,38 @@ export function applyCarbonFlowActions(actions: CarbonFlowAction[]) {
   });
 
   setNodes(newNodes);
+}
+
+/**
+ * 保存 workflow 到数据库
+ * @param params 包含 workflowId 及可选的 name、nodes、edges、aiSummary、sceneInfo
+ */
+export async function saveWorkflow({
+  workflowId,
+  name,
+  nodes,
+  edges,
+  aiSummary,
+  sceneInfo,
+}: {
+  workflowId: string;
+  name?: string;
+  nodes?: Node<NodeData>[];
+  edges?: Edge[];
+  aiSummary?: AISummary | null;
+  sceneInfo?: SceneInfoType | null;
+}) {
+  const updateObj: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (name !== undefined) updateObj.name = name;
+  if (nodes !== undefined) updateObj.nodes = JSON.stringify(nodes);
+  if (edges !== undefined) updateObj.edges = JSON.stringify(edges);
+  if (aiSummary !== undefined) updateObj.ai_summary = JSON.stringify(aiSummary);
+  if (sceneInfo !== undefined) updateObj.scene_info = JSON.stringify(sceneInfo);
+
+  const { error } = await supabase
+    .from('workflows')
+    .update(updateObj)
+    .eq('id', workflowId);
+  if (error) throw new Error(error.message);
+  return true;
 } 
