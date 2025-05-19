@@ -2101,7 +2101,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                 title="场景信息"
                 size="small"
                 extra={<Button type="link" icon={<SettingOutlined />} onClick={handleOpenSettings}>设置</Button>}
-                className="bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor" // flex-grow min-h-0 removed for natural height
+                className="bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor"
                 bodyStyle={{ overflow: 'auto' }}
               >
                 <Space direction="vertical" className="w-full">
@@ -2135,45 +2135,63 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               </Card>
             </Col>
 
-            {/* Model Score Card (remains as the second item in the Row) */}
-            <Col span={7} className="flex flex-col h-full space-y-4"> {/* Modified: Added space-y-4 for spacing between cards */}
+            {/* Model Score and Task Progress Column */}
+            <Col span={7} className="flex flex-col h-full space-y-4">
+              {/* Model Score Card - REVISED STRUCTURE */}
               <Card
                 title="模型评分"
                 size="small"
-                className="flex-shrink-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col" // Modified: Removed flex-grow, min-h-0 and added flex-shrink-0
-                bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'auto' }}
-                >
-                 <div className="text-center mb-4 flex-grow flex flex-col justify-center">
-                    <div className="text-sm text-bolt-elements-textSecondary mb-1">可信得分</div>
-                    <div className="text-4xl font-bold text-bolt-elements-textPrimary">
-                        {typeof modelScore.credibilityScore === 'number' && !isNaN(modelScore.credibilityScore)
-                            ? Math.round(modelScore.credibilityScore )
-                            : 0}
+                className="flex-shrink-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30"
+                bodyStyle={{ display: 'flex', padding: '12px', minHeight: '120px' }} // Ensure a minimum height and flex display
+              >
+                <Row gutter={0} align="middle" className="w-full h-full"> {/* gutter={0} to use padding on Cols for spacing */}
+                  {/* Left Column: Overall Score */}
+                  <Col span={10} className="text-center flex flex-col justify-center items-center border-r border-bolt-elements-borderColor h-full pr-3"> {/* Added h-full and adjusted padding */}
+                    <div className="text-5xl font-bold text-bolt-elements-textPrimary leading-none mb-1">
+                      {typeof modelScore.credibilityScore === 'number' && !isNaN(modelScore.credibilityScore)
+                        ? Math.round(modelScore.credibilityScore)
+                        : 0}
                     </div>
-                 </div>
-                 <div className="flex-shrink-0">
-                     <Row gutter={[16, 8]}>
-                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">模型完整度: {renderScore(modelScore.completeness)}/100</Col>
-                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">因子可追溯性: {renderScore(modelScore.traceability)}/100</Col>
-                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">质量平衡: {renderScore(modelScore.massBalance)}/100</Col>
-                        <Col span={12} className="text-xs text-bolt-elements-textSecondary">数据验证性: {renderScore(modelScore.validation)}/100</Col>
-                     </Row>
-                 </div>
+                    <div className="text-xs text-bolt-elements-textSecondary whitespace-nowrap mt-1">
+                      当前可信总分
+                    </div>
+                  </Col>
+
+                  {/* Right Column: Sub Scores - Arranged in two rows */}
+                  <Col span={14} className="flex flex-col justify-center h-full pl-3"> {/* Added h-full and adjusted padding */}
+                    <Row gutter={[8, 4]}> {/* Adjusted vertical gutter to 4 */}
+                      <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        模型完整度: {renderScore(modelScore.completeness)}/100
+                      </Col>
+                      <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        因子可追溯性: {renderScore(modelScore.traceability)}/100
+                      </Col>
+                    </Row>
+                    <Row gutter={[8, 4]} className="mt-1"> {/* Adjusted vertical gutter and margin-top */}
+                      <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        质量平衡: {renderScore(modelScore.massBalance)}/100
+                      </Col>
+                      <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                        数据验证性: {renderScore(modelScore.validation)}/100
+                      </Col>
+                    </Row>
+                  </Col>
+                </Row>
               </Card>
               {/* New Current Task Progress Card */}
               <Card
                 title="当前任务进程"
                 size="small"
-                className="flex-grow min-h-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col" // Added flex-grow, min-h-0
-                bodyStyle={{ flexGrow: 1, overflow: 'auto', padding: '8px' }} // Added padding
+                className="flex-grow min-h-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col"
+                bodyStyle={{ flexGrow: 1, overflow: 'auto', padding: '8px' }}
               >
                 <Table
-                  columns={taskTableColumns} // Use the new columns
-                  dataSource={currentTasks} // Use the new state
+                  columns={taskTableColumns}
+                  dataSource={currentTasks}
                   size="small"
-                  pagination={false} // No pagination for now, or configure as needed
-                  locale={{ emptyText: <Empty description="暂无进行中的任务" /> }} // Custom empty text
-                  scroll={{ y: 'calc(100% - 30px)' }} // Adjust scroll as needed
+                  pagination={false}
+                  locale={{ emptyText: <Empty description="暂无进行中的任务" /> }}
+                  scroll={{ y: 'calc(100% - 30px)' }}
                 />
               </Card>
             </Col>
