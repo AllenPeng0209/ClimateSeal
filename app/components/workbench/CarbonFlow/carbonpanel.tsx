@@ -46,7 +46,7 @@ import {
 } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps, RcFile } from 'antd/es/upload/interface'; // Added RcFile here
-import { useCarbonFlowStore } from './CarbonFlowStore';
+import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlowStore';
 import type { Node, Edge as ReactFlowEdge } from 'reactflow'; // Edge is kept for now, aliased to avoid conflict
 import type { NodeData, ProductNodeData, FinalProductNodeData } from '~/types/nodes'; 
 import type { TableProps, ColumnType } from 'antd/es/table';
@@ -500,6 +500,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           
           // 更新全局节点状态，会触发 aiSummary 更新
           setStoreNodes([...nodes]);
+          emitCarbonFlowData(); // <--- 添加此行
 
           // 立即派发评分刷新事件，确保AI评分面板刷新
           setTimeout(() => {
@@ -682,6 +683,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       console.log('After filter - updated nodes count:', updatedNodes.length);
 
       setStoreNodes(updatedNodes);
+      emitCarbonFlowData(); // <--- 添加此行
 
       window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
         detail: { action: 'DELETE_NODE', nodeId: id }
@@ -829,6 +831,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
         })) // Save only the data part
 
          setStoreNodes(updatedNodes);
+         emitCarbonFlowData(); // <--- 添加此行
 
          window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
            detail: { action: 'UPDATE_NODE', nodeId: editingNodeId }
@@ -990,6 +993,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
          await saveWorkflowNodes([nodeData])
 
          setStoreNodes([...(nodes || []), newNode]);
+         emitCarbonFlowData(); // <--- 添加此行
 
          window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
            detail: { action: 'ADD_NODE', nodeId: newSourceId, nodeType }
