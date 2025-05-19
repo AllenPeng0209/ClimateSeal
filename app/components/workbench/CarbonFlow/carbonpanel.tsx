@@ -69,6 +69,7 @@ import type {
 } from '~/types/files'; // Restored FileRecord, WorkflowFileRecord
 import type { Workflow } from '~/types/workflow';
 import moment from 'moment';
+import { convertKeysToSnakeCase } from '~/utils/caseConverter';
 
 // File types enum based on PRD
 const RawFileTypes = [
@@ -220,6 +221,42 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       .update({ scene_info: sceneInfo })
       .eq('id', workflowId);
   }
+
+  const saveWorkflowNodes = async (nodeDataList: NodeData[]) => {
+    await Promise.all(nodeDataList.map(node => {
+      // 根据workflowId和nodId删除旧的节点数据
+      supabase.from('workflow_nodes').delete()
+        .eq('workflow_id', node.workflowId).eq('node_id', node.nodeId);
+    }))
+    const newNodeDataList = nodeDataList.map(node => {
+      let newNode = convertKeysToSnakeCase(node)
+      newNode['activity_data_source'] = newNode['activitydata_source'] || ''; 
+      delete newNode['activitydata_source'];
+      newNode['carbon_factor_data_source'] = newNode['carbon_factordata_source'] || ''; // 确保 carbon_factor 有默认值
+      delete newNode['carbon_factordata_source'];
+      delete newNode['end_point']; 
+      delete newNode['start_point']; 
+      delete newNode['supplier']; 
+      console.log('Saving node data:', node);
+      return newNode;
+    });
+
+    const {data, error} = await supabase.from('workflow_nodes').insert(newNodeDataList);
+    if (error) {
+      console.error('Error saving workflow nodes:', error.message);
+      message.error(`保存节点失败: ${error.message}`);
+      return false;
+    } else {
+      console.log('Workflow nodes saved successfully:', data);
+      return true;
+    }
+    
+  }
+
+  const deleteWorkflowNodes = async (nodeIds: string[], workflowId: string) => {
+    await supabase.from('workflow_nodes').delete().eq('workflow_id', workflowId).in('node_id', nodeIds);
+  }
+
 
   // ===== 证据文件（Drawer 内 Upload）状态 =====
   const [drawerEvidenceFiles, setDrawerEvidenceFiles] = useState<UploadedFile[]>([]);
@@ -520,7 +557,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   };
 
 
-  const handleDeleteEmissionSource = (id: string) => {
+  const handleDeleteEmissionSource = async (id: string) => {
     console.log('Deleting emission source (node):', id);
     console.log('Before deletion - store nodes count:', nodes?.length || 0);
 
@@ -537,6 +574,8 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
         message.warning('節點不存在於流程圖中');
         return;
       }
+
+      await deleteWorkflowNodes([id], workflowId); // Delete from database
 
       const updatedNodes = nodes.filter(node => node.id !== id);
       console.log('After filter - updated nodes count:', updatedNodes.length);
@@ -563,7 +602,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
    };
 
    // --- handleSaveEmissionSource needs major refactoring later ---
-   const handleSaveEmissionSource = (values: any) => {
+   const handleSaveEmissionSource = async (values: any) => {
      console.log('Saving emission source (node data):', values);
      const selectedStageName = values.lifecycleStage;
      const selectedNodeType = lifecycleStageToNodeTypeMap[selectedStageName] || 'product'; // 默认为 product
@@ -621,7 +660,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                (dataToUpdate as any).distributionDistance = values.distance;
              }
 
-             let finalNodeData = { ...currentNodeData, ...dataToUpdate }; // Merge updates
+             let finalNodeData = { ...currentNodeData, ...dataToUpdate, nodeType: selectedNodeType, nodeId: editingNodeId }; // Merge updates
 
              // Rebuild data if node type changes (Keep this logic, but verify NodeData fields)
              if (originalNodeType !== selectedNodeType) {
@@ -679,6 +718,12 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
            }
            return node;
          });
+
+         await saveWorkflowNodes(updatedNodes.map(node => {
+          let nodeData = node.data
+          nodeData.workflowId = workflowId; 
+          return nodeData;
+        })) // Save only the data part
 
          setStoreNodes(updatedNodes);
 
@@ -832,11 +877,19 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
            dragging: false
          };
 
+         console.log('NodeData:', nodeData);
+         nodeData.nodeId = newSourceId; // Ensure nodeId is set
+         nodeData.nodeType = selectedNodeType; // Ensure nodeType is set
+         nodeData.workflowId = workflowId; // Ensure workflowId is set
+         await saveWorkflowNodes([nodeData])
+
          setStoreNodes([...(nodes || []), newNode]);
 
          window.dispatchEvent(new CustomEvent('carbonflow-data-updated', {
            detail: { action: 'ADD_NODE', nodeId: newSourceId, nodeType }
          }));
+
+
 
          message.success('排放源已添加');
 
