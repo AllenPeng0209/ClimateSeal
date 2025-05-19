@@ -576,11 +576,17 @@ export class CarbonFlowActionHandler {
       }
     }
 
+    const nodeData = {
+      ...inputData,
+      id: nodeId,
+      nodeId: nodeId, // 保持一致
+      // ...其他字段
+    };
     const newNode: Node<NodeData> = {
       id: nodeId,
       type: nodeType,
       position,
-      data, // Use the fully constructed and typed data object (property shorthand)
+      data: nodeData,
     };
 
     // Use functional update for setNodes
@@ -1382,7 +1388,13 @@ export class CarbonFlowActionHandler {
         }
       }
 
-      if (currentFactor === undefined || currentFactor === '0' || currentFactor === '') {
+      // 修正：只有合法数字字符串才算"已补全"，否则都应补全
+      const hasValidCarbonFactor =
+        typeof currentFactor === 'string' &&
+        currentFactor.trim() !== '' &&
+        !isNaN(Number(currentFactor));
+
+      if (!hasValidCarbonFactor) {
         matchResults.logs.push(`开始为节点 "${node.data.label || node.id}" 尝试匹配碳因子...`);
 
         try {

@@ -5,7 +5,7 @@ import type { EvidenceFile } from './evidenceFiles'; // Import the new EvidenceF
 import type { Product } from './products'; // Import Product type
 import type { Enterprise } from './enterprises'; // Import Enterprise type
 
-
+export type ViewMode = 'panel' | 'flow' | 'check';
 
 // 基础节点数据接口
 export interface BaseNodeData {

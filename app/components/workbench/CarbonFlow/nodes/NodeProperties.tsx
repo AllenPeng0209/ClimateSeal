@@ -6,7 +6,7 @@ import type { NodeData } from '~/types/nodes';
 
 const { Option } = Select;
 
-interface NodePropertiesProps {
+export interface NodePropertiesProps {
   node: Node<NodeData>;
   onClose: () => void;
   onUpdate: (data: Partial<NodeData>) => void;

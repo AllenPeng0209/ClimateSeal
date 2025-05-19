@@ -44,22 +44,113 @@ import {
   CheckOutlined,
 } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
-import type { UploadFile, UploadProps, RcFile } from 'antd/es/upload/interface'; // Added RcFile here
+import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 import { useCarbonFlowStore } from './CarbonFlowBridge';
-import type { Node, Edge } from 'reactflow'; // Edge is kept for now
-import type { NodeData, ProductNodeData, FinalProductNodeData } from '~/types/nodes'; 
+import type { Node, Edge } from 'reactflow';
+import type { NodeData, ProductNodeData, ManufacturingNodeData, DistributionNodeData, UsageNodeData, DisposalNodeData, FinalProductNodeData } from '~/types/nodes'; // Import all specific node data types
 import type { TableProps, ColumnType } from 'antd/es/table';
 import type { FilterDropdownProps } from 'antd/es/table/interface';
-import { useLoaderData } from '@remix-run/react'; 
+import { useLoaderData } from '@remix-run/react';
 import type { CarbonFlowAction } from '~/types/actions';
+import type { UploadFileResponse } from '~/types/file';
+import { CarbonFlowActionHandler } from './action/CarbonFlowActions';
 import { supabase } from '~/lib/supabase';
 import type { UploadChangeParam } from 'antd/es/upload';
-// import type { RcFile } from 'antd/es/upload'; // Moved to line with UploadFile
+import type { RcFile } from 'antd/es/upload';
+import { v4 as uuidv4 } from 'uuid';
+import { fetchWorkflowNodes } from './fetchWorkflowNodes';
 
-// Import newly created type files
-import type { SceneInfoType } from '~/types/scene';
-import type { AIScoreType, ModelScoreType } from '~/types/scores';
-import type { UploadedFile, ParsedEmissionSource, ModalUploadFile, FileRecord, WorkflowFileRecord } from '~/types/files'; // Restored FileRecord, WorkflowFileRecord
+interface FileRecord {
+  id: string;
+  name: string;
+  path: string;
+  type: string;
+  size: number;
+  mime_type: string;
+  created_at: string;
+}
+
+interface WorkflowFileRecord {
+  file_id: string;
+  files: FileRecord; // Assuming files is a single object, not an array. If it's an array, this needs to be FileRecord[]
+}
+
+// Placeholder data types (replace with actual types later)
+type SceneInfoType = {
+  verificationLevel?: string; // 预期核验级别
+  standard?: string;          // 满足标准 (PRD) / 核算标准 (Screenshot)
+  productName?: string;       // 核算产品
+
+  // New fields from PRD/Screenshot
+  taskName?: string;                // 核算任务名称
+  
+  productSpecs?: string;            // 产品规格 (for display)
+  productDesc?: string;             // 产品描述 (for display)
+
+  dataCollectionStartDate?: string; // 数据收集开始时间 (Antd DatePicker will store as string or Moment object, handle accordingly)
+  dataCollectionEndDate?: string;   // 数据收集结束时间
+
+  totalOutputValue?: number;        // 产品总产量 - 数值
+  totalOutputUnit?: string;         // 产品总产量 - 单位
+
+  benchmarkValue?: number;          // 核算基准 - 数值
+  benchmarkUnit?: string;           // 核算基准 - 单位
+  
+  conversionFactor?: number;        // 总产量单位转换系数 (Screenshot: next to 核算基准)
+
+  functionalUnit?: string;          // 功能单位
+
+  lifecycleType?: 'half' | 'full'; // New: To store the radio choice for lifecycle boundary
+  calculationBoundaryHalfLifecycle?: string[]; 
+  calculationBoundaryFullLifecycle?: string[];
+};
+
+// Define a type for individual scores (0-1 range) based on AISummary logic
+type AIScoreType = {
+  score: number; // Score between 0 and 1
+};
+
+// Update ModelScoreType to use AIScoreType for sub-scores and store overall score (0-1)
+type ModelScoreType = {
+  credibilityScore?: number; // Overall score (assume 0-1 from calculation)
+  completeness?: AIScoreType;
+  traceability?: AIScoreType;
+  massBalance?: AIScoreType;
+  validation?: AIScoreType; // Maps to "数据准确性"
+};
+
+// New type for Uploaded Files
+type UploadedFile = {
+  id: string;
+  name: string;
+  type: string; // e.g., '报告', '原始数据', '认证证书'
+  uploadTime: string;
+  url?: string; // Optional URL for preview/download
+  status: 'pending' | 'parsing' | 'completed' | 'failed'; // Added status field based on PRD
+  size?: number;
+  mimeType?: string;
+  content?: string; // 添加content字段用于缓存文件内容
+};
+
+// New type for Parsed Emission Sources in the Parse File Modal
+type ParsedEmissionSource = {
+  id: string; // Unique ID for this parsed item
+  key: React.Key; // For table selection
+  index: number; // For display order
+  lifecycleStage: string;
+  name: string;
+  category: string;
+  supplementaryInfo?: string;
+  activityData?: number;
+  activityUnit?: string;
+  dataStatus: '未生效' | '已生效' | '已删除'; // Key new field from PRD
+  sourceFileId: string; // Link back to the UploadedFile
+};
+
+// Extend antd's UploadFile type to include our custom selectedType
+type ModalUploadFile = UploadFile & {
+  selectedType?: string;
+};
 
 // File types enum based on PRD
 const RawFileTypes = [
@@ -70,7 +161,7 @@ const RawFileTypes = [
   '原材料运输',
   '成品运输',
   '产品使用数据',
-  '成品废弃数据',
+  '成品废弃数据'
 ];
 
 const lifecycleStages = [
@@ -99,7 +190,7 @@ const nodeTypeToLifecycleStageMap: Record<string, string> = Object.fromEntries(
 // --- 结束映射关系 ---
 
 // Add workflowId to props
-export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflowName }: { workflowId: string, workflowName: string }) {
+export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflowName, userId }: { workflowId: string, workflowName: string, userId: string }) {
   const [settingsForm] = Form.useForm(); // Added for the settings modal form instance
   const [sceneInfo, setSceneInfo] = useState<SceneInfoType>({}); // Placeholder state
   const [modelScore, setModelScore] = useState<ModelScoreType>({}); // Placeholder state
@@ -156,35 +247,6 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const [isAIFileParseModalVisible, setIsAIFileParseModalVisible] = useState(false); // <-- New state for AI File Parse Modal
   const [selectedFileForParse, setSelectedFileForParse] = useState<UploadedFile | null>(null); // <-- New state for selected file in AI Parse Modal
 
-  // ===== 辅助函数：记录工作流操作 =====
-  const logWorkflowAction = async (actionDetails: {
-    action_type: string;
-    operation_name: string;
-    triggered_by_node_ids?: string[];
-    parameters?: any;
-    status: string;
-    results_summary?: any;
-    detailed_logs?: string;
-    user_prompt?: string;
-    ai_response_summary?: string;
-  }) => {
-    try {
-      const { error } = await supabase.from('Workflow_Actions').insert([
-        {
-          workflow_id: workflowId, // Assumes workflowId is available in this scope
-          ...actionDetails,
-        },
-      ]);
-      if (error) {
-        console.error('Error logging workflow action:', error.message);
-        // message.warning(`操作日志记录失败: ${error.message}`); // Optional: notify user
-      }
-    } catch (err: any) { 
-      console.error('Exception while logging workflow action:', err.message);
-    }
-  };
-  // ===== 结束辅助函数 =====
-
   // ===== 证据文件（Drawer 内 Upload）状态 =====
   const [drawerEvidenceFiles, setDrawerEvidenceFiles] = useState<UploadedFile[]>([]);
   // Pending uploads when node not yet created
@@ -194,7 +256,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const loadingMessageRef = React.useRef<(() => void) | null>(null); // Ref for loading message
 
   // 从CarbonFlowStore获取数据 - 重要：这必须在所有使用nodes的函数之前定义
-  const { nodes, aiSummary, setNodes: setStoreNodes, setSceneInfo: setStoreSceneInfo } = useCarbonFlowStore();
+  const { nodes, aiSummary, setNodes: setStoreNodes } = useCarbonFlowStore();
 
   const halfLifecycleSelectedStages = ['原材料获取', '生产'];
   const fullLifecycleSelectedStages = ['原材料获取', '生产', '分销与运输', '使用', '寿命终止'];
@@ -404,31 +466,8 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       productSpecs: sceneInfo.productSpecs, 
       productDesc: sceneInfo.productDesc,
     });
-
-    setStoreSceneInfo({
-      verificationLevel: values.verificationLevel,
-      standard: values.standard,
-      productName: values.productName,
-      boundary: values.boundary,
-    });
     message.success('目标与范围已保存');
     handleCloseSettings();
-
-    // Log this action
-    logWorkflowAction({
-      action_type: 'USER_SETTINGS_SAVE',
-      operation_name: 'save_scene_info',
-      parameters: { 
-        // Redact or summarize sensitive/large values if necessary
-        savedValues: {
-            ...values,
-            calculationBoundaryHalfLifecycle: finalHalfStages, // Log calculated stages
-            calculationBoundaryFullLifecycle: finalFullStages
-        } 
-      },
-      status: 'COMPLETED_SUCCESS',
-      results_summary: { message: 'Scene info saved successfully' }
-    });
   };
 
 
@@ -536,7 +575,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
              const dataToUpdate: Partial<NodeData> = { // Use Partial<NodeData> for safety
                label: values.label,
                nodeName: values.label,
-               emissionType: values.emissionType,
+               emissionType: values.category,
                quantity: String(values.quantity ?? ''), // 修改这里：使用values.quantity替代values.activityData
                activityUnit: values.activityUnit || '',
                // Keep existing carbon factor or default? Needs clarification. Assuming keep for now.
@@ -639,24 +678,13 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
          }));
 
          message.success('排放源已更新');
-
-         // Log this action
-         logWorkflowAction({
-           action_type: 'USER_NODE_UPDATE',
-           operation_name: 'update_emission_source_node',
-           triggered_by_node_ids: [editingNodeId],
-           parameters: { savedValues: values, nodeType: selectedNodeType },
-           status: 'COMPLETED_SUCCESS',
-           results_summary: { message: `Node ${editingNodeId} updated successfully.` }
-         });
-
        } else {
          message.error('更新失败：无法访问数据存储');
        }
      } else {
        // --- 添加新節點 ---
        const nodeType = selectedNodeType;
-       const newSourceId = `node_${Date.now()}`; // Ensure unique ID format if needed
+       const newSourceId = uuidv4(); // Ensure unique ID format if needed
 
        // --- Removed local emissionSources update ---
 
@@ -673,10 +701,12 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
 
          // --- Simplified nodeData creation (needs verification against NodeData types) ---
          const commonData: Partial<NodeData> = {
+           id: newSourceId,
+           nodeId: newSourceId, // 新增，保持一致
            label: values.label,
            nodeName: values.label,
            lifecycleStage: selectedStageName,
-           emissionType: values.emissionType,
+           emissionType: values.category,
            activitydataSource: values.activitydataSource || '',
            carbonFactordataSource: values.carbonFactordataSource || '',
            activityScore: 0,
@@ -791,36 +821,6 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
          }));
 
          message.success('排放源已添加');
-
-         // Log this action
-         logWorkflowAction({
-           action_type: 'USER_NODE_CREATE',
-           operation_name: 'create_emission_source_node',
-           triggered_by_node_ids: [newSourceId], // Log the ID of the newly created node
-           parameters: { savedValues: values, nodeType: nodeType, position: newNode.position },
-           status: 'COMPLETED_SUCCESS',
-           results_summary: { message: `Node ${newSourceId} created successfully.` }
-         });
-
-         // 如果有待处理的证据文件，则在新节点创建后立即上传它们
-         if (pendingEvidenceFiles.length > 0) {
-           // const newFiles = pendingEvidenceFiles.map(file => uploadEvidenceFile(file, newSourceId));
-           // setPendingEvidenceFiles([]);
-           // setUploadedFiles(prev => [...prev, ...newFiles]); // This line caused the error
-
-           const uploadPromises = pendingEvidenceFiles.map(file => uploadEvidenceFile(file, newSourceId));
-           Promise.all(uploadPromises).then(results => {
-             const successfullyUploadedFiles = results.filter(Boolean) as UploadedFile[];
-             if (successfullyUploadedFiles.length > 0) {
-               setUploadedFiles(prev => [...prev, ...successfullyUploadedFiles]);
-             }
-             setPendingEvidenceFiles([]); // Clear pending files after all attempts
-           }).catch(uploadError => {
-             console.error("Error uploading pending evidence files:", uploadError);
-             message.error("部分待上传证据文件失败，请检查控制台。");
-             setPendingEvidenceFiles([]); // Still clear pending files
-           });
-         }
        } else {
          message.error('添加失败：无法访问数据存储');
        }
@@ -1617,12 +1617,15 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       }
 
       // 转换数据格式
-      const mappedFiles = (data as unknown as WorkflowFileRecord[]).map(item => {
-        const fileDetail = item.files; 
+      const formattedFiles: UploadedFile[] = (data as unknown as WorkflowFileRecord[]).map(item => {
+        // Assuming item.files is an object based on your WorkflowFileRecord interface.
+        // If Supabase actually returns an array for item.files, you'd need item.files[0]
+        // and add checks for item.files being non-null and non-empty.
+        const fileDetail = item.files; // Assuming files is a single object
 
         if (!fileDetail) {
           console.warn('Skipping item due to missing file details:', item);
-          return null; 
+          return null; // Skip this item if fileDetail is null/undefined
         }
 
         return {
@@ -1630,17 +1633,14 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           name: fileDetail.name,
           type: fileDetail.type,
           uploadTime: new Date(fileDetail.created_at).toLocaleString(),
-          url: fileDetail.path, // path is likely always a string from db
-          status: 'completed' as const, // Explicitly 'completed' for fetched files initially
+          url: fileDetail.path,
+          status: 'completed' as const,
           size: fileDetail.size,
-          mimeType: fileDetail.mime_type,
-          content: undefined, // Explicitly add content as undefined
+          mimeType: fileDetail.mime_type
         };
-      });
-      
-      const filteredFiles = mappedFiles.filter(Boolean);
-      setUploadedFiles(filteredFiles as UploadedFile[]);
+      }).filter(Boolean) as UploadedFile[]; // Filter out nulls and assert type
 
+      setUploadedFiles(formattedFiles);
     } catch (error) {
       console.error('Error fetching files:', error);
       message.error('获取文件列表失败');
@@ -1992,6 +1992,76 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     message.success('名称已更新');
   };
 
+  useEffect(() => {
+    async function loadNodes() {
+      if (workflowId && userId) {
+        try {
+          const nodes = await fetchWorkflowNodes(workflowId, userId);
+          setStoreNodes(nodes);
+        } catch (err: any) {
+          message.error('加载节点失败: ' + (err.message || err));
+        }
+      }
+    }
+    loadNodes();
+  }, [workflowId, userId, setStoreNodes]);
+
+  // useEffect 加载节点后，自动补全证据文件
+  useEffect(() => {
+    async function loadNodesAndEvidence() {
+      if (workflowId && userId) {
+        try {
+          // 1. 拉取节点
+          const nodes = await fetchWorkflowNodes(workflowId, userId);
+          // 2. 拉 workflow_files，查所有节点的证据文件
+          const { data: wfFiles, error } = await supabase
+            .from('workflow_files')
+            .select(`file_id, workflow_node_id, files (id, name, path, type, size, mime_type, created_at)`)
+            .eq('workflow_id', workflowId);
+          if (error) throw error;
+          // 3. 按 workflow_node_id 分组
+          const nodeIdToFiles: Record<string, UploadedFile[]> = {};
+          (wfFiles || []).forEach((item: any) => {
+            const nodeId = item.workflow_node_id;
+            if (!nodeId) return;
+            const file = item.files;
+            if (!file) return;
+            const uploaded: UploadedFile = {
+              id: file.id,
+              name: file.name,
+              type: file.type || '证据文件',
+              uploadTime: new Date(file.created_at).toLocaleString(),
+              url: file.path,
+              status: 'completed',
+              size: file.size,
+              mimeType: file.mime_type
+            };
+            if (!nodeIdToFiles[nodeId]) nodeIdToFiles[nodeId] = [];
+            nodeIdToFiles[nodeId].push(uploaded);
+          });
+          // 4. 把 evidenceFiles 填充到每个节点
+          const nodesWithEvidence = nodes.map(node => {
+            const files = nodeIdToFiles[node.id] || [];
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                evidenceFiles: files,
+                hasEvidenceFiles: files.length > 0,
+                evidenceVerificationStatus: files.length > 0 ? (node.data.evidenceVerificationStatus || '待解析') : undefined
+              }
+            };
+          });
+          setStoreNodes(nodesWithEvidence);
+        } catch (err: any) {
+          message.error('加载节点或证据文件失败: ' + (err.message || err));
+        }
+      }
+    }
+    loadNodesAndEvidence();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflowId, userId, setStoreNodes]);
+
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
       {/* Wrapper for Card Rows to manage height distribution */}
@@ -2010,9 +2080,9 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                 bodyStyle={{ overflow: 'auto' }}
               >
                 <Space direction="vertical" className="w-full">
-                  <div>预期核验等级: {sceneInfo?.verificationLevel || '未设置'}</div>
-                  <div>满足标准: {sceneInfo?.standard || '未设置'}</div>
-                  <div>核算产品: {sceneInfo?.productName || '未设置'}</div>
+                  <div>预期核验等级: {sceneInfo.verificationLevel || '未设置'}</div>
+                  <div>满足标准: {sceneInfo.standard || '未设置'}</div>
+                  <div>核算产品: {sceneInfo.productName || '未设置'}</div>
                 </Space>
               </Card>
 
@@ -4211,7 +4281,7 @@ export const CarbonCalculatorPanelClient = () => {
   const { workflow } = useLoaderData() as any;
   return (
     <ClientOnly>
-      {() => <CarbonCalculatorPanel workflowId={workflow.id} workflowName={workflow.name} />}
+      {() => <CarbonCalculatorPanel workflowId={workflow.id} workflowName={workflow.name} userId={workflow.user_id} />}
     </ClientOnly>
   );
 };

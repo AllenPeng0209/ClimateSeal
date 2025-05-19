@@ -79,7 +79,7 @@ export function applyCarbonFlowActions(actions: CarbonFlowAction[]) {
           id: action.nodeId || uuidv4(),
           type: nodeData.lifecycleStage || 'default',
           position: { x: 100, y: 100 }, // 可根据需要自定义布局
-          data: nodeData,
+          data: { ...nodeData, id: action.nodeId || uuidv4(), nodeId: action.nodeId || uuidv4() }, // 保证 nodeId 一致
         });
       }
       // TODO: 支持 update/delete/connect 等操作
