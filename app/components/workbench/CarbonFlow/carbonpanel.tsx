@@ -3473,7 +3473,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       </Modal>
 
       {/* 工作流名称编辑区 */}
-      <Row align="middle" style={{ marginBottom: 8 }}>
+      {/* <Row align="middle" style={{ marginBottom: 8 }}>
         <Col>
           {isEditingName ? (
             <Input
@@ -3510,7 +3510,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
             />
           )}
         </Col>
-      </Row>
+      </Row> */}
     </div>
   );
 }
