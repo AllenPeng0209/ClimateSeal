@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { DragEvent } from 'react';
-import { useLoaderData } from '@remix-run/react';
+import { useLoaderData, useNavigate } from '@remix-run/react';
 import ReactFlow, {
   type Node,
   type Edge,
@@ -43,6 +43,7 @@ import {
   Button as AntButton,
   ConfigProvider,
   theme,
+  Tooltip,
 } from 'antd';
 import {
   SaveOutlined,
@@ -54,6 +55,7 @@ import {
   UploadOutlined,
   EditOutlined,
   CheckOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
 import { CheckpointManager } from '~/lib/checkpoints/CheckpointManager';
 import { CheckpointSyncService } from '~/lib/services/checkpointSyncService';
@@ -122,6 +124,7 @@ interface CheckpointMetadata {
 
 const CarbonFlowInner = () => {
   const { workflow } = useLoaderData() as any;
+  const navigate = useNavigate();
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
@@ -1061,7 +1064,7 @@ const CarbonFlowInner = () => {
             {isEditingName ? (
               <Input
                 value={editingName}
-                onChange={(e) => setEditingName(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingName(e.target.value)}
                 onPressEnter={saveWorkflowName}
                 style={{ width: 220 }}
                 size="small"
@@ -1084,73 +1087,88 @@ const CarbonFlowInner = () => {
               />
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <MyButton
-              onClick={() => setViewMode('panel')}
-              className="view-toggle-button view-toggle-button-hover"
-              style={{
-                backgroundColor: viewMode === 'panel' ? '#1890ff' : '#333',
-                color: '#fff',
-                borderColor: '#555',
-                borderWidth: '1px',
-                borderStyle: 'solid',
-              }}
-            >
-              数据操作台面板
-            </MyButton>
-            <MyButton
-              onClick={() => setViewMode('flow')}
-              className="view-toggle-button view-toggle-button-hover"
-              style={{
-                backgroundColor: viewMode === 'flow' ? '#1890ff' : '#333',
-                color: '#fff',
-                borderColor: '#555',
-                borderWidth: '1px',
-                borderStyle: 'solid',
-              }}
-            >
-              流程图面板
-            </MyButton>
-
-            <MyButton
-              onClick={() => setViewMode('check')}
-              className="view-toggle-button view-toggle-button-hover"
-              style={{
-                backgroundColor: viewMode === 'check' ? '#1890ff' : '#333',
-                color: '#fff',
-                borderColor: '#555',
-                borderWidth: '1px',
-                borderStyle: 'solid',
-              }}
-            >
-              数据查验面板
-            </MyButton>
-            <MyButton
-              onClick={() => setViewMode('analysis')}
-              className="view-toggle-button view-toggle-button-hover"
-              style={{
-                backgroundColor: viewMode === 'analysis' ? '#1890ff' : '#333',
-                color: '#fff',
-                borderColor: '#555',
-                borderWidth: '1px',
-                borderStyle: 'solid',
-              }}
-            >
-              可视化分析
-            </MyButton>
-            <MyButton
-              onClick={() => setViewMode('report')}
-              className="view-toggle-button view-toggle-button-hover"
-              style={{
-                backgroundColor: viewMode === 'report' ? '#1890ff' : '#333',
-                color: '#fff',
-                borderColor: '#555',
-                borderWidth: '1px',
-                borderStyle: 'solid',
-              }}
-            >
-              生成报告
-            </MyButton>
+          <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <MyButton
+                onClick={() => setViewMode('panel')}
+                className="view-toggle-button view-toggle-button-hover"
+                style={{
+                  backgroundColor: viewMode === 'panel' ? '#1890ff' : '#333',
+                  color: '#fff',
+                  borderColor: '#555',
+                  borderWidth: '1px',
+                  borderStyle: 'solid',
+                }}
+              >
+                数据操作台面板
+              </MyButton>
+              <MyButton
+                onClick={() => setViewMode('flow')}
+                className="view-toggle-button view-toggle-button-hover"
+                style={{
+                  backgroundColor: viewMode === 'flow' ? '#1890ff' : '#333',
+                  color: '#fff',
+                  borderColor: '#555',
+                  borderWidth: '1px',
+                  borderStyle: 'solid',
+                }}
+              >
+                流程图面板
+              </MyButton>
+              <MyButton
+                onClick={() => setViewMode('check')}
+                className="view-toggle-button view-toggle-button-hover"
+                style={{
+                  backgroundColor: viewMode === 'check' ? '#1890ff' : '#333',
+                  color: '#fff',
+                  borderColor: '#555',
+                  borderWidth: '1px',
+                  borderStyle: 'solid',
+                }}
+              >
+                数据查验面板
+              </MyButton>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <MyButton
+                onClick={() => setViewMode('analysis')}
+                className="view-toggle-button view-toggle-button-hover"
+                style={{
+                  backgroundColor: viewMode === 'analysis' ? '#1890ff' : '#333',
+                  color: '#fff',
+                  borderColor: '#555',
+                  borderWidth: '1px',
+                  borderStyle: 'solid',
+                }}
+              >
+                可视化分析
+              </MyButton>
+              <MyButton
+                onClick={() => setViewMode('report')}
+                className="view-toggle-button view-toggle-button-hover"
+                style={{
+                  backgroundColor: viewMode === 'report' ? '#1890ff' : '#333',
+                  color: '#fff',
+                  borderColor: '#555',
+                  borderWidth: '1px',
+                  borderStyle: 'solid',
+                }}
+              >
+                生成报告
+              </MyButton>
+              <Tooltip title="退出工作台">
+                <AntButton
+                  icon={<LogoutOutlined />}
+                  onClick={() => navigate('/dashboard/workbench')}
+                  style={{
+                    color: '#fff',
+                    borderColor: '#555',
+                    backgroundColor: '#333',
+                  }}
+                  className="view-toggle-button-hover"
+                />
+              </Tooltip>
+            </div>
           </div>
         </div>
 
@@ -1311,7 +1329,7 @@ const CarbonFlowInner = () => {
                       accept=".json"
                       showUploadList={false}
                       beforeUpload={handleImportAntdUpload}
-                      customRequest={({ onSuccess }) => {
+                      customRequest={({ onSuccess }: { onSuccess?: (body: any, xhr?: XMLHttpRequest) => void }) => {
                         setTimeout(() => {
                           if (onSuccess) {
                             onSuccess('ok');
