@@ -63,9 +63,8 @@ const mockData = {
 };
 
 export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ onBack: _onBack }) => {
-  // 根据分数决定显示颜色
   const getScoreColor = (score: number) => {
-    if (score > 80) {
+    if (score >= 81) {
       return '#52c41a'; // 绿色
     }
 
@@ -75,12 +74,24 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
 
     return '#f5222d'; // 红色
   };
-  const store = useCarbonFlowStore();
+
   const {
     nodes,
-    aiSummary,
-    sceneInfo: { productName = '', standard = '', boundary = '' },
-  } = store.getCarbonFlowData();
+    aiSummary, // aiSummary can be undefined
+    sceneInfo,
+  } = useCarbonFlowStore();
+
+  const productName = sceneInfo?.productName || '';
+  const standard = sceneInfo?.standard || '';
+
+  let derivedBoundary = '';
+  if (sceneInfo?.lifecycleType === 'half') {
+    derivedBoundary = '从摇篮到大门';
+  } else if (sceneInfo?.lifecycleType === 'full') {
+    derivedBoundary = '从摇篮到坟墓';
+  }
+
+  const boundary = derivedBoundary;
 
   const totalCarbonFootprint = parseFloat(
     nodes
@@ -88,7 +99,9 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
       .reduce((a: number, b: string | number) => Number(a) + Number(b || 0), 0)
       .toFixed(2),
   );
-  const scoreColor = getScoreColor(aiSummary.credibilityScore);
+
+  const scoreColor = getScoreColor(aiSummary?.credibilityScore || 0);
+
   const conversion = [
     { label: '家庭用电量', value: `${(totalCarbonFootprint / 0.5582).toFixed(2)} kWh`, icon: '⚡️' },
     { label: '汽油车行驶里程', value: `${(totalCarbonFootprint / 0.203).toFixed(2)} km`, icon: '🚗' },
@@ -243,7 +256,7 @@ export const VisualizationAnalysis: React.FC<VisualizationAnalysisProps> = ({ on
                 marginBottom: '8px',
               }}
             >
-              <div style={{ fontSize: 28, fontWeight: 600, color: scoreColor }}>{aiSummary.credibilityScore}</div>
+              <div style={{ fontSize: 28, fontWeight: 600, color: scoreColor }}>{aiSummary?.credibilityScore || 0}</div>
             </div>
             <div style={{ fontSize: 14, color: '#e0e0e0' }}>可信得分</div>
           </div>

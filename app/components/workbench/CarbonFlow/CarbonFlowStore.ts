@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '~/types/nodes';
 import type { Workflow } from '~/types/workflow';
-import type { Workflow } from '~/types/workflow';
 import type { SceneInfoType } from '~/types/scene';
 import type { AISummaryReport } from '~/types/aiSummary';
 
