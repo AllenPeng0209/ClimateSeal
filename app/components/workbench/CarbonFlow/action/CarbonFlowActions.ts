@@ -94,6 +94,7 @@ export class CarbonFlowActionHandler {
       position: action.position,
       data: action.operation === 'file_parser' || !action.data ? '<data handled separately or missing>' : '<data provided>',
       description: action.description,
+      fileName: (action as any).fileName, // Assuming fileName might be passed in action
     });
 
     // 记录操作内容
@@ -200,6 +201,9 @@ export class CarbonFlowActionHandler {
       console.error('File Parse 操作缺少 data (file content) 字段');
       return;
     }
+    // Предположим, что имя файла передается в action.fileName
+    // You'll need to ensure CarbonFlowAction type and the dispatching logic include fileName
+    const fileNameFromAction = (action as any).fileName || 'unknown_file';
 
     const fileContent = action.data;
     console.log('[File Content Provided]:', fileContent.substring(0, 100) + '...');
@@ -274,22 +278,26 @@ export class CarbonFlowActionHandler {
         return; // Skip this item
       }
 
+      // Add parse_from_file_name to the data object
+      const nodeSpecificData = item.data as Record<string, any>;
+      nodeSpecificData.parse_from_file_name = fileNameFromAction;
+
       try {
         // Pass nodeType and stringified data to _handleCreateNode
         this._handleCreateNode({
           type: 'carbonflow',
           operation: 'create',
           nodeType: item.nodeType,
-          data: JSON.stringify(item.data), // Pass data received from API
+          data: JSON.stringify(nodeSpecificData), // Pass data (now including filename) received from API
           // Generate a more descriptive content message
-          content: `Create node from file: ${item.data.label || `Unnamed ${item.nodeType}`}`,
+          content: `Create node from file: ${nodeSpecificData.label || `Unnamed ${item.nodeType}`}`,
           //log
         });
-        console.log('item.data', item.data);
+        console.log('item.data with fileName:', nodeSpecificData);
 
         createdNodeCount++;
       } catch (createError) {
-        console.error(`Failed to create node for item: ${item.data.label || item.nodeType}`, createError, item);
+        console.error(`Failed to create node for item: ${nodeSpecificData.label || item.nodeType}`, createError, item);
         nodeCreationErrors++;
       }
     });
@@ -366,6 +374,7 @@ export class CarbonFlowActionHandler {
           supplier: String(safeGet(inputData, 'supplier', '')),
           certaintyPercentage: Number(safeGet(inputData, 'certaintyPercentage', 0)), // Number as per ProductNodeData
           dataSources: safeGet(inputData, 'dataSources', undefined) as string | undefined,
+          parse_from_file_name: String(safeGet(inputData, 'parse_from_file_name', '')),
         } as ProductNodeData;
         break;
       case 'manufacturing':
@@ -415,6 +424,7 @@ export class CarbonFlowActionHandler {
           productionMethodVerificationStatus: String(safeGet(inputData, 'productionMethodVerificationStatus', '')),
           productionMethodApplicableStandard: String(safeGet(inputData, 'productionMethodApplicableStandard', '')),
           productionMethodCompletionStatus: String(safeGet(inputData, 'productionMethodCompletionStatus', '')),
+          parse_from_file_name: String(safeGet(inputData, 'parse_from_file_name', '')),
         } as ManufacturingNodeData;
         break;
       case 'distribution':
@@ -456,6 +466,7 @@ export class CarbonFlowActionHandler {
           distributionEndPoint: String(safeGet(inputData, 'distributionEndPoint', '')),
           distributionTransportationMode: String(safeGet(inputData, 'distributionTransportationMode', '')),
           distributionTransportationDistance: Number(safeGet(inputData, 'distributionTransportationDistance', 0)), // Number
+          parse_from_file_name: String(safeGet(inputData, 'parse_from_file_name', '')),
         } as DistributionNodeData;
         break;
       case 'usage':
@@ -488,6 +499,7 @@ export class CarbonFlowActionHandler {
           userInstructions: String(safeGet(inputData, 'userInstructions', '')),
           upgradeability: Number(safeGet(inputData, 'upgradeability', 0)), // Number
           secondHandMarket: Boolean(safeGet(inputData, 'secondHandMarket', false)),
+          parse_from_file_name: String(safeGet(inputData, 'parse_from_file_name', '')),
         } as UsageNodeData;
         break;
       case 'disposal':
@@ -520,6 +532,7 @@ export class CarbonFlowActionHandler {
           wasteRegulations: String(safeGet(inputData, 'wasteRegulations', '')),
           takeback: Boolean(safeGet(inputData, 'takeback', false)),
           circularEconomyPotential: Number(safeGet(inputData, 'circularEconomyPotential', 0)), // Number
+          parse_from_file_name: String(safeGet(inputData, 'parse_from_file_name', '')),
         } as DisposalNodeData;
         break;
       case 'finalProduct':
@@ -548,6 +561,7 @@ export class CarbonFlowActionHandler {
           targetRegion: String(safeGet(inputData, 'targetRegion', '')),
           complianceStatus: String(safeGet(inputData, 'complianceStatus', 'pending')),
           carbonLabel: String(safeGet(inputData, 'carbonLabel', '')),
+          parse_from_file_name: String(safeGet(inputData, 'parse_from_file_name', '')),
         } as FinalProductNodeData;
         break;
       default: {

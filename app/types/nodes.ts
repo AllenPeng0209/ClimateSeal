@@ -53,6 +53,10 @@ export interface BaseNodeData {
   conversionFactor_aiGenerated?: boolean;
   // evidence and metadata
   evidenceFiles?: EvidenceFile[]; // Use the imported EvidenceFile type
+  
+  parse_from_file_id?: string;
+  parse_from_file_name?: string;
+  
 
 
   updated_at?: string;
