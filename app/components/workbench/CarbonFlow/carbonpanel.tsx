@@ -157,6 +157,17 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const [isAIFileParseModalVisible, setIsAIFileParseModalVisible] = useState(false); // <-- New state for AI File Parse Modal
   const [selectedFileForParse, setSelectedFileForParse] = useState<UploadedFile | null>(null); // <-- New state for selected file in AI Parse Modal
 
+  // ===== State for Current Task Progress =====
+  interface TaskItem {
+    key: string; // Unique key for each task
+    name: 'AI文件解析' | 'AI因子匹配' | 'AI转换参数补充' | 'AI运输数据补充';
+    status: '进行中' | '已完成';
+    startTime: string; // ISO string or formatted date string
+    completionTime?: string; // ISO string or formatted date string, optional
+  }
+  const [currentTasks, setCurrentTasks] = useState<TaskItem[]>([]);
+  // ===== End State for Current Task Progress =====
+
   // ===== 辅助函数：记录工作流操作 =====
   const logWorkflowAction = async (actionDetails: {
     action_type: string;
@@ -2042,6 +2053,40 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       }));
   }, [nodes, selectedFileForParse]);
 
+  // --- Columns for Current Task Progress Table ---
+  const taskTableColumns: TableProps<TaskItem>['columns'] = [
+    {
+      title: '任务名称',
+      dataIndex: 'name',
+      key: 'name',
+      width: 150,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 80,
+      render: (status: TaskItem['status']) => {
+        let color = status === '已完成' ? 'green' : 'blue';
+        return <Tag color={color}>{status}</Tag>;
+      },
+    },
+    {
+      title: '开始时间',
+      dataIndex: 'startTime',
+      key: 'startTime',
+      width: 150,
+    },
+    {
+      title: '完成时间',
+      dataIndex: 'completionTime',
+      key: 'completionTime',
+      width: 150,
+      render: (time?: string) => time || '-',
+    },
+  ];
+  // --- End Columns for Current Task Progress Table ---
+
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
       {/* Wrapper for Card Rows to manage height distribution */}
@@ -2091,11 +2136,11 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
             </Col>
 
             {/* Model Score Card (remains as the second item in the Row) */}
-            <Col span={7} className="flex flex-col h-full"> {/* Added flex flex-col h-full */}
+            <Col span={7} className="flex flex-col h-full space-y-4"> {/* Modified: Added space-y-4 for spacing between cards */}
               <Card
                 title="模型评分"
                 size="small"
-                className="flex-grow min-h-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col" 
+                className="flex-shrink-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col" // Modified: Removed flex-grow, min-h-0 and added flex-shrink-0
                 bodyStyle={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'auto' }}
                 >
                  <div className="text-center mb-4 flex-grow flex flex-col justify-center">
@@ -2114,6 +2159,22 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                         <Col span={12} className="text-xs text-bolt-elements-textSecondary">数据验证性: {renderScore(modelScore.validation)}/100</Col>
                      </Row>
                  </div>
+              </Card>
+              {/* New Current Task Progress Card */}
+              <Card
+                title="当前任务进程"
+                size="small"
+                className="flex-grow min-h-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col" // Added flex-grow, min-h-0
+                bodyStyle={{ flexGrow: 1, overflow: 'auto', padding: '8px' }} // Added padding
+              >
+                <Table
+                  columns={taskTableColumns} // Use the new columns
+                  dataSource={currentTasks} // Use the new state
+                  size="small"
+                  pagination={false} // No pagination for now, or configure as needed
+                  locale={{ emptyText: <Empty description="暂无进行中的任务" /> }} // Custom empty text
+                  scroll={{ y: 'calc(100% - 30px)' }} // Adjust scroll as needed
+                />
               </Card>
             </Col>
           </Row>
