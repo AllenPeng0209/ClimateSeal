@@ -137,12 +137,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const [isUploading, setIsUploading] = useState(false); // State for upload loading
 
   // States for the new Parse File Modal
-  const [isParseFileModalVisible, setIsParseFileModalVisible] = useState(false);
-  const [currentParsingFile, setCurrentParsingFile] = useState<UploadedFile | null>(null);
   const [parsedEmissionSources, setParsedEmissionSources] = useState<ParsedEmissionSource[]>([]);
-  const [selectedParsedSourceKeys, setSelectedParsedSourceKeys] = useState<React.Key[]>([]);
-  const [parsingStatus, setParsingStatus] = useState<'未开始' | '解析中' | '解析成功' | '解析失败'>('未开始');
-  const [parseResultSummary, setParseResultSummary] = useState<string>('无概览信息。');
   const [isAIAutoFillModalVisible, setIsAIAutoFillModalVisible] = useState(false); // AI补全弹窗状态
   const [aiFilterStage, setAiFilterStage] = useState<string | undefined>();
   const [aiFilterName, setAiFilterName] = useState<string>('');
@@ -835,27 +830,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
      handleCloseEmissionDrawer();
    };
 
-   // --- File Upload Handlers (Placeholders) ---
-  const handleFileUpload = (info: any) => {
-    // This is a basic handler, you'll need to implement actual upload logic
-    // using fetch or a library like axios to send the file to your backend.
-    if (info.file.status === 'done') {
-      message.success(`${info.file.name} file uploaded successfully`);
-      // Assuming backend returns file info upon successful upload
-      const newFile: UploadedFile = {
-          id: info.file.uid, // Use UID from upload event
-          name: info.file.name,
-          type: '未分类', // Determine type based on upload or response
-          uploadTime: new Date().toISOString(),
-          url: info.file.response?.url, // Example: get URL from server response
-          status: 'pending'
-      };
-      setUploadedFiles(prev => [...prev, newFile]);
-    } else if (info.file.status === 'error') {
-      message.error(`${info.file.name} file upload failed.`);
-    }
-    // You might want to handle 'uploading' status too
-  };
+
 
   // 修改文件删除函数
   const handleDeleteFile = async (id: string) => {
@@ -1089,6 +1064,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
          data: fileContent,
          content: `面板发起解析: ${file.name}`,
          description: `File parsing initiated from panel for ${file.name}`,
+         fileName: file.name, // 关键：带上文件名，供节点 parse_from_file_name 字段使用
        };
 
        console.log('[carbonpanel.tsx] Dispatching carbonflow-action for file parsing:', fileActionForEvent);
@@ -1112,11 +1088,6 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
      }
    };
 
-   const handleEditFile = (file: UploadedFile) => {
-       console.log('Editing file metadata:', file);
-       // TODO: Implement logic to open an edit modal/form for file metadata (like type)
-       message.info('编辑功能待实现');
-   };
 
    // Handler to open the new upload modal
    const handleOpenUploadModal = () => {
@@ -1161,51 +1132,9 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
        setModalFileList([]);
    };
 
-  // --- Handlers for the Parse File Modal ---
-  const handleCloseParseFileModal = () => {
-    setIsParseFileModalVisible(false);
-    setCurrentParsingFile(null);
-    setParsedEmissionSources([]);
-    setSelectedParsedSourceKeys([]);
-    setParsingStatus('未开始');
-    setParseResultSummary('');
-  };
 
-  const handleStartParsing = () => {
-    if (!currentParsingFile) return;
-    setParsingStatus('解析中');
-    setParseResultSummary('正在解析文件...');
-    // Simulate parsing
-    setTimeout(() => {
-      // Simulate some results
-      const newParsedSources: ParsedEmissionSource[] = [
-        { id: 'parsed-sim-1', key: 'parsed-sim-1', index: 1, lifecycleStage: '原材料获取阶段', name: '解析结果A', category: '原材料', activityData: 120, activityUnit: 'kg', dataStatus: '未生效', sourceFileId: currentParsingFile.id, supplementaryInfo: '模拟解析数据1' },
-        { id: 'parsed-sim-2', key: 'parsed-sim-2', index: 2, lifecycleStage: '生产阶段', name: '解析结果B', category: '能耗', activityData: 240, activityUnit: 'kWh', dataStatus: '未生效', sourceFileId: currentParsingFile.id, supplementaryInfo: '模拟解析数据2' },
-        { id: 'parsed-sim-3', key: 'parsed-sim-3', index: 3, lifecycleStage: '分销运输阶段', name: '解析结果C', category: '运输', activityData: 360, activityUnit: 't*km', dataStatus: '未生效', sourceFileId: currentParsingFile.id, supplementaryInfo: '模拟解析数据3' },
-      ];
-      setParsedEmissionSources(newParsedSources);
-      setParsingStatus('解析成功');
-      setParseResultSummary(`解析完成：成功生成 ${newParsedSources.length} 条数据。`);
-      message.success('文件解析模拟完成！');
-    }, 2000);
-  };
 
-  const handleBatchSetStatus = (status: '未生效' | '已生效' | '已删除') => {
-    if (selectedParsedSourceKeys.length === 0) {
-      message.warning('请至少选择一条数据进行操作。');
-      return;
-    }
-    setParsedEmissionSources(prev =>
-      prev.map(item =>
-        selectedParsedSourceKeys.includes(item.key) ? { ...item, dataStatus: status } : item
-      )
-    );
-    message.success(`选中的 ${selectedParsedSourceKeys.length} 条数据已批量设置为 "${status}"。`);
-    setSelectedParsedSourceKeys([]); // Clear selection after batch operation
 
-    // TODO: If status is '已生效', consider adding these to the main `emissionSources` / nodes
-    // For now, this only updates the local state within this modal.
-  };
 
   // Helper function to get Chinese status message for UploadedFile status
   const getChineseFileStatusMessage = (status: UploadedFile['status'] | ('未开始' | '解析中' | '解析成功' | '解析失败')) : string => {
@@ -2092,6 +2021,26 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     setIsEditingName(false);
     message.success('名称已更新');
   };
+
+  // 解析结果数据：根据当前选中文件名过滤 nodes
+  const [selectedParsedSourceKeys, setSelectedParsedSourceKeys] = useState<React.Key[]>([]);
+  const parsedNodes = React.useMemo(() => {
+    if (!selectedFileForParse?.name) return [];
+    return (nodes || [])
+      .filter(node => node.data?.parse_from_file_name === selectedFileForParse.name)
+      .map((node, idx) => ({
+        ...node,
+        key: node.id || idx, // 确保唯一 key
+        index: idx + 1,
+        lifecycleStage: node.data.lifecycleStage || '',
+        name: node.data.label || '',
+        category: node.data.emissionType || '',
+        activityData: node.data.quantity || '',
+        activityUnit: node.data.activityUnit || '',
+        dataStatus: '未生效', // 如有业务逻辑可调整
+        supplementaryInfo: node.data.supplementaryInfo || '',
+      }));
+  }, [nodes, selectedFileForParse]);
 
   return (
     <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
@@ -3293,7 +3242,6 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                   </Col>
                 </Row>
 
-                <Divider />
 
                 <Typography.Title level={5} style={{ marginTop: 24, marginBottom: 16 }}>解析结果</Typography.Title>
                 <Row gutter={[16, 16]}>
@@ -3322,49 +3270,31 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                   </Col>
                 </Row>
 
-                {/* Placeholder for Parsed Emission Sources Table */}
-                <div style={{ marginTop: 24 }}>
-                  <Typography.Title level={5} style={{ marginBottom: 16 }}>解析结果数据</Typography.Title>
-                  {!selectedFileForParse ? (
-                    <Empty description='请从左侧选择一个文件以查看详情和解析结果' />
-                  ) : selectedFileForParse.status === 'parsing' ? (
-                    <div style={{ textAlign: 'center', padding: '20px 0' }}><Spin tip="正在解析，请稍候..." /></div>
-                  ) : selectedFileForParse.status === 'completed' ? (
-                    parsedEmissionSources.length > 0 ? (
-                      <>
-                        <Space style={{ marginBottom: 16 }}>
-                          <Button onClick={() => handleBatchSetStatus('已生效')} disabled={selectedParsedSourceKeys.length === 0}>
-                            批量生效
-                          </Button>
-                          <Button onClick={() => handleBatchSetStatus('未生效')} disabled={selectedParsedSourceKeys.length === 0}>
-                            批量置为未生效
-                          </Button>
-                          <Button danger onClick={() => handleBatchSetStatus('已删除')} disabled={selectedParsedSourceKeys.length === 0}>
-                            批量删除
-                          </Button>
-                        </Space>
-                        <Table
-                          rowSelection={{
-                            selectedRowKeys: selectedParsedSourceKeys,
-                            onChange: setSelectedParsedSourceKeys,
-                          }}
-                          columns={parsedEmissionSourceTableColumns}
-                          dataSource={parsedEmissionSources} 
-                          rowKey="key"
-                          size="small"
-                          pagination={{ pageSize: 5, size: 'small' }}
-                          scroll={{ y: 'calc(80vh - 450px)' }} 
-                        />
-                      </>
-                    ) : (
-                      <Empty description='解析完成，但未提取到有效数据点。' />
-                    )
-                  ) : selectedFileForParse.status === 'failed' ? (
-                    <Empty description={`解析失败。${selectedFileForParse.content || ''} 请检查文件或尝试重新解析。`} />
-                  ) : ( 
-                    <Empty description={'请选择文件并点击上方"开始解析"或"重新解析"按钮。'} />
-                  )}
-                </div>
+
+                <Divider />
+
+                {/* 解析结果数据表格 */}
+                <Typography.Title level={5} style={{ marginTop: 24, marginBottom: 16 }}>解析结果数据</Typography.Title>
+                {parsedNodes.length > 0 ? (
+                  <>
+                    <Table
+                      rowSelection={{
+                        selectedRowKeys: selectedParsedSourceKeys,
+                        onChange: setSelectedParsedSourceKeys,
+                      }}
+                      columns={parsedEmissionSourceTableColumns as any}
+                      dataSource={parsedNodes as any}
+                      rowKey="key"
+                      size="small"
+                      pagination={{ pageSize: 5, size: 'small' }}
+                      scroll={{ y: 200 }}
+                    />
+                  </>
+                ) : (
+                  <Empty description='解析完成，但未提取到有效数据点。' />
+                )}
+
+                <Divider />
 
               </div>
             ) : (
