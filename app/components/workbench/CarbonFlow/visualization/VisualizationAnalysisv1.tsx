@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, Row, Col, Progress, List } from 'antd';
-import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowBridge';
+import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowStore';
 import type { NodeData } from '~/types/nodes';
 
 interface VisualizationAnalysisProps {

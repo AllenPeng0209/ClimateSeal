@@ -70,7 +70,7 @@ import type {
   DisposalNodeData,
   FinalProductNodeData,
 } from '~/types/nodes';
-import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowBridge';
+import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowStore';
 import { supabase } from '~/lib/supabase';
 // import { CarbonCalculatorPanelClient } from './CarbonFlow/panel';
 import { CarbonCalculatorPanelClient } from './CarbonFlow/carbonpanel';

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowBridge';
+import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowStore';
 import { Layout } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { ClientOnly } from 'remix-utils/client-only';

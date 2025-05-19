@@ -28,7 +28,7 @@ import { logStore } from '~/lib/stores/logs';
 import { streamingState } from '~/lib/stores/streaming';
 import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
-import { subscribeToCarbonFlowData } from '~/components/workbench/CarbonFlow/CarbonFlowBridge';
+import { subscribeToCarbonFlowData } from '~/components/workbench/CarbonFlow/CarbonFlowStore';
 import { useLoaderData } from '@remix-run/react';
 
 const toastAnimation = cssTransition({

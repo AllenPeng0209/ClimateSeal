@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowBridge';
+import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowStore';
 
 import { Row, Col, Card, Typography, Empty, Tabs, Button as AntButton, Table } from 'antd';
 import { Pie, Bar, Column } from '@ant-design/plots';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowBridge';
+import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowStore';
 import { Button, Card, Col, Descriptions, Divider, Row, Space, Table, Typography } from 'antd';
 import type { Node } from 'reactflow';
 import type {

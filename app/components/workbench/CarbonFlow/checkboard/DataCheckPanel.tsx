@@ -3,7 +3,7 @@ import { Table, Tag, Input, Select, Button, Space } from 'antd';
 import type { TableProps } from 'antd';
 import type { Node } from 'reactflow';
 import type { NodeData, ManufacturingNodeData, DistributionNodeData } from '~/types/nodes';
-import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowBridge';
+import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowStore';
 import { SearchOutlined, UndoOutlined } from '@ant-design/icons';
 
 const { Option } = Select;

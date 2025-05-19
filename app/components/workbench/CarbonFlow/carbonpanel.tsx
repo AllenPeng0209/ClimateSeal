@@ -46,7 +46,7 @@ import {
 } from '@ant-design/icons';
 import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps, RcFile } from 'antd/es/upload/interface'; // Added RcFile here
-import { useCarbonFlowStore } from './CarbonFlowBridge';
+import { useCarbonFlowStore } from './CarbonFlowStore';
 import type { Node, Edge as ReactFlowEdge } from 'reactflow'; // Edge is kept for now, aliased to avoid conflict
 import type { NodeData, ProductNodeData, FinalProductNodeData } from '~/types/nodes'; 
 import type { TableProps, ColumnType } from 'antd/es/table';
