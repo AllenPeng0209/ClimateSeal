@@ -7,8 +7,6 @@ import ReactFlow, {
   type Edge,
   type OnConnect,
   type ReactFlowInstance,
-  type NodeChange,
-  type EdgeChange,
   useNodesState,
   useEdgesState,
   addEdge,
@@ -28,7 +26,7 @@ import { ManufacturingNode } from './CarbonFlow/nodes/ManufacturingNode';
 import { DistributionNode } from './CarbonFlow/nodes/DistributionNode';
 import { UsageNode } from './CarbonFlow/nodes/UsageNode';
 import { DisposalNode } from './CarbonFlow/nodes/DisposalNode';
-import { NodeProperties, type NodePropertiesProps } from './CarbonFlow/nodes/NodeProperties';
+import { NodeProperties } from './CarbonFlow/nodes/NodeProperties';
 import { FinalProductNode } from './CarbonFlow/nodes/FinalProductNode';
 import { CarbonFlowActionHandler } from './CarbonFlow/action/CarbonFlowActions';
 import type { CarbonFlowAction } from '~/types/actions';
@@ -78,7 +76,9 @@ import { supabase } from '~/lib/supabase';
 // import { CarbonCalculatorPanelClient } from './CarbonFlow/panel';
 import { CarbonCalculatorPanelClient } from './CarbonFlow/carbonpanel';
 import { CarbonFlowAISummary } from './CarbonFlow/score/AISummary';
-import { VisualizationAnalysis } from './VisualizationAnalysis';
+import { DataCheckPanel } from './CarbonFlow/checkboard/DataCheckPanel';
+import ReportGenerator from './CarbonFlow/report/ReportGenerator';
+import { VisualizationAnalysis } from './CarbonFlow/visualization/VisualizationAnalysisv1';
 
 const { darkAlgorithm } = theme;
 
@@ -129,10 +129,11 @@ const CarbonFlowInner = () => {
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null);
   const [siderWidth, setSiderWidth] = useState(250);
   const [isResizing, setIsResizing] = useState(false);
+
   const { project, fitView } = useReactFlow();
   const isDraggingRef = useRef(false);
 
-  const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'check'>('panel');
+  const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'check' | 'analysis' | 'report'>('panel');
 
   const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
   const [checkpointName, setCheckpointName] = useState('');
@@ -141,8 +142,6 @@ const CarbonFlowInner = () => {
   const { setNodes: setStoreNodes, setEdges: setStoreEdges, nodes: storeNodes, aiSummary } = useCarbonFlowStore();
 
   const supabaseState = useStore(supabaseConnection);
-
-  const [showAnalysis, setShowAnalysis] = useState(false);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState(workflow?.name || '');
@@ -245,7 +244,7 @@ const CarbonFlowInner = () => {
 
     const handlePanelDataUpdated = (event: Event) => {
       const customEvent = event as CustomEvent;
-      const { action, nodeId, nodeType } = customEvent.detail;
+      const { action } = customEvent.detail;
 
       switch (action) {
         case 'DELETE_NODE':
@@ -313,7 +312,6 @@ const CarbonFlowInner = () => {
           | 'activitydataSource'
           | 'carbonFootprint'
           | 'unitConversion'
-          | 'emissionFactorQuality'
           | 'emissionFactor'
           | 'calculationMethod'
           | 'verificationStatus'
@@ -333,7 +331,6 @@ const CarbonFlowInner = () => {
         activitydataSource: 'default',
         carbonFootprint: '0',
         unitConversion: '1',
-        emissionFactorQuality: 0,
         emissionFactor: '',
         calculationMethod: '',
         verificationStatus: '未验证',
@@ -350,6 +347,7 @@ const CarbonFlowInner = () => {
       if (type === 'product') {
         specificData = {
           ...baseData,
+          nodeType: 'product',
           material: '',
           weight_per_unit: '',
           quantity: '0',
@@ -360,6 +358,7 @@ const CarbonFlowInner = () => {
       } else if (type === 'manufacturing') {
         specificData = {
           ...baseData,
+          nodeType: 'manufacturing',
           energyConsumption: 0,
           energyType: '',
           ElectricityAccountingMethod: '',
@@ -370,14 +369,16 @@ const CarbonFlowInner = () => {
       } else if (type === 'distribution') {
         specificData = {
           ...baseData,
-          startPoint: '',
-          endPoint: '',
-          transportationMode: '',
-          transportationDistance: '0',
+          nodeType: 'distribution',
+          distribution_start_point: '',
+          distribution_end_point: '',
+          transportation_mode: '',
+          transportation_distance: '0',
         } as DistributionNodeData;
       } else if (type === 'usage') {
         specificData = {
           ...baseData,
+          nodeType: 'usage',
           lifespan: 0,
           usageFrequency: 0,
           energyConsumptionPerUse: 0,
@@ -385,11 +386,13 @@ const CarbonFlowInner = () => {
       } else if (type === 'disposal') {
         specificData = {
           ...baseData,
-          disposalMethod: '',
-          recyclingRate: 0,
-          landfillPercentage: 0,
-          incinerationPercentage: 0,
-          compostPercentage: 0,
+          nodeType: 'disposal',
+          disposal_method: '',
+          recycling_rate: 0,
+          landfill_gas_recovery_rate: 0,
+          incineration_with_energy_recovery_rate: 0,
+          compostingRate: 0,
+          otherDisposalRate: 0,
           disposalEmissionFactor: 0,
           disposalQuantity: 0,
           disposalCarbonFootprint: 0,
@@ -406,6 +409,7 @@ const CarbonFlowInner = () => {
       } else if (type === 'finalProduct') {
         specificData = {
           ...baseData,
+          nodeType: 'finalProduct',
           finalProductName: '最终产品',
           totalCarbonFootprint: 0,
           certificationStatus: 'pending',
@@ -534,7 +538,6 @@ const CarbonFlowInner = () => {
           completionStatus: 'incomplete',
           carbonFactorName: '',
           unitConversion: '1',
-          emissionFactorQuality: 0,
           finalProductName: '最终产品',
           totalCarbonFootprint: 0,
           certificationStatus: 'pending',
@@ -545,10 +548,13 @@ const CarbonFlowInner = () => {
           targetRegion: '未指定',
           complianceStatus: '未验证',
           carbonLabel: '待认证',
+          nodeType: 'finalProduct',
+          quantity: '0',
         } as FinalProductNodeData,
       };
       nodesByType.finalProduct.push(finalProductNode);
     }
+
 
     const layoutNodes = [...nodes];
     if (!layoutNodes.find((n) => n.type === 'finalProduct')) {
@@ -689,9 +695,9 @@ const CarbonFlowInner = () => {
         case '分销和储存': {
           const distributionData = updatedData as DistributionNodeData;
           updateNumericStringField(distributionData, 'carbonFactor', '0.2');
-          if (!distributionData.startPoint) distributionData.startPoint = '起点';
-          if (!distributionData.endPoint) distributionData.endPoint = '终点';
-          updateNumericStringField(distributionData, 'transportationDistance', '100');
+          if (!distributionData.distribution_start_point) distributionData.distribution_start_point = '起点';
+          if (!distributionData.distribution_end_point) distributionData.distribution_end_point = '终点';
+          updateNumericStringField(distributionData, 'transportation_distance', '100');
           break;
         }
         case 'usage':
@@ -705,9 +711,9 @@ const CarbonFlowInner = () => {
         case 'disposal':
         case '废弃处置': {
           const disposalData = updatedData as DisposalNodeData;
-          updateNumericField(disposalData, 'recyclingRate', 80);
-          updateNumericField(disposalData, 'landfillRate', 10);
-          updateNumericField(disposalData, 'incinerationRate', 10);
+          updateNumericField(disposalData, 'recycling_rate', 80);
+          updateNumericField(disposalData, 'landfill_gas_recovery_rate', 10);
+          updateNumericField(disposalData, 'incineration_with_energy_recovery_rate', 10);
           break;
         }
       }
@@ -1218,404 +1224,418 @@ const CarbonFlowInner = () => {
   }, [nodes, edges]);
 
   return (
-    <div className="view-toggle-container">
-      <div
-        className="view-toggle-container"
-        style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
-          padding: '12px 32px',
-          background: 'rgba(16,32,61,0.8)',
-          borderBottom: '1px solid #222',
-          boxSizing: 'border-box',
-          position: 'relative',
-          flexWrap: 'wrap'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {isEditingName ? (
-            <Input
-              value={editingName}
-              onChange={(e) => setEditingName(e.target.value)}
-              onPressEnter={saveWorkflowName}
-              style={{ width: 220 }}
-              size="small"
-              autoFocus
-              maxLength={50}
-            />
-          ) : (
-            <span style={{ fontSize: 18, fontWeight: 500, color: '#fff' }}>{workflowName}</span>
-          )}
-          {isEditingName ? (
-            <AntButton icon={<CheckOutlined />} size="small" type="primary" onClick={saveWorkflowName} />
-          ) : (
-            <AntButton
-              icon={<EditOutlined />}
-              size="small"
-              onClick={() => {
-                setEditingName(workflowName);
-                setIsEditingName(true);
-              }}
-            />
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <MyButton
-            onClick={() => setViewMode('panel')}
-            className="view-toggle-button view-toggle-button-hover"
-            style={{ backgroundColor: viewMode === 'panel' ? '#1890ff' : '#333', color: '#fff', borderColor: '#555', borderWidth: '1px', borderStyle: 'solid' }}
-          >
-            数据操作台面板
-          </MyButton>
-          <MyButton
-            onClick={() => setViewMode('flow')}
-            className="view-toggle-button view-toggle-button-hover"
-            style={{ backgroundColor: viewMode === 'flow' ? '#1890ff' : '#333', color: '#fff', borderColor: '#555', borderWidth: '1px', borderStyle: 'solid' }}
-          >
-            流程图面板
-          </MyButton>
-          <MyButton
-            onClick={() => setViewMode('check')}
-            className="view-toggle-button view-toggle-button-hover"
-            style={{ backgroundColor: viewMode === 'check' ? '#1890ff' : '#333', color: '#fff', borderColor: '#555', borderWidth: '1px', borderStyle: 'solid' }}
-          >
-            数据查验面板
-          </MyButton>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <MyButton
-            onClick={saveWorkflow}
-            style={{
-              backgroundColor: '#1890ff',
-              color: 'white',
-            }}
-          >
-            <SaveOutlined /> {isSaving ? '保存中...' : '保存工作流'}
-          </MyButton>
-          {lastSaved && (
-            <span style={{ color: '#aaa', fontSize: 12 }}>
-              上次保存: {lastSaved.toLocaleTimeString()}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {viewMode === 'panel' && (
-        <div className="carbon-panel-container" style={{ height: '100vh', width: '100%' }}>
-          <CarbonCalculatorPanelClient />
-        </div>
-      )}
-      {viewMode === 'flow' && (
-        <div className="editor-layout">
-          <div className="editor-header">
-            <div className="header-left" />
-            <div className="header-right">
-              <MyButton onClick={triggerFileInput}>上传文件</MyButton>
-              <MyButton onClick={handleCarbonFactorMatch}>碳因子匹配</MyButton>
-              <MyButton onClick={deleteSelectedNode} variant="destructive" disabled={!selectedNode}>
-                删除节点
-              </MyButton>
-              <MyButton onClick={autoLayout}>自动布局</MyButton>
-              <MyButton
-                onClick={autoCompleteMissingFields}
-                style={{
-                  backgroundColor: '#52c41a',
-                  color: 'white',
-                  marginLeft: '8px',
-                }}
-              >
-                一键AI补全
-              </MyButton>
-              <MyButton
-                onClick={() => {
-                  message.info('报告生成功能待实现');
-                }}
-                style={{
-                  backgroundColor: '#1890ff',
-                  color: 'white',
-                  marginLeft: 'auto',
-                }}
-              >
-                生成报告
-              </MyButton>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                style={{ display: 'none' }}
-                accept=".csv,.txt,.pdf,.json"
+    <>
+      <div className="carbonflow-inner-wrapper" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+        <div
+          className="view-toggle-container"
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '32px',
+            padding: '12px 32px',
+            background: 'rgba(16,32,61,0.8)',
+            borderBottom: '1px solid #222',
+            boxSizing: 'border-box',
+            position: 'relative',
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {isEditingName ? (
+              <Input
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onPressEnter={saveWorkflowName}
+                style={{ width: 220 }}
+                size="small"
+                autoFocus
+                maxLength={50}
               />
+            ) : (
+              <span style={{ fontSize: 18, fontWeight: 500, color: '#fff' }}>{workflowName}</span>
+            )}
+            {isEditingName ? (
+              <AntButton icon={<CheckOutlined />} size="small" type="primary" onClick={saveWorkflowName} />
+            ) : (
               <AntButton
-                icon={<HistoryOutlined />}
-                onClick={() => setIsCheckpointModalVisible(true)}
-                style={{ marginLeft: '8px' }}
-              >
-                检查点管理
-              </AntButton>
-            </div>
+                icon={<EditOutlined />}
+                size="small"
+                onClick={() => {
+                  setEditingName(workflowName);
+                  setIsEditingName(true);
+                }}
+              />
+            )}
           </div>
-          <div className="main-content">
-            <div className="editor-sider" style={{ width: siderWidth }}>
-              <div className="file-manager">
-                <h3>节点类型</h3>
-                <div className="node-types">
-                  {Object.entries(nodeTypeLabels).map(([type, label]) => (
-                    <div
-                      key={type}
-                      className="draggable-file"
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('application/carbonflow', label);
-                      }}
-                    >
-                      {label}
-                      <span className="drag-hint">拖拽到画布</span>
-                    </div>
-                  ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <MyButton
+              onClick={() => setViewMode('panel')}
+              className="view-toggle-button view-toggle-button-hover"
+              style={{
+                backgroundColor: viewMode === 'panel' ? '#1890ff' : '#333',
+                color: '#fff',
+                borderColor: '#555',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              数据操作台面板
+            </MyButton>
+            <MyButton
+              onClick={() => setViewMode('flow')}
+              className="view-toggle-button view-toggle-button-hover"
+              style={{
+                backgroundColor: viewMode === 'flow' ? '#1890ff' : '#333',
+                color: '#fff',
+                borderColor: '#555',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              流程图面板
+            </MyButton>
+
+            <MyButton
+              onClick={() => setViewMode('check')}
+              className="view-toggle-button view-toggle-button-hover"
+              style={{
+                backgroundColor: viewMode === 'check' ? '#1890ff' : '#333',
+                color: '#fff',
+                borderColor: '#555',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              数据查验面板
+            </MyButton>
+            <MyButton
+              onClick={() => setViewMode('analysis')}
+              className="view-toggle-button view-toggle-button-hover"
+              style={{
+                backgroundColor: viewMode === 'analysis' ? '#1890ff' : '#333',
+                color: '#fff',
+                borderColor: '#555',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              可视化分析
+            </MyButton>
+            <MyButton
+              onClick={() => setViewMode('report')}
+              className="view-toggle-button view-toggle-button-hover"
+              style={{
+                backgroundColor: viewMode === 'report' ? '#1890ff' : '#333',
+                color: '#fff',
+                borderColor: '#555',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              生成报告
+            </MyButton>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <MyButton
+              onClick={saveWorkflow}
+              style={{
+                backgroundColor: '#1890ff',
+                color: 'white',
+              }}
+            >
+              <SaveOutlined /> {isSaving ? '保存中...' : '保存工作流'}
+            </MyButton>
+            {lastSaved && (
+              <span style={{ color: '#aaa', fontSize: 12 }}>
+                上次保存: {lastSaved.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {viewMode === 'panel' && (
+            <div className="carbon-panel-container" style={{ height: '100%', width: '100%' }}>
+              <CarbonCalculatorPanelClient />
+            </div>
+          )}
+          {viewMode === 'flow' && (
+            <div
+              className="editor-layout"
+              style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}
+            >
+              <div className="editor-header">
+                <div className="header-left" />
+                <div className="header-right">
+  
+                  {/* <MyButton onClick={deleteSelectedNode} variant="destructive" disabled={!selectedNode}>
+                    删除节点
+                  </MyButton> */}
+                  <MyButton onClick={autoLayout}>自动布局</MyButton>
+           
+
+     
                 </div>
               </div>
-              <div className="resizer" onMouseDown={handleResizeStart} role="separator" aria-label="Resize panel">
-                <div className="resizer-handle" />
-              </div>
-            </div>
-            <div className="ai-summary-floating-container">
-              <CarbonFlowAISummary setSelectedNode={setSelectedNode} />
-            </div>
-            <div className="editor-content">
-              <div className="reactflow-wrapper">
-                <ReactFlow
-                  nodes={nodes}
-                  edges={edges}
-                  onNodesChange={onNodesChange}
-                  onEdgesChange={onEdgesChange}
-                  onConnect={onConnect}
-                  onNodeClick={onNodeClick}
-                  onDragOver={onDragOver}
-                  onDrop={onDrop}
-                  onInit={onInit}
-                  onPaneClick={handlePaneClick}
-                  nodeTypes={nodeTypes}
-                  fitView
-                  minZoom={0.1}
-                  maxZoom={2}
-                  defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-                  onNodeDragStart={handleNodeDragStart}
-                  onNodeDragStop={handleNodeDragStop}
-                >
-                  <Background />
-                  <Controls />
-                  <MiniMap />
-
-                  {selectedNode && (
-                    <Panel position="top-center">
-                      <NodeProperties
-                        node={selectedNode}
-                        selectedNode={selectedNode}
-                        onClose={() => setSelectedNode(null)}
-                        setNodes={setNodes as Dispatch<SetStateAction<Node<NodeData>[]>>}
-                        setSelectedNode={setSelectedNode}
-                        updateAiSummary={() => { /* Define or pass actual update function if needed */ }}
-                        onUpdate={() => {
-                          /* Placeholder */
-                        }}
-                      />
-                    </Panel>
-                  )}
-                </ReactFlow>
-              </div>
-            </div>
-          </div>
-          <Modal
-            title="检查点管理"
-            open={isCheckpointModalVisible}
-            onCancel={() => setIsCheckpointModalVisible(false)}
-            footer={null}
-            width={800}
-            bodyStyle={{
-              backgroundColor: '#1f1f1f',
-              color: '#e0e0e0',
-              padding: '24px',
-              maxHeight: '70vh',
-              overflowY: 'auto',
-            }}
-            styles={{
-              header: {
-                backgroundColor: '#1f1f1f',
-                color: '#e0e0e0',
-                borderBottom: '1px solid #303030',
-              },
-              content: {
-                backgroundColor: '#1f1f1f',
-              },
-              mask: {
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-              },
-            }}
-          >
-            <Row gutter={[16, 16]}>
-              <Col span={16}>
-                <Input
-                  placeholder="输入检查点名称"
-                  value={checkpointName}
-                  onChange={(e) => setCheckpointName(e.target.value)}
-                  style={{
-                    backgroundColor: '#2a2a2a',
-                    color: '#e0e0e0',
-                    borderColor: '#444',
-                  }}
-                />
-              </Col>
-              <Col span={8}>
-                <AntButton
-                  type="primary"
-                  onClick={handleSaveCheckpoint}
-                  icon={<SaveOutlined />}
-                  block
-                  loading={isSaving}
-                  disabled={isSaving || !checkpointName.trim()}
-                >
-                  {isSaving ? '保存中...' : '保存当前状态'}
-                </AntButton>
-              </Col>
-            </Row>
-
-            <Row gutter={[16, 16]} style={{ marginTop: '20px' }}>
-              <Col span={8}>
-                <Upload
-                  accept=".json"
-                  showUploadList={false}
-                  beforeUpload={handleImportAntdUpload}
-                  customRequest={({ onSuccess }) => {
-                    setTimeout(() => {
-                      if (onSuccess) {
-                        onSuccess('ok');
-                      }
-                    }, 0);
-                  }}
-                >
-                  <AntButton
-                    icon={<UploadOutlined />}
-                    block
-                    style={{
-                      backgroundColor: '#333',
-                      borderColor: '#555',
-                      color: '#e0e0e0',
-                    }}
-                  >
-                    导入检查点
-                  </AntButton>
-                </Upload>
-              </Col>
-              <Col span={8}>
-                <AntButton
-                  icon={<CloudSyncOutlined />}
-                  onClick={handleSyncCheckpoints}
-                  loading={syncStatus.status === 'pending'}
-                  block
-                  style={{
-                    backgroundColor: '#333',
-                    borderColor: '#555',
-                    color: '#e0e0e0',
-                  }}
-                  disabled={!supabaseState.isConnected}
-                >
-                  {syncStatus.status === 'pending' ? '同步中...' : '同步到云端'}
-                </AntButton>
-              </Col>
-              <Col span={8}>
-                <AntButton
-                  icon={<CloudDownloadOutlined />}
-                  onClick={handleRestoreFromCloud}
-                  loading={syncStatus.status === 'pending'}
-                  block
-                  style={{
-                    backgroundColor: '#333',
-                    borderColor: '#555',
-                    color: '#e0e0e0',
-                  }}
-                  disabled={!supabaseState.isConnected}
-                >
-                  {syncStatus.status === 'pending' ? '恢复中...' : '从云端恢复'}
-                </AntButton>
-              </Col>
-            </Row>
-
-            <Divider style={{ borderColor: '#444' }} />
-
-            <Typography.Title level={5} style={{ color: '#e0e0e0', marginBottom: '16px' }}>
-              已保存的检查点
-            </Typography.Title>
-            <List
-              itemLayout="horizontal"
-              dataSource={checkpoints}
-              locale={{ emptyText: <Empty description={<span style={{ color: '#aaa' }}>暂无检查点</span>} /> }}
-              renderItem={(item: CheckpointMetadata) => (
-                <List.Item
-                  style={{
-                    backgroundColor: '#2a2a2a',
-                    marginBottom: '8px',
-                    padding: '12px 16px',
-                    borderRadius: '4px',
-                    border: '1px solid #333',
-                  }}
-                  actions={[
-                    <AntButton
-                      key={`restore-${item.name}`}
-                      icon={<HistoryOutlined />}
-                      onClick={() => handleRestoreCheckpoint(item.name)}
-                      type="primary"
+              <div className="main-content" style={{ flexGrow: 1, display: 'flex', overflow: 'hidden' }}>
+                <div className="editor-sider" style={{ width: siderWidth, flexShrink: 0 }}>
+                  <div className="file-manager">
+                    <h3>节点类型</h3>
+                    <div className="node-types">
+                      {Object.entries(nodeTypeLabels).map(([type, label]) => (
+                        <div
+                          key={type}
+                          className="draggable-file"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('application/carbonflow', label);
+                          }}
+                        >
+                          {label}
+                          <span className="drag-hint">拖拽到画布</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="resizer" onMouseDown={handleResizeStart} role="separator" aria-label="Resize panel">
+                    <div className="resizer-handle" />
+                  </div>
+                </div>
+                <div className="ai-summary-floating-container">
+                  <CarbonFlowAISummary setSelectedNode={setSelectedNode} />
+                </div>
+                <div className="editor-content" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <div className="reactflow-wrapper" style={{ flexGrow: 1, position: 'relative' }}>
+                    <ReactFlow
+                      nodes={nodes}
+                      edges={edges}
+                      onNodesChange={onNodesChange}
+                      onEdgesChange={onEdgesChange}
+                      onConnect={onConnect}
+                      onNodeClick={onNodeClick}
+                      onDragOver={onDragOver}
+                      onDrop={onDrop}
+                      onInit={onInit}
+                      onPaneClick={handlePaneClick}
+                      nodeTypes={nodeTypes}
+                      fitView
+                      minZoom={0.1}
+                      maxZoom={2}
+                      defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+                      onNodeDragStart={handleNodeDragStart}
+                      onNodeDragStop={handleNodeDragStop}
                     >
-                      恢复
-                    </AntButton>,
+                      <Background />
+                      <Controls />
+                      <MiniMap />
+
+                      {selectedNode && (
+                        <Panel position="top-center">
+                          <NodeProperties
+                            node={selectedNode}
+                            selectedNode={selectedNode}
+                            onClose={() => setSelectedNode(null)}
+                            setNodes={setNodes as Dispatch<SetStateAction<Node<NodeData>[]>>}
+                            setSelectedNode={setSelectedNode}
+                            updateAiSummary={() => {
+                              /* Define or pass actual update function if needed */
+                            }}
+                            onUpdate={() => {
+                              /* Placeholder */
+                            }}
+                          />
+                        </Panel>
+                      )}
+                    </ReactFlow>
+                  </div>
+                </div>
+              </div>
+              <Modal
+                title="检查点管理"
+                open={isCheckpointModalVisible}
+                onCancel={() => setIsCheckpointModalVisible(false)}
+                footer={null}
+                width={800}
+                bodyStyle={{
+                  backgroundColor: '#1f1f1f',
+                  color: '#e0e0e0',
+                  padding: '24px',
+                  maxHeight: '70vh',
+                  overflowY: 'auto',
+                }}
+                styles={{
+                  header: {
+                    backgroundColor: '#1f1f1f',
+                    color: '#e0e0e0',
+                    borderBottom: '1px solid #303030',
+                  },
+                  content: {
+                    backgroundColor: '#1f1f1f',
+                  },
+                  mask: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                  },
+                }}
+              >
+                <Row gutter={[16, 16]}>
+                  <Col span={16}>
+                    <Input
+                      placeholder="输入检查点名称"
+                      value={checkpointName}
+                      onChange={(e) => setCheckpointName(e.target.value)}
+                      style={{
+                        backgroundColor: '#2a2a2a',
+                        color: '#e0e0e0',
+                        borderColor: '#444',
+                      }}
+                    />
+                  </Col>
+                  <Col span={8}>
                     <AntButton
-                      key={`export-${item.name}`}
-                      icon={<ExportOutlined />}
-                      onClick={() => handleExportCheckpoint(item.name)}
+                      type="primary"
+                      onClick={handleSaveCheckpoint}
+                      icon={<SaveOutlined />}
+                      block
+                      loading={isSaving}
+                      disabled={isSaving || !checkpointName.trim()}
+                    >
+                      {isSaving ? '保存中...' : '保存当前状态'}
+                    </AntButton>
+                  </Col>
+                </Row>
+
+                <Row gutter={[16, 16]} style={{ marginTop: '20px' }}>
+                  <Col span={8}>
+                    <Upload
+                      accept=".json"
+                      showUploadList={false}
+                      beforeUpload={handleImportAntdUpload}
+                      customRequest={({ onSuccess }) => {
+                        setTimeout(() => {
+                          if (onSuccess) {
+                            onSuccess('ok');
+                          }
+                        }, 0);
+                      }}
+                    >
+                      <AntButton
+                        icon={<UploadOutlined />}
+                        block
+                        style={{
+                          backgroundColor: '#333',
+                          borderColor: '#555',
+                          color: '#e0e0e0',
+                        }}
+                      >
+                        导入检查点
+                      </AntButton>
+                    </Upload>
+                  </Col>
+                  <Col span={8}>
+                    <AntButton
+                      icon={<CloudSyncOutlined />}
+                      onClick={handleSyncCheckpoints}
+                      loading={syncStatus.status === 'pending'}
+                      block
                       style={{
                         backgroundColor: '#333',
                         borderColor: '#555',
                         color: '#e0e0e0',
                       }}
+                      disabled={!supabaseState.isConnected}
                     >
-                      导出
-                    </AntButton>,
+                      {syncStatus.status === 'pending' ? '同步中...' : '同步到云端'}
+                    </AntButton>
+                  </Col>
+                  <Col span={8}>
                     <AntButton
-                      key={`delete-${item.name}`}
-                      icon={<DeleteOutlined />}
-                      onClick={() => handleDeleteCheckpoint(item.name)}
-                      danger
+                      icon={<CloudDownloadOutlined />}
+                      onClick={handleRestoreFromCloud}
+                      loading={syncStatus.status === 'pending'}
+                      block
+                      style={{
+                        backgroundColor: '#333',
+                        borderColor: '#555',
+                        color: '#e0e0e0',
+                      }}
+                      disabled={!supabaseState.isConnected}
                     >
-                      删除
-                    </AntButton>,
-                  ]}
-                >
-                  <List.Item.Meta
-                    title={<span style={{ color: '#e0e0e0' }}>{item.name}</span>}
-                    description={
-                      <span style={{ color: '#aaa' }}>
-                        {new Date(item.timestamp).toLocaleString()}
-                        {item.metadata?.description ? ` - ${item.metadata.description}` : ''}
-                      </span>
-                    }
-                  />
-                </List.Item>
-              )}
-            />
-          </Modal>
+                      {syncStatus.status === 'pending' ? '恢复中...' : '从云端恢复'}
+                    </AntButton>
+                  </Col>
+                </Row>
+
+                <Divider style={{ borderColor: '#444' }} />
+
+                <Typography.Title level={5} style={{ color: '#e0e0e0', marginBottom: '16px' }}>
+                  已保存的检查点
+                </Typography.Title>
+                <List
+                  itemLayout="horizontal"
+                  dataSource={checkpoints}
+                  locale={{ emptyText: <Empty description={<span style={{ color: '#aaa' }}>暂无检查点</span>} /> }}
+                  renderItem={(item: CheckpointMetadata) => (
+                    <List.Item
+                      style={{
+                        backgroundColor: '#2a2a2a',
+                        marginBottom: '8px',
+                        padding: '12px 16px',
+                        borderRadius: '4px',
+                        border: '1px solid #333',
+                      }}
+                      actions={[
+                        <AntButton
+                          key={`restore-${item.name}`}
+                          icon={<HistoryOutlined />}
+                          onClick={() => handleRestoreCheckpoint(item.name)}
+                          type="primary"
+                        >
+                          恢复
+                        </AntButton>,
+                        <AntButton
+                          key={`export-${item.name}`}
+                          icon={<ExportOutlined />}
+                          onClick={() => handleExportCheckpoint(item.name)}
+                          style={{
+                            backgroundColor: '#333',
+                            borderColor: '#555',
+                            color: '#e0e0e0',
+                          }}
+                        >
+                          导出
+                        </AntButton>,
+                        <AntButton
+                          key={`delete-${item.name}`}
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleDeleteCheckpoint(item.name)}
+                          danger
+                        >
+                          删除
+                        </AntButton>,
+                      ]}
+                    >
+                      <List.Item.Meta
+                        title={<span style={{ color: '#e0e0e0' }}>{item.name}</span>}
+                        description={
+                          <span style={{ color: '#aaa' }}>
+                            {new Date(item.timestamp).toLocaleString()}
+                            {item.metadata?.description ? ` - ${item.metadata.description}` : ''}
+                          </span>
+                        }
+                      />
+                    </List.Item>
+                  )}
+                />
+              </Modal>
+            </div>
+          )}
+          {viewMode === 'check' && <DataCheckPanel />}
+          {viewMode === 'analysis' && <VisualizationAnalysis onBack={() => setViewMode('flow')} />}
+          {viewMode === 'report' && <ReportGenerator />}
         </div>
-      )}
-      {viewMode === 'check' && (
-        <div
-          className="carbon-panel-container flex items-center justify-center"
-          style={{ height: '100vh', width: '100%' }}
-        >
-          <div style={{ fontSize: 22, color: '#aaa', textAlign: 'center' }}>数据查验面板开发中...</div>
-        </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 };
 

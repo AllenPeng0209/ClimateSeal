@@ -1,78 +1,91 @@
-import { type ActionFunctionArgs, json } from '@remix-run/node'; // Or cloudflare/deno
-import { createOpenAI } from '@ai-sdk/openai'; // We reuse this client for compatible APIs
-import { type LanguageModelV1 } from 'ai';
+import { type ActionFunctionArgs, json } from '@remix-run/node'; // or @remix-run/cloudflare
+import { parseCsvWithLlmAgent } from '~/lib/agents/csv-parser';
 
-import { parseCsvWithLlmAgent } from '~/lib/agents/csv-parser'; // Adjust path if needed
+/**
+ * Constants for the Aliyun Dashscope LLM configuration.
+ */
+const LLM_PROVIDER_NAME = 'Aliyun';
+const DASHSCOPE_ENDPOINT = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+const DASHSCOPE_MODEL = 'qwen-plus'; // Or your preferred model, e.g., qwen-turbo, qwen-max
 
-// --- IMPORTANT: LLM Instance Configuration for Aliyun Dashscope ---
-// This uses the OpenAI-compatible endpoint for Dashscope.
-// Ensure process.env.DASHSCOPE_API_KEY is set in your environment!
-let llmInstance: LanguageModelV1 | undefined;
-const llmProviderName = 'Aliyun'; // Set provider name
-const dashscopeEndpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1'; // Dashscope OpenAI-compatible endpoint
-const dashscopeModel = 'qwen-plus'; // Example model, adjust if needed (e.g., qwen-turbo, qwen-max)
+/**
+ * Fallback API key - ensure this is a valid key if you rely on this fallback mechanism.
+ * It is strongly recommended to set the API key via .env and bindings.
+ */
+const FALLBACK_DASHSCOPE_API_KEY = 'sk-fa57208fc8184dd89310666789d16faa'; // Replace with your actual fallback or remove if not needed
 
+export async function action({ request, context }: ActionFunctionArgs) {
+  console.log('[API /api/parse-csv Action] Received request.');
 
-try {
-  if (!process.env.DASHSCOPE_API_KEY) {
-    console.warn(
-      'DASHSCOPE_API_KEY environment variable is not set. API route /api/parse-csv might fail.',
-    );
-    // Handle appropriately - maybe assign a dummy/error state or allow proceeding if offline testing
+  // --- BEGIN DETAILED DEBUGGING ---
+  console.log('[API /api/parse-csv Action] Inspecting context.cloudflare.env object:');
+  if (context && context.cloudflare && context.cloudflare.env) {
+    console.log(JSON.stringify(context.cloudflare.env, null, 2));
+    const rawApiKeyFromEnv = context.cloudflare.env.DASHSCOPE_API_KEY;
+    console.log(`[API /api/parse-csv Action] Raw DASHSCOPE_API_KEY from env: "${rawApiKeyFromEnv}"`);
+    console.log(`[API /api/parse-csv Action] Type of DASHSCOPE_API_KEY from env: ${typeof rawApiKeyFromEnv}`);
   } else {
-    // Use createOpenAI but configure it for Dashscope
-    const dashscope = createOpenAI({
-      apiKey: process.env.DASHSCOPE_API_KEY,
-      baseURL: dashscopeEndpoint,
-    });
-
-    llmInstance = dashscope(dashscopeModel);
+    console.log('[API /api/parse-csv Action] context.cloudflare.env is not available.');
   }
-} catch (err) {
-  console.error('Failed to initialize Aliyun LLM instance for /api/parse-csv:', err);
-  // Handle the error appropriately
-}
-// --- End LLM Configuration ---
+  // --- END DETAILED DEBUGGING ---
 
-export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
+    console.warn('[API /api/parse-csv Action] Method not POST. Returning 405.');
     return json({ error: 'Method Not Allowed' }, { status: 405 });
   }
 
-  if (!llmInstance) {
-    console.error(
-      '/api/parse-csv called but LLM Service Not Initialized (API key missing or initialization failed?)',
+  const dashscopeApiKeyFromEnv = context?.cloudflare?.env?.DASHSCOPE_API_KEY as string | undefined;
+  let apiKeyToUse: string | undefined = dashscopeApiKeyFromEnv;
+  const apiKeySource = 'Cloudflare binding (context.cloudflare.env.DASHSCOPE_API_KEY)'; // Made const as it's not reassigned before fallback
+
+  console.log(
+    `[API /api/parse-csv Action] Attempting to use API key from ${apiKeySource}. Value (raw): "${apiKeyToUse}", Type: ${typeof apiKeyToUse}. Fallback will be used if this is empty, null, or undefined.`
+  );
+
+  if (!apiKeyToUse) { // This condition is true for "", null, undefined
+    console.warn(
+      `[API /api/parse-csv Action] DASHSCOPE_API_KEY was not found or was empty via ${apiKeySource}. Value was: "${dashscopeApiKeyFromEnv}". Attempting to use hardcoded fallback key.`,
     );
-    return json({ error: 'LLM Service Not Initialized' }, { status: 500 });
+    apiKeyToUse = FALLBACK_DASHSCOPE_API_KEY;
+    // apiKeySource = 'Hardcoded fallback'; // This line was previously here, uncomment if apiKeySource should reflect fallback status
+
+    if (!apiKeyToUse || apiKeyToUse === 'YOUR_FALLBACK_DASHSCOPE_API_KEY_HERE' || apiKeyToUse.length < 10) {
+      console.error(
+        '[API /api/parse-csv Action] Fallback DASHSCOPE_API_KEY is invalid or a placeholder. LLM service cannot be initialized.',
+      );
+      return json({ error: 'LLM Service Misconfigured: Invalid Fallback API Key' }, { status: 500 });
+    }
+    console.log(`[API /api/parse-csv Action] Now using API key from Hardcoded fallback.`);
   }
 
   try {
-    // Type assertion for payload - assumes client sends { csvContent: string }
-    const payload = await request.json() as { csvContent?: unknown };
+    const payload = (await request.json()) as { csvContent?: unknown };
     const { csvContent } = payload;
 
-    if (!csvContent || typeof csvContent !== 'string') {
+    if (!csvContent || typeof csvContent !== 'string' || csvContent.trim() === '') {
+      console.warn('[API /api/parse-csv Action] Missing or invalid csvContent in request payload.');
       return json({ error: 'Missing or invalid csvContent' }, { status: 400 });
     }
 
-    console.log('[API /api/parse-csv] Received request for CSV parsing using Aliyun.');
-
+    console.log('[API /api/parse-csv Action] Calling parseCsvWithLlmAgent...');
     const parsedItems = await parseCsvWithLlmAgent({
-      llmInstance,
       csvContent,
-      llmProviderName, // Pass the correct provider name
+      llmProviderName: LLM_PROVIDER_NAME,
+      apiKey: apiKeyToUse, 
+      baseURL: DASHSCOPE_ENDPOINT,
+      model: DASHSCOPE_MODEL,
     });
 
-    console.log(`[API /api/parse-csv] Successfully parsed ${parsedItems.length} items using Aliyun.`);
-    // Return the array of CsvParseResultItem objects directly
+    console.log(`[API /api/parse-csv Action] Successfully parsed ${parsedItems.length} items.`);
     return json({ success: true, data: parsedItems });
+
   } catch (error) {
-    console.error('[API /api/parse-csv] Error processing CSV with Aliyun:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error during CSV parsing';
-    // Consider logging the full error stack trace for better debugging
-    // console.error(error);
-    return json({ error: `Failed to parse CSV: ${errorMessage}` }, { status: 500 });
+    console.error('[API /api/parse-csv Action] Error during CSV processing or LLM interaction:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return json(
+      { error: `Failed to parse CSV: ${errorMessage}` },
+      { status: 500 },
+    );
   }
 }
 

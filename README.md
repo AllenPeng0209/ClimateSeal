@@ -238,12 +238,14 @@ This option requires some familiarity with Docker but provides a more isolated e
    npm run dockerbuild
 
    # OR using direct Docker command:
-   docker build . --target climateseals-ai-development
+   docker build . --target climateseals-ai-development -t climateseals-ai:development
+   docker build . --target climateseals-ai-production -t climateseals-ai:prodiction
    ```
 
 2. **Run the Container**:
    ```bash
    docker compose --profile development up
+   docker compose --profile production up
    ```
 
 ## Configuring API Keys and Providers

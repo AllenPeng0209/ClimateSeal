@@ -61,3 +61,4 @@ docs/instructions/Roadmap.md
 *.pem
 
 .cursor
+third_party/*
