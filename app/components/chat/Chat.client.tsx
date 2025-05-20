@@ -557,9 +557,9 @@ export const ChatImpl = memo(
     // 监听右侧面板触发的事件，如因子匹配完成 - 移到append函数定义后
     useEffect(() => {
       const handleCarbonFlowTriggerChat = (event: CustomEvent) => {
-        const { type, matchResults } = event.detail;
+        const { type, matchResults, sceneInfo } = event.detail;
         
-        console.log('[Chat] 收到CarbonFlow触发chat事件:', type, matchResults);
+        console.log('[Chat] 收到CarbonFlow触发chat事件:', type, matchResults, sceneInfo);
         
         if (type === 'factor_match_complete') {
           // 构建一个系统消息，显示因子匹配结果
@@ -580,6 +580,38 @@ export const ChatImpl = memo(
             role: 'assistant',
             content: responseMessage,
           });
+        } else if (type === 'settings_saved') {
+          if (sceneInfo) {
+            const { taskName, productName, lifecycleType, standard, verificationLevel } = sceneInfo;
+            let lifecycleDescription = lifecycleType;
+            if (lifecycleType === 'half') lifecycleDescription = '半生命周期 (摇篮到大门)';
+            if (lifecycleType === 'full') lifecycleDescription = '全生命周期 (摇篮到坟墓)';
+
+            const summaryParts = [];
+            if (taskName) summaryParts.push(`任务："${taskName}"`);
+            if (productName) summaryParts.push(`产品："${productName}"`);
+            if (lifecycleDescription) summaryParts.push(`生命周期范围：${lifecycleDescription}`);
+            if (standard) summaryParts.push(`核算标准：${standard}`);
+            if (verificationLevel) summaryParts.push(`预期核验级别：${verificationLevel}`);
+
+            let responseMessage = '"目标与范围"设置已更新。\n';
+            if (summaryParts.length > 0) {
+              responseMessage += `当前主要设置为：${summaryParts.join('，')}。`;
+            } else {
+              responseMessage += '详细设置已保存，请在面板查看。';
+            }
+            responseMessage += '\n您可以继续进行数据输入或请求AI辅助。';
+
+            append({
+              role: 'assistant',
+              content: responseMessage,
+            });
+          } else {
+            append({
+              role: 'assistant',
+              content: '"目标与范围"设置已保存，但未能获取详细信息'
+            });
+          }
         }
       };
       
