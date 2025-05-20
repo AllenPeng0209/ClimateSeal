@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoSaveOnIdle } from '~/hooks/useAutoSaveOnIdle'; // 新增：導入自動保存 Hook
 import {
   Button,
   Card,
@@ -139,6 +140,55 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const [showMatchResultsModal, setShowMatchResultsModal] = useState(false); // 新增：匹配结果弹窗显示状态
   const [backgroundDataActiveTabKey, setBackgroundDataActiveTabKey] = useState<string>('database'); // Re-add state for active background data tab
   const [isUploading, setIsUploading] = useState(false); // State for upload loading
+
+  const [aiAutofillLoading, setAiAutofillLoading] = useState(false);
+  const [isManualSaving, setIsManualSaving] = useState(false); // 新增：手動保存加載狀態
+
+  // --- 自動保存 --- 
+  const saveCurrentWorkflow = useCarbonFlowStore(state => state.saveCurrentWorkflow);
+
+  useAutoSaveOnIdle({
+    onIdle: () => {
+      if (saveCurrentWorkflow) {
+        console.log('用戶閒置，嘗試自動保存...');
+        saveCurrentWorkflow()
+          .then(() => {
+            message.info('工作流已自動保存！', 2); // 提示持續2秒
+            console.log('自動保存成功。');
+          })
+          .catch((error: any) => {
+            message.error('自動保存失敗，請手動保存。', 3);
+            console.error('自動保存失敗:', error);
+          });
+      } else {
+        console.warn('saveCurrentWorkflow 函數在 store 中不可用，無法自動保存。');
+      }
+    },
+    idleTimeout: 10 * 60 * 1000, // 10 分鐘閒置超時
+  });
+  // --- 結束自動保存 --- 
+
+  // --- 手動保存處理函數 ---
+  const handleManualSave = async () => {
+    if (saveCurrentWorkflow) {
+      setIsManualSaving(true);
+      console.log('手動保存觸發...');
+      try {
+        await saveCurrentWorkflow();
+        message.success('工作流已成功保存！', 2);
+        console.log('手動保存成功。');
+      } catch (error) {
+        message.error('手動保存失敗，請稍後再試或檢查控制台。', 3);
+        console.error('手動保存失敗:', error);
+      } finally {
+        setIsManualSaving(false);
+      }
+    } else {
+      message.warning('保存功能當前不可用。', 3);
+      console.warn('saveCurrentWorkflow 函數在 store 中不可用，無法手動保存。');
+    }
+  };
+  // --- 結束手動保存處理函數 --- // State for upload loading
 
   // States for the new Parse File Modal
   const [parsedEmissionSources, setParsedEmissionSources] = useState<ParsedEmissionSource[]>([]);

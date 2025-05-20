@@ -15,6 +15,7 @@ interface WorkflowActions {
   setWorkflowStatus: (status: string) => void;
   loadWorkflow: (workflow: WorkflowState) => void;
   setProductName: (productName: string) => void;
+  saveCurrentWorkflow: () => Promise<void>; // Added saveCurrentWorkflow
   // getWorkflowState is excluded as getState() serves this purpose for the full store object
 }
 
@@ -121,6 +122,21 @@ export const useCarbonFlowStore = create<CarbonFlowStore>((set, get) => ({
       sceneInfo: { ...state.sceneInfo, productName },
       updatedAt: new Date().toISOString(),
     })),
+
+  saveCurrentWorkflow: async () => {
+    const currentState = get();
+    console.log('Attempting to save workflow:', currentState);
+    // Placeholder for actual save logic to Supabase
+    // Example: await supabase.from('workflows').update(currentState).eq('workflowId', currentState.workflowId);
+    // For now, we'll just simulate a save operation
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log('Workflow save simulated.');
+        set({ updatedAt: new Date().toISOString() });
+        resolve();
+      }, 1000);
+    });
+  },
 
 }));
 
