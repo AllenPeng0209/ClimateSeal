@@ -47,4 +47,5 @@ export interface Workflow {
   conversationHistory?: ConversationThread[]; // Changed to use an array of ConversationThread
   aiTodoSummary?: string; // 新增字段：用于存储AI的当前todo总表
   aiRiskAssessmentResults?: AIRiskItem[]; // New field for AI risk assessment results
+  selectedNodeId?: string | null; // Optional: ID of the currently selected node in the UI
 }

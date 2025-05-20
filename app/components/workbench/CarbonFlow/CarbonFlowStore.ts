@@ -1,9 +1,25 @@
 import { create } from 'zustand';
 import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '~/types/nodes';
-import type { Workflow } from '~/types/workflow';
+import type { Workflow as WorkflowState } from '~/types/workflow';
 import type { SceneInfoType } from '~/types/scene';
 import type { AISummaryReport } from '~/types/aiSummary';
+
+// Define Actions Interface
+interface WorkflowActions {
+  setNodes: (nodes: Node<NodeData>[]) => void;
+  setEdges: (edges: Edge[]) => void;
+  setAiSummary: (aiSummary: AISummaryReport | undefined) => void;
+  setSceneInfo: (sceneInfo: Partial<SceneInfoType> | SceneInfoType) => void;
+  setWorkflowName: (name: string) => void;
+  setWorkflowStatus: (status: string) => void;
+  loadWorkflow: (workflow: WorkflowState) => void;
+  setProductName: (productName: string) => void;
+  // getWorkflowState is excluded as getState() serves this purpose for the full store object
+}
+
+// Define Full Store Type
+export type CarbonFlowStore = WorkflowState & WorkflowActions;
 
 // Helper to generate a simple UUID (for placeholder workflowId)
 function generateUUID() {
@@ -36,7 +52,7 @@ const initialSceneInfo: SceneInfoType = {
   calculationBoundaryFullLifecycle: [],
 };
 
-const initialWorkflowState: Workflow = {
+const initialWorkflowState: WorkflowState = {
   workflowId: generateUUID(),
   nodes: [],
   edges: [],
@@ -63,11 +79,12 @@ const initialWorkflowState: Workflow = {
   conversationHistory: [],
   aiTodoSummary: undefined,
   aiRiskAssessmentResults: [],
+  selectedNodeId: null, // Added for selected node
 };
 initialWorkflowState.sceneInfo.workflowId = initialWorkflowState.workflowId; // Sync workflowId to sceneInfo
 
 // 创建Zustand存储，状态为整个Workflow对象
-export const useCarbonFlowStore = create<Workflow>((set, get) => ({
+export const useCarbonFlowStore = create<CarbonFlowStore>((set, get) => ({
   ...initialWorkflowState,
 
   // Actions to modify parts of the Workflow state
@@ -91,10 +108,11 @@ export const useCarbonFlowStore = create<Workflow>((set, get) => ({
   setWorkflowStatus: (status: string) => set((state) => ({ ...state, status, updatedAt: new Date().toISOString() })),
 
   // Action to replace the entire workflow state, useful for loading a workflow
-  loadWorkflow: (workflow: Workflow) => set(() => ({ ...workflow, updatedAt: new Date().toISOString() })),
+  loadWorkflow: (workflow: WorkflowState) => set(() => ({ ...workflow, updatedAt: new Date().toISOString() })),
 
   // Get the current entire workflow state
-  getWorkflowState: (): Workflow => get(),
+  // getWorkflowState is removed from actions; use useCarbonFlowStore.getState() directly
+  // Or, if a specific getter for only state is needed, it would be more complex to implement dynamically.
 
   // Example of an action that modifies a nested property within sceneInfo
   setProductName: (productName: string) =>
@@ -103,20 +121,20 @@ export const useCarbonFlowStore = create<Workflow>((set, get) => ({
       sceneInfo: { ...state.sceneInfo, productName },
       updatedAt: new Date().toISOString(),
     })),
+
 }));
 
 // 事件发射器
 export const emitCarbonFlowData = () => {
-  const data = useCarbonFlowStore.getState(); // Corrected: getState() returns the Workflow object directly
+  const data = useCarbonFlowStore.getState(); // data is CarbonFlowStore
   const event = new CustomEvent('carbonFlowDataUpdate', { detail: data });
   window.dispatchEvent(event);
-
   return data;
 };
 
 // 订阅CarbonFlow数据更新
-export const subscribeToCarbonFlowData = (callback: (data: Workflow) => void) => {
-  const handleUpdate = (event: CustomEvent<Workflow>) => {
+export const subscribeToCarbonFlowData = (callback: (data: CarbonFlowStore) => void) => {
+  const handleUpdate = (event: CustomEvent<CarbonFlowStore>) => {
     callback(event.detail);
   };
 

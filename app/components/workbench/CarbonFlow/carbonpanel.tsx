@@ -70,6 +70,7 @@ import type {
 import type { Workflow } from '~/types/workflow';
 import moment from 'moment';
 import { convertKeysToSnakeCase } from '~/utils/caseConverter';
+import { CarbonFlowAISummary } from './score/AISummary';
 
 // File types enum based on PRD
 const RawFileTypes = [
@@ -419,15 +420,15 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
         isPublic: workFlow.is_public || false,
         userId: workFlow.user_id || '',
         organizationId: workFlow.organization_id || null,
-        sceneInfo: workFlow.scene_info || { 
-          productName: '', 
-          productDesc: '', 
-          productSpecs: '', 
-          taskName: '', 
-          verificationLevel: 'unverified', 
-          standard: 'ISO 14067', 
-          lifecycleType: 'half', 
-          calculationBoundaryHalfLifecycle: [], 
+        sceneInfo: workFlow.scene_info || {
+          productName: '',
+          productDesc: '',
+          productSpecs: '',
+          taskName: '',
+          verificationLevel: 'unverified',
+          standard: 'ISO 14067',
+          lifecycleType: 'half',
+          calculationBoundaryHalfLifecycle: [],
           calculationBoundaryFullLifecycle: [],
           dataCollectionStartDate: new Date().toISOString(),
           dataCollectionEndDate: new Date().toISOString(),
@@ -3717,6 +3718,17 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           </Col>
         </Row>
       </Modal>
+
+
+      <div style={{ display: 'none' }}>
+        <CarbonFlowAISummary
+          setSelectedNode={(node: Node<NodeData> | null) => {
+            // console.log('AISummary: Node click in CarbonCalculatorPanel, node ID:', node?.id);
+            useCarbonFlowStore.getState().setSelectedNodeId(node?.id ?? null);
+          }}
+        />
+      </div>
+
     </div>
   );
 }
