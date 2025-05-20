@@ -178,20 +178,22 @@ export const ChatImpl = memo(
     } = useChat({
       api: '/api/chat',
       body: (() => {
-        const constructedCarbonFlowData = carbonFlowData
-          ? {
-              nodes: carbonFlowData.nodes,
-              Score: carbonFlowData.aiSummary?.credibilityScore ?? 0,
-              State: carbonFlowData.aiSummary ?? null,
-            }
-          : null;
+        let finalCarbonFlowDataPayload = null;
+
+        if (workflow?.sceneInfo || carbonFlowData) {
+          finalCarbonFlowDataPayload = {
+            State: workflow?.sceneInfo ?? null,
+            nodes: carbonFlowData?.nodes ?? [],
+            Score: carbonFlowData?.aiSummary ?? null,
+          };
+        }
 
         const requestBody = {
           apiKeys,
           files,
           promptId,
           contextOptimization: contextOptimizationEnabled,
-          carbonFlowData: constructedCarbonFlowData,
+          carbonFlowData: finalCarbonFlowDataPayload,
           supabase: {
             isConnected: supabaseConn.isConnected,
             hasSelectedProject: !!selectedProject,
