@@ -5,7 +5,13 @@ import { DeleteOutlined } from '@ant-design/icons';
 import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowStore'; // Adjusted path
 import type { Task } from '~/types/task';
 
-export function TaskProgressCard() {
+// 1. Define props interface
+interface TaskProgressCardProps {
+  className?: string;
+}
+
+// 2. Accept props
+export function TaskProgressCard({ className }: TaskProgressCardProps) {
   const storeTasks = useCarbonFlowStore((state) => state.tasks) || [];
   const toggleTaskStatus = useCarbonFlowStore((state) => state.toggleTaskStatus);
   const deleteTask = useCarbonFlowStore((state) => state.deleteTask);
@@ -50,7 +56,7 @@ export function TaskProgressCard() {
     <Card
       title="当前任务进程"
       size="small"
-      className="flex-grow min-h-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col"
+      className={`flex-grow min-h-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col ${className || ''}`}
       bodyStyle={{ flexGrow: 1, overflow: 'auto', padding: '8px' }}
     >
       <Table

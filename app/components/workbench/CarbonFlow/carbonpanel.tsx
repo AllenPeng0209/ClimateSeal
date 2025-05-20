@@ -2371,8 +2371,12 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   // --- End Columns for Current Task Progress Table ---
 
   return (
-    <div className="flex flex-col h-screen p-4 space-y-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* Added h-screen */}
-      {/* Wrapper for Card Rows to manage height distribution */}
+    <div className="flex flex-row h-screen p-4 space-x-4 bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary"> {/* MODIFIED: flex-row, space-x-4 for new layout */}
+      {/* Left Column: Task Progress */}
+      <div className="w-80 flex-shrink-0 h-full"> {/* Width for TaskProgressCard, e.g., w-80 (320px). Adjust as needed. */}
+        <TaskProgressCard className="h-full flex flex-col" /> {/* TaskProgressCard moved here, takes full height */}
+      </div>
+      {/* Right Column: Main Content Wrapper (Original content from next line will form this panel) */}
       <div className="flex-grow flex flex-col space-y-4 min-h-0">
 
         {/* 2. Upper Row - Fixed proportional height (e.g., 30%) */}
@@ -2484,24 +2488,24 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           </Col>
 
           {/* Model Score and Task Progress Column */}
-          <Col span={10} className="flex flex-col h-full space-y-4"> {/* Changed span to 10 */}
+          <Col span={10} className="flex flex-col h-full"> {/* TaskProgressCard moved, adjusted class for Model Score column */}
             {/* Model Score Card - REVISED STRUCTURE */}
             <Card
               title="模型评分"
               size="small"
-              className="flex-shrink-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30"
+              className="flex-grow flex flex-col bg-bolt-elements-background-depth-1 border border-bolt-primary/30"
               style={{ minHeight: modelScoreCardHeight }} // Apply dynamic height
               bodyStyle={{ display: 'flex', padding: '12px' }} // Removed minHeight from here
             >
               <Row gutter={0} align="middle" className="w-full h-full"> {/* gutter={0} to use padding on Cols for spacing */}
                 {/* Left Column: Overall Score */}
                 <Col span={10} className="text-center flex flex-col justify-center items-center border-r border-bolt-elements-borderColor h-full pr-3"> {/* Added h-full and adjusted padding */}
-                  <div className="text-5xl font-bold text-bolt-elements-textPrimary leading-none mb-1">
+                  <div className="text-6xl font-bold text-bolt-elements-textPrimary leading-none mb-1">
                     {typeof modelScore.credibilityScore === 'number' && !isNaN(modelScore.credibilityScore)
                       ? Math.round(modelScore.credibilityScore)
                       : 0}
                   </div>
-                  <div className="text-xs text-bolt-elements-textSecondary whitespace-nowrap mt-1">
+                  <div className="text-sm text-bolt-elements-textSecondary whitespace-nowrap mt-1">
                     当前可信总分
                   </div>
                 </Col>
@@ -2509,26 +2513,89 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                 {/* Right Column: Sub Scores - Arranged in two rows */}
                 <Col span={14} className="flex flex-col justify-center h-full pl-3"> {/* Added h-full and adjusted padding */}
                   <Row gutter={[8, 4]}> {/* Adjusted vertical gutter to 4 */}
-                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                    <Col span={12} className="text-sm text-bolt-elements-textSecondary">
                       模型完整度: {renderScore(modelScore.completeness)}/100
                     </Col>
-                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                    <Col span={12} className="text-sm text-bolt-elements-textSecondary">
                       因子可追溯性: {renderScore(modelScore.traceability)}/100
                     </Col>
                   </Row>
                   <Row gutter={[8, 4]} className="mt-1"> {/* Adjusted vertical gutter and margin-top */}
-                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                    <Col span={12} className="text-sm text-bolt-elements-textSecondary">
                       质量平衡: {renderScore(modelScore.massBalance)}/100
                     </Col>
-                    <Col span={12} className="text-xs text-bolt-elements-textSecondary">
+                    <Col span={12} className="text-sm text-bolt-elements-textSecondary">
                       数据验证性: {renderScore(modelScore.validation)}/100
                     </Col>
                   </Row>
                 </Col>
+                
               </Row>
             </Card>
-            <TaskProgressCard />
 
+            {/* Key Missing Items Card */}
+            <Card
+              title="关键优化建议"
+              size="small"
+              className="mt-4 flex-shrink-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 h-[200px]"
+              bodyStyle={{ padding: '12px' }}
+            >
+              {(() => {
+                const incompleteModelNodes = aiSummary?.modelCompleteness?.incompleteNodes || [];
+                const incompleteTraceabilityNodes = aiSummary?.dataTraceability?.incompleteNodes || [];
+                
+                // Combine and deduplicate nodes by ID, merging missing fields
+                const allIncompleteMap = new Map<string, { label: string; missingFields: Set<string> }>();
+
+                incompleteModelNodes.forEach(node => {
+                  if (!allIncompleteMap.has(node.id)) {
+                    allIncompleteMap.set(node.id, { label: node.label, missingFields: new Set() });
+                  }
+                  node.missingFields.forEach(field => allIncompleteMap.get(node.id)?.missingFields.add(field));
+                });
+
+                incompleteTraceabilityNodes.forEach(node => {
+                  if (!allIncompleteMap.has(node.id)) {
+                    allIncompleteMap.set(node.id, { label: node.label, missingFields: new Set() });
+                  }
+                  node.missingFields.forEach(field => allIncompleteMap.get(node.id)?.missingFields.add(field));
+                });
+
+                const combinedIncompleteNodes = Array.from(allIncompleteMap.entries()).map(([id, data]) => ({
+                  id,
+                  label: data.label,
+                  missingFields: Array.from(data.missingFields)
+                }));
+
+                if (combinedIncompleteNodes.length === 0) {
+                  return <Empty description="暂无关键优化建议，各项指标良好！" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+                }
+
+                return (
+                  <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                    {combinedIncompleteNodes.map((node) => (
+                      <div key={node.id} className="mb-3 p-2 border border-dashed border-bolt-elements-borderColor rounded">
+                        <Typography.Text strong className="text-bolt-elements-textPrimary">
+                          节点: <Tag color="blue">{node.label}</Tag>
+                        </Typography.Text>
+                        {node.missingFields.length > 0 && (
+                          <div className="mt-1">
+                            <Typography.Text type="secondary" className="text-xs">缺失字段:</Typography.Text>
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {node.missingFields.map((field) => (
+                                <Tag key={field} color="error">
+                                  {field}
+                                </Tag>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </Card>
           </Col>
         </Row>
 
