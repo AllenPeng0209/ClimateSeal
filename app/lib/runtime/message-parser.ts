@@ -12,6 +12,11 @@ import type { NodeData } from '~/types/nodes';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 
+// Type predicate to ensure the action is a FileAction with a filePath
+function isActualFileAction(action: BoltActionData): action is FileAction {
+  return action.type === 'file' && typeof (action as FileAction).filePath === 'string';
+}
+
 const ARTIFACT_TAG_OPEN = '<boltArtifact';
 const ARTIFACT_TAG_CLOSE = '</boltArtifact>';
 const ARTIFACT_ACTION_TAG_OPEN = '<boltAction';
@@ -98,7 +103,7 @@ export class StreamingMessageParser {
         position: 0,
         insideAction: false,
         insideArtifact: false,
-        currentAction: { content: '' },
+        currentAction: { type: 'llm', content: '' }, // Assign a default ActionType
         actionId: 0,
       };
 
@@ -127,9 +132,15 @@ export class StreamingMessageParser {
 
             let content = currentAction.content.trim();
 
-            if ('type' in currentAction && currentAction.type === 'file') {
+            if (isActualFileAction(currentAction)) {
+              // currentAction is narrowed to FileAction here by the type predicate.
+              // Create a new const with the narrowed type for clarity and to help the compiler.
+              const action: FileAction = currentAction;
               // Remove markdown code block syntax if present and file is not markdown
-              if (!currentAction.filePath.endsWith('.md')) {
+              // @ts-expect-error - TypeScript struggles to correctly narrow BoltActionData to FileAction
+              // in this context, despite the isActualFileAction type predicate. The predicate ensures
+              // that 'action' is indeed a FileAction and 'filePath' exists and is a string.
+              if (!action.filePath.endsWith('.md')) {
                 content = cleanoutMarkdownSyntax(content);
                 content = cleanEscapedTags(content);
               }
@@ -154,14 +165,15 @@ export class StreamingMessageParser {
             });
 
             state.insideAction = false;
-            state.currentAction = { content: '' };
+            state.currentAction = { type: 'llm', content: '' }; // Assign a default ActionType
 
             i = closeIndex + ARTIFACT_ACTION_TAG_CLOSE.length;
           } else {
             if ('type' in currentAction && currentAction.type === 'file') {
+              const fileAction = currentAction as FileAction;
               let content = input.slice(i);
 
-              if (!currentAction.filePath.endsWith('.md')) {
+              if (!fileAction.filePath.endsWith('.md')) {
                 content = cleanoutMarkdownSyntax(content);
                 content = cleanEscapedTags(content);
               }
@@ -295,11 +307,11 @@ export class StreamingMessageParser {
 
     return output;
   }
-
-  reset() {
-    this.#messages.clear();
-  }
-
+  
+    reset() {
+      this.#messages.clear();
+    }
+    
   #parseActionTag(input: string, actionOpenIndex: number, actionEndIndex: number) {
     const actionTag = input.slice(actionOpenIndex, actionEndIndex + 1);
 
@@ -341,35 +353,45 @@ export class StreamingMessageParser {
     } else if (actionType === 'carbonflow') {
       const operation = this.#extractAttribute(actionTag, 'operation');
 
-      // 添加更详细的日志，记录完整的 tag 内容
-      console.log(`[PARSER_CARBONFLOW] 开始解析CarbonFlow操作: ${operation}`, {
-        tag: actionTag,
-        tagLength: actionTag.length,
-      });
-
-      if (
-        !operation ||
-        !['create', 'update', 'delete', 'query', 'connect', 'layout', 'calculate'].includes(operation)
-      ) {
-        logger.warn(`Invalid or missing operation for CarbonFlow action: ${operation}`);
-        throw new Error(`Invalid CarbonFlow operation: ${operation}`);
-      }
-
-      (actionAttributes as CarbonFlowAction).operation = operation as
-        | 'create'
-        | 'update'
-        | 'delete'
-        | 'query'
-        | 'connect'
-        | 'layout'
-        | 'calculate';
-
-      // 使用 #parseCarbonFlowOperation 方法解析操作
-      const carbonFlowOperation = this.#parseCarbonFlowOperation(actionTag);
-
+        // 添加更详细的日志，记录完整的 tag 内容
+        console.log(`[PARSER_CARBONFLOW] 开始解析CarbonFlow操作: ${operation}`, {
+          tag: actionTag,
+          tagLength: actionTag.length,
+        });
+  
+        if (
+          !operation ||
+          !['create', 'update', 'delete', 'query', 'connect', 'layout', 'calculate', 'plan'].includes(operation)
+        ) {
+          logger.warn(`Invalid or missing operation for CarbonFlow action: ${operation}`);
+          throw new Error(`Invalid CarbonFlow operation: ${operation}`);
+        }
+  
+        (actionAttributes as CarbonFlowAction).operation = operation as
+          | 'create'
+          | 'update'
+          | 'delete'
+          | 'query'
+          | 'connect'
+          | 'layout'
+          | 'calculate'
+          | 'plan'
+          ;
+  
+        // 使用 #parseCarbonFlowOperation 方法解析操作
+        const carbonFlowOperation = this.#parseCarbonFlowOperation(actionTag);
+  
       if (carbonFlowOperation) {
         // 根据操作类型提取不同属性
-        if (operation === 'create') {
+        if (operation === 'plan') { 
+          const data = this.#extractAttribute(actionTag, 'data');
+
+          console.log(`[PARSER_CARBONFLOW_PLAN] 解析到计划操作:`, {
+            data: carbonFlowOperation.data,
+          });
+          
+          (actionAttributes as CarbonFlowAction).data = carbonFlowOperation.data;
+        } else if (operation === 'create') {
           const position = this.#extractAttribute(actionTag, 'position');
           
           const nodeType = this.#extractAttribute(actionTag, 'nodeType');
@@ -506,6 +528,7 @@ export class StreamingMessageParser {
   }
 
   #parseCarbonFlowOperation(actionTag: string): CarbonFlowAction | null {
+    logger.debug('[CarbonFlowParser] Entering #parseCarbonFlowOperation with actionTag:', actionTag);
     try {
       // 提取必需的属性
       const operation = this.#extractAttribute(actionTag, 'operation');
@@ -515,7 +538,7 @@ export class StreamingMessageParser {
       }
 
       // 验证操作类型
-      const validOperations = ['create', 'update', 'delete', 'query', 'connect', 'layout', 'calculate'];
+      const validOperations = ['create', 'update', 'delete', 'query', 'connect', 'layout', 'calculate', 'plan'];
       if (!validOperations.includes(operation)) {
         logger.warn(`Invalid operation type: ${operation}`);
         return null;
@@ -539,7 +562,16 @@ export class StreamingMessageParser {
       });
 
       // 提取并解析数据
-      let data = this.#extractAttribute(actionTag, 'data');
+      let data: string | undefined;
+      const dataRegex = /data=(['"])([\s\S]*)\1/i; // 贪婪匹配data属性内容
+      const dataMatch = actionTag.match(dataRegex);
+      if (dataMatch && dataMatch[2]) {
+        data = dataMatch[2];
+        logger.debug('[CarbonFlowParser] Raw data string extracted:', data ? data.substring(0, 200) + (data.length > 200 ? '...' : '') : 'undefined');
+        logger.info('Custom greedy data extraction in #parseCarbonFlowOperation succeeded.', { dataLength: data.length, preview: data.substring(0,100) });
+      } else {
+        logger.warn('Custom greedy data extraction for data attribute failed in #parseCarbonFlowOperation. Check tag format.');
+      }
       let parsedData = '{}';
 
       if (data) {
@@ -558,18 +590,21 @@ export class StreamingMessageParser {
             const parsed = JSON.parse(data);
             parsedData = JSON.stringify(parsed);
             
+            logger.debug('[CarbonFlowParser] Successfully parsed data to JSON string:', parsedData ? parsedData.substring(0, 200) + (parsedData.length > 200 ? '...' : '') : 'undefined');
             logger.info('Successfully parsed CarbonFlow data', {
               dataLength: data.length,
               parsedDataLength: parsedData.length
             });
           }
         } catch (error) {
+          logger.debug('[CarbonFlowParser] Data string before failed JSON parse:', typeof data === 'string' ? data.substring(0, 100) + (data.length > 100 ? '...' : '') : 'Non-string data or undefined');
           logger.warn('Failed to parse CarbonFlow data as JSON, using empty object', { 
             error,
             dataPreview: typeof data === 'string' ? data.substring(0, 100) + (data.length > 100 ? '...' : '') : '非字符串数据'
           });
         }
       } else {
+        logger.debug('[CarbonFlowParser] No "data" attribute found or data string was empty.');
         logger.info('No data attribute found in CarbonFlow action');
       }
 
@@ -597,6 +632,7 @@ export class StreamingMessageParser {
       if (description) carbonFlowAction.description = description;
       if (source) carbonFlowAction.source = source;
 
+      logger.debug('[CarbonFlowParser] Constructed CarbonFlowAction object:', carbonFlowAction);
       logger.info('Successfully parsed CarbonFlow operation', { 
         operation,
         hasNodeId: !!nodeId,

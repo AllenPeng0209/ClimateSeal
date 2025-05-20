@@ -5,6 +5,7 @@ import type { Workflow as WorkflowState } from '~/types/workflow';
 import type { SceneInfoType } from '~/types/scene';
 import type { AISummaryReport } from '~/types/aiSummary';
 import type { Task } from '~/types/task'; // Import Task type
+import { v4 as uuidv4 } from 'uuid';
 
 // Define Actions Interface
 interface WorkflowActions {
@@ -23,6 +24,7 @@ interface WorkflowActions {
   updateTask: (taskId: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>) => void;
   toggleTaskStatus: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
+  updateTasksFromPlan: (planData: Record<string, string>) => void; // Added to ensure type compatibility
   // getWorkflowState is excluded as getState() serves this purpose for the full store object
 }
 
@@ -160,6 +162,49 @@ export const useCarbonFlowStore = create<CarbonFlowStore>((set, get) => ({
       tasks: (state.tasks || []).filter((task) => task.id !== taskId),
       updatedAt: new Date().toISOString(),
     })),
+
+  updateTasksFromPlan: (planData: Record<string, string>) => {
+    console.log('[CarbonFlowStore] updateTasksFromPlan called with planData:', JSON.stringify(planData, null, 2));
+    set((state) => {
+      const newTasks = [...(state.tasks || [])]; // 创建当前任务列表的副本，并确保tasks存在
+      const now = new Date().toISOString();
+
+      Object.entries(planData).forEach(([description, statusString]) => {
+        // 将 AI 返回的状态字符串映射到 TaskStatus
+        let taskStatus: 'pending' | 'completed' = 'pending'; // 默认为 pending
+        if (statusString === "以完成" || statusString === "已完成" || statusString.toLowerCase() === "completed") {
+          taskStatus = 'completed';
+        }
+
+        // 检查任务是否已存在 (基于描述)
+        const existingTaskIndex = newTasks.findIndex(task => task.description === description);
+
+        if (existingTaskIndex !== -1) {
+          // 如果任务已存在，更新其状态和 updatedAt
+          newTasks[existingTaskIndex] = {
+            ...newTasks[existingTaskIndex],
+            status: taskStatus,
+            updatedAt: now,
+          };
+        } else {
+          // 如果任务不存在，创建新任务
+          newTasks.push({
+            id: uuidv4(), // 生成唯一 ID
+            description: description,
+            status: taskStatus,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      });
+
+      // 更新 store 中的 tasks 数组
+      console.log('[CarbonFlowStore] Updating tasks from plan:', newTasks);
+      return { ...state, tasks: newTasks, updatedAt: new Date().toISOString() }; // 同时更新工作流的 updatedAt
+    });
+    // 可以在这里触发一次自动保存，如果需要的话
+    // useCarbonFlowStore.getState().saveCurrentWorkflow();
+  },
 
   // Example of an action that modifies a nested property within sceneInfo
   setProductName: (productName: string) =>

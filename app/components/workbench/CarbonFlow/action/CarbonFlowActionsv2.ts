@@ -13,6 +13,10 @@ import type { CsvParseResultItem } from '~/lib/agents/csv-parser';
 import convert from 'convert-units'; // Added import for convert-units
 import { useCarbonFlowStore } from '../CarbonFlowStore'; // Import the store
 
+import type { StoreApi } from 'zustand'; // Import StoreApi
+import type { CarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowStore'; // Keep this for the type definition itself
+
+
 // 定义碳因子匹配结果的返回类型
 type CarbonFactorResult = {
   factor: number; // Should be in kgCO2e / unit
@@ -51,45 +55,62 @@ function safeGet<T extends object, K extends keyof T>(
   return defaultValue;
 }
 
-export interface CarbonFlowActionHandlerProps {
-  carbonFlowStore: typeof useCarbonFlowStore;
-  nodes: Node<NodeData>[];
-  edges: Edge[];
-  setNodes: (nodesOrUpdater: Node<NodeData>[] | ((nodes: Node<NodeData>[]) => Node<NodeData>[])) => void; // Allow functional updates
-  setEdges: (edgesOrUpdater: Edge[] | ((edges: Edge[]) => Edge[])) => void; // Allow functional updates
-}
+
 
 /**
  * CarbonFlow 操作处理器
  * 处理所有 carbonflow 类型的操作，包括增删查改节点和连接
  */
 export class CarbonFlowActionHandler {
+  // Use `typeof useCarbonFlowStore` for the store instance type, which includes getState, setState, etc.
+  // Or, more generically, `StoreApi<CarbonFlowStoreType>` if CarbonFlowStoreType is just the state+actions.
+  // Given useCarbonFlowStore is available, its type is the most accurate.
   private _carbonFlowStore: typeof useCarbonFlowStore;
-  private _nodes: Node<NodeData>[];
-  private _edges: Edge[];
-  private _setNodes: (nodesOrUpdater: Node<NodeData>[] | ((nodes: Node<NodeData>[]) => Node<NodeData>[])) => void;
-  private _setEdges: (edgesOrUpdater: Edge[] | ((edges: Edge[]) => Edge[])) => void;
-
   /*
    * Linter expects private statics to start with _, reverting rename for now.
    * It's a common convention, though not strictly required by JS/TS.
    */
-  private static readonly _nodeWidth = 250;
-  private static readonly _nodeHeight = 150;
+  private static readonly _nodeWidth = 250; // Node width
+  private static readonly _nodeHeight = 150; // Node height
 
-  constructor({ nodes, edges, setNodes, setEdges }: CarbonFlowActionHandlerProps) {
-    this._carbonFlowStore = useCarbonFlowStore;
-    this._nodes = nodes;
-    this._edges = edges;
-    this._setNodes = setNodes;
-    this._setEdges = setEdges;
+  constructor(carbonFlowStore: typeof useCarbonFlowStore) { // Expect the actual store instance (UseBoundStore)
+    this._carbonFlowStore = carbonFlowStore;
+  }
+
+  // Getter for nodes from the store
+  private get _nodes(): Node<NodeData>[] {
+    return this._carbonFlowStore.getState().nodes;
+  }
+
+  // Getter for edges from the store
+  private get _edges(): Edge[] {
+    return this._carbonFlowStore.getState().edges;
+  }
+
+  // Method to call setNodes action on the store
+  private _setNodes(nodesOrUpdater: Node<NodeData>[] | ((currentNodes: Node<NodeData>[]) => Node<NodeData>[])): void {
+    if (typeof nodesOrUpdater === 'function') {
+      const currentNodes = this._carbonFlowStore.getState().nodes;
+      this._carbonFlowStore.getState().setNodes(nodesOrUpdater(currentNodes));
+    } else {
+      this._carbonFlowStore.getState().setNodes(nodesOrUpdater);
+    }
+  }
+
+  // Method to call setEdges action on the store
+  private _setEdges(edgesOrUpdater: Edge[] | ((currentEdges: Edge[]) => Edge[])): void {
+    if (typeof edgesOrUpdater === 'function') {
+      const currentEdges = this._carbonFlowStore.getState().edges;
+      this._carbonFlowStore.getState().setEdges(edgesOrUpdater(currentEdges));
+    } else {
+      this._carbonFlowStore.getState().setEdges(edgesOrUpdater);
+    }
   }
 
   /**
    * 处理 CarbonFlow 操作
    */
   async handleAction(action: CarbonFlowAction): Promise<void> {
-    console.log(`[CarbonFlowActionHandler] Received action:`, JSON.stringify(action, null, 2));
     // 记录CarbonFlow操作到日志
     console.log(`[CARBONFLOW_ACTION] Operation: ${action.operation}`, {
       nodeType: action.nodeType,
@@ -136,15 +157,12 @@ export class CarbonFlowActionHandler {
       'carbon_factor_match',
       'ai_autofill_transport_data',
       'ai_autofill_conversion_data',
-      'plan', // Added 'plan' operation
     ];
 
     if (!validOperations.includes(action.operation)) {
       console.error(`无效的 CarbonFlow 操作类型: ${action.operation}`);
       return;
     }
-
-    console.log(`[DEBUG_HANDLE_ACTION] Passed validOperations check. About to switch on operation: "${action.operation}"`); // Added for debugging
 
     try {
       switch (action.operation) {
@@ -188,138 +206,12 @@ export class CarbonFlowActionHandler {
           // Use type assertion for exhaustive check
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const _exhaustiveCheck: never = action.operation;
-          console.warn(`未知的 CarbonFlow 操作: ${action.operation}`, JSON.stringify(action, null, 2));
+          console.warn(`未知的 CarbonFlow 操作: ${action.operation}`); // Log the unknown operation directly
           break; // Added break statement
         }
       }
     } catch (error) {
       console.error(`处理 CarbonFlow 操作失败: ${action.operation}`, error);
-    }
-  }
-
-  // Removed _parseCsv function
-
-  // Removed _mapCsvRowToNodeData function
-
-  /**
-   * Renamed from _handleBomParser and refactored to call the API and then _handleCreateNode
-   * Make this async as it now calls fetch
-   */
-  private async _handleFileParseAndCreateNodes(action: CarbonFlowAction): Promise<void> {
-    console.log('Handling File Parse action (Calling API)...');
-
-    if (!action.data) {
-      console.error('File Parse 操作缺少 data (file content) 字段');
-      return;
-    }
-    // Предположим, что имя файла передается в action.fileName
-    // You'll need to ensure CarbonFlowAction type and the dispatching logic include fileName
-    const fileNameFromAction = (action as any).fileName || 'unknown_file';
-
-    const fileContent = action.data;
-    console.log('[File Content Provided]:', fileContent.substring(0, 100) + '...');
-
-    let aiResult: CsvParseResultItem[] = [];
-
-    try {
-      const response = await fetch('/api/parse-csv', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ csvContent: fileContent }),
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
-        const errorMessage = 
-          typeof errorBody === 'object' && 
-          errorBody !== null && 
-          'error' in errorBody && 
-          typeof errorBody.error === 'string' 
-            ? errorBody.error 
-            : typeof errorBody === 'object' && 
-              errorBody !== null && 
-              'message' in errorBody && 
-              typeof errorBody.message === 'string' 
-            ? errorBody.message 
-            : response.statusText;
-        throw new Error(`API Error (${response.status}): ${errorMessage}`);
-      }
-
-      const result = (await response.json()) as { success?: boolean; data?: CsvParseResultItem[] };
-
-      if (!result.success || !Array.isArray(result.data)) {
-        throw new Error(`API returned unsuccessful or invalid data: ${JSON.stringify(result)}`);
-      }
-
-      aiResult = result.data;
-      console.log(`[API Response] Received ${aiResult.length} parsed items from backend.`);
-    } catch (error) {
-      console.error('调用 /api/parse-csv 失败:', error);
-      // TODO: Add user feedback (e.g., show an error message to the user)
-      return; // Stop processing if API call fails
-    }
-    console.log('aiResult', aiResult);
-    // --- Process the results from the real API call ---
-    if (aiResult.length === 0) {
-      console.warn('AI parsing (via API) resulted in no nodes.');
-      // TODO: Add user feedback
-      return;
-    }
-
-    console.log(`AI parsed ${aiResult.length} potential nodes. Attempting creation...`);
-    let createdNodeCount = 0;
-    let nodeCreationErrors = 0;
-
-    // Call _handleCreateNode for each item from AI result
-    aiResult.forEach((item) => {
-      // Basic validation (redundant? parseCsvWithLlmAgent should ensure this structure)
-      // Keep it as a safeguard against unexpected API responses
-      if (
-        !item ||
-        typeof item !== 'object' ||
-        !item.nodeType ||
-        typeof item.nodeType !== 'string' ||
-        !item.data ||
-        typeof item.data !== 'object'
-      ) {
-        console.warn(`Skipping invalid item structure from API response:`, item);
-        nodeCreationErrors++;
-        return; // Skip this item
-      }
-
-      // Add parse_from_file_name to the data object
-      const nodeSpecificData = item.data as Record<string, any>;
-      nodeSpecificData.parse_from_file_name = fileNameFromAction;
-
-      try {
-        // Pass nodeType and stringified data to _handleCreateNode
-        this._handleCreateNode({
-          type: 'carbonflow',
-          operation: 'create',
-          nodeType: item.nodeType,
-          data: JSON.stringify(nodeSpecificData), // Pass data (now including filename) received from API
-          // Generate a more descriptive content message
-          content: `Create node from file: ${nodeSpecificData.label || `Unnamed ${item.nodeType}`}`,
-          //log
-        });
-        console.log('item.data with fileName:', nodeSpecificData);
-
-        createdNodeCount++;
-      } catch (createError) {
-        console.error(`Failed to create node for item: ${nodeSpecificData.label || item.nodeType}`, createError, item);
-        nodeCreationErrors++;
-      }
-    });
-
-    console.log(`文件解析和节点创建尝试完成。成功创建: ${createdNodeCount}, 失败: ${nodeCreationErrors}。`);
-    // TODO: Add user feedback about success/failures
-
-    // Optionally trigger layout and calculation after all creation attempts
-    if (createdNodeCount > 0) {
-      this._handleLayout({ type: 'carbonflow', operation: 'layout', content: 'Layout after file parse' });
-      this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Calculate after file parse' });
     }
   }
 
@@ -678,25 +570,31 @@ export class CarbonFlowActionHandler {
         // this._setNodes(updatedNodes); // setNodes is now handled functionally above
         console.log(`成功更新节点: ${action.nodeId}`);
         // Recalculate if relevant data changed
-
-        if (
-          Object.keys(updateData).some((key) =>
-            ['carbonFactor', 'weight', 'energyConsumption', 'transportationDistance', 'lifespan'].includes(key),
-          )
-        ) {
-          this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Recalculate after update' });
+        // Check if any of the relevant keys in updateData were actually part of the node's data and changed
+        const nodeToUpdate = this._nodes.find(n => n.id === action.nodeId);
+        if (nodeToUpdate && typeof nodeToUpdate.data === 'object' && nodeToUpdate.data !== null) {
+            const relevantKeysForCalc = ['carbonFactor', 'weight', 'energyConsumption', 'transportationDistance', 'lifespan', 'quantity', 'activityUnit', 'carbonFactorUnit', 'emissionFactorValue', 'scope3Category', 'conversionFactor'];
+            let triggerRecalculate = false;
+            for (const key of Object.keys(updateData)) {
+                if (relevantKeysForCalc.includes(key)) {
+                    // Compare with original value if needed, or assume any change to these keys requires recalc
+                    // For simplicity, if any of these keys are in updateData, we trigger recalc
+                    triggerRecalculate = true;
+                    break;
+                }
+            }
+            if (triggerRecalculate) {
+                this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Recalculate after node update' });
+            }
+        } else {
+          console.log(`节点 ${action.nodeId} 无需更新或未找到。`);
         }
-      } else {
-        console.log(`节点 ${action.nodeId} 无需更新。`);
-      }
+      } // End of if(updated)
     } catch (error) {
       console.error('更新节点失败:', error);
     }
-  }
+  } // End of _handleUpdateNode
 
-  /**
-   * 删除节点
-   */
   private _handleDeleteNode(action: CarbonFlowAction): void {
     if (!action.nodeId) {
       console.error('删除节点操作缺少 nodeId');
@@ -864,8 +762,8 @@ export class CarbonFlowActionHandler {
   private _applyNormalLayout(): boolean {
     let layoutAppliedReturnFlag = false;
 
-    this._setNodes((currentNodesGlobal) => {
-      const nodesToLayout = currentNodesGlobal;
+    this._setNodes((currentNodes) => {
+      const nodesToLayout = currentNodes;
 
       const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth;
       const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight;
@@ -884,7 +782,7 @@ export class CarbonFlowActionHandler {
       };
       let maxNodesInStage = 0;
 
-      nodesToLayout.forEach((node) => { // Use nodesToLayout
+      nodesToLayout.forEach((node) => {
         const nodeType = node.type as NodeType | 'finalProduct';
         if (nodesByType[nodeType]) {
           nodesByType[nodeType].push(node);
@@ -921,23 +819,23 @@ export class CarbonFlowActionHandler {
       }
 
       const positionedIds = new Set(positionedNodes.map((n) => n.id));
-      nodesToLayout.forEach((node) => { // Ensure all nodes from nodesToLayout are included
+      nodesToLayout.forEach((node) => {
         if (!positionedIds.has(node.id)) {
           positionedNodes.push({ ...node, position: { x: PADDING, y: PADDING } });
         }
       });
-      
+
       let positionsActuallyChanged = false;
       if (nodesToLayout.length !== positionedNodes.length) {
         positionsActuallyChanged = true;
       } else {
-        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        const originalNodePositions = new Map(nodesToLayout.map((n) => [n.id, n.position]));
         for (const updatedNode of positionedNodes) {
-            const originalPos = originalNodePositions.get(updatedNode.id);
-            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
-                positionsActuallyChanged = true;
-                break;
-            }
+          const originalPos = originalNodePositions.get(updatedNode.id);
+          if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+            positionsActuallyChanged = true;
+            break;
+          }
         }
       }
 
@@ -955,8 +853,8 @@ export class CarbonFlowActionHandler {
   private _applyVerticalLayout(): boolean {
     let layoutAppliedReturnFlag = false;
 
-    this._setNodes((currentNodesGlobal) => {
-      const nodesToLayout = currentNodesGlobal;
+    this._setNodes((currentNodes) => {
+      const nodesToLayout = currentNodes;
 
       const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth;
       const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight;
@@ -970,7 +868,7 @@ export class CarbonFlowActionHandler {
       const miscNodes: Node<NodeData>[] = [];
       let maxNodesInRow = 0;
 
-      nodesToLayout.forEach((node) => { // Use nodesToLayout
+      nodesToLayout.forEach((node) => {
         const stage = node.type as string;
         if (stageMap.has(stage)) {
           stageMap.get(stage)?.push(node);
@@ -1006,18 +904,18 @@ export class CarbonFlowActionHandler {
           currentX += NODE_WIDTH + HORIZONTAL_SPACING;
         });
       }
-      
+
       let positionsActuallyChanged = false;
-       if (nodesToLayout.length !== updatedNodesFromLayout.length) {
+      if (nodesToLayout.length !== updatedNodesFromLayout.length) {
         positionsActuallyChanged = true;
       } else {
-        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        const originalNodePositions = new Map(nodesToLayout.map((n) => [n.id, n.position]));
         for (const updatedNode of updatedNodesFromLayout) {
-            const originalPos = originalNodePositions.get(updatedNode.id);
-            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
-                positionsActuallyChanged = true;
-                break;
-            }
+          const originalPos = originalNodePositions.get(updatedNode.id);
+          if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+            positionsActuallyChanged = true;
+            break;
+          }
         }
       }
 
@@ -1035,8 +933,8 @@ export class CarbonFlowActionHandler {
   private _applyHorizontalLayout(): boolean {
     let layoutAppliedReturnFlag = false;
 
-    this._setNodes((currentNodesGlobal) => {
-      const nodesToLayout = currentNodesGlobal;
+    this._setNodes((currentNodes) => {
+      const nodesToLayout = currentNodes;
 
       const NODE_WIDTH = CarbonFlowActionHandler._nodeWidth;
       const NODE_HEIGHT = CarbonFlowActionHandler._nodeHeight;
@@ -1050,7 +948,7 @@ export class CarbonFlowActionHandler {
       const miscNodes: Node<NodeData>[] = [];
       let maxNodesInCol = 0;
 
-      nodesToLayout.forEach((node) => { // Use nodesToLayout
+      nodesToLayout.forEach((node) => {
         const stage = node.type as string;
         if (stageMap.has(stage)) {
           stageMap.get(stage)?.push(node);
@@ -1088,16 +986,17 @@ export class CarbonFlowActionHandler {
       }
 
       let positionsActuallyChanged = false;
+      // Check if positions actually changed compared to nodesToLayout
       if (nodesToLayout.length !== updatedNodesFromLayout.length) {
-        positionsActuallyChanged = true;
+        positionsActuallyChanged = true; // Should not happen if logic is correct
       } else {
-        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        const originalNodePositions = new Map(nodesToLayout.map((n) => [n.id, n.position]));
         for (const updatedNode of updatedNodesFromLayout) {
-            const originalPos = originalNodePositions.get(updatedNode.id);
-            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
-                positionsActuallyChanged = true;
-                break;
-            }
+          const originalPos = originalNodePositions.get(updatedNode.id);
+          if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+            positionsActuallyChanged = true;
+            break;
+          }
         }
       }
 
@@ -1109,14 +1008,15 @@ export class CarbonFlowActionHandler {
       }
       return nodesToLayout;
     });
+
     return layoutAppliedReturnFlag;
   }
 
   private _applyRadialLayout(): boolean {
     let layoutAppliedReturnFlag = false;
 
-    this._setNodes((currentNodesGlobal) => {
-      const nodesToLayout = currentNodesGlobal;
+    this._setNodes((currentNodes) => {
+      const nodesToLayout = currentNodes;
 
       if (nodesToLayout.length <= 1) {
         console.log('Skipping radial layout for 1 or 0 nodes.');
@@ -1146,30 +1046,28 @@ export class CarbonFlowActionHandler {
 
       // Ensure all nodes from nodesToLayout are included if any were missed (e.g. if centerNode logic was complex)
       if (updatedNodesFromLayout.length !== nodesToLayout.length) {
-          const layoutIds = new Set(updatedNodesFromLayout.map(n => n.id));
-          nodesToLayout.forEach(n => {
-              if (!layoutIds.has(n.id)) {
-                  updatedNodesFromLayout.push({...n, position: {x: centerX, y: centerY}}); // Default position for any missed
-              }
-          });
+        const layoutIds = new Set(updatedNodesFromLayout.map((n) => n.id));
+        nodesToLayout.forEach((node) => {
+          if (!layoutIds.has(node.id)) {
+            updatedNodesFromLayout.push({ ...node, position: { x: centerX, y: centerY } }); // Default position for any missed
+          }
+        });
       }
-
 
       let positionsActuallyChanged = false;
       // Check if positions actually changed compared to nodesToLayout
       if (nodesToLayout.length !== updatedNodesFromLayout.length) {
-         positionsActuallyChanged = true; // Should not happen if logic is correct
+        positionsActuallyChanged = true; // Should not happen if logic is correct
       } else {
-        const originalNodePositions = new Map(nodesToLayout.map(n => [n.id, n.position]));
+        const originalNodePositions = new Map(nodesToLayout.map((n) => [n.id, n.position]));
         for (const updatedNode of updatedNodesFromLayout) {
-            const originalPos = originalNodePositions.get(updatedNode.id);
-            if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
-                positionsActuallyChanged = true;
-                break;
-            }
+          const originalPos = originalNodePositions.get(updatedNode.id);
+          if (!originalPos || originalPos.x !== updatedNode.position.x || originalPos.y !== updatedNode.position.y) {
+            positionsActuallyChanged = true;
+            break;
+          }
         }
       }
-
 
       if (positionsActuallyChanged) {
         layoutAppliedReturnFlag = true;
@@ -1246,7 +1144,7 @@ export class CarbonFlowActionHandler {
   private _calculateNodeFootprints(): boolean {
     let overallChanged = false;
 
-    this._setNodes(currentNodes => {
+    this._setNodes((currentNodes) => {
       let changedInThisUpdate = false;
       const updatedNodes = currentNodes.map((node) => {
         if (node.type === 'finalProduct') {
@@ -1709,6 +1607,117 @@ export class CarbonFlowActionHandler {
   }
 
   /**
+   * Renamed from _handleBomParser and refactored to call the API and then _handleCreateNode
+   * Make this async as it now calls fetch
+   */
+  private async _handleFileParseAndCreateNodes(action: CarbonFlowAction): Promise<void> {
+    console.log('Handling File Parse action (Calling API)...');
+
+    if (!action.data) {
+      console.error('File Parse 操作缺少 data (file content) 字段');
+      return;
+    }
+    const fileNameFromAction = (action as any).fileName || 'unknown_file';
+
+    const fileContent = action.data;
+    console.log('[File Content Provided]:', fileContent.substring(0, 100) + '...');
+
+    let aiResult: CsvParseResultItem[] = [];
+
+    try {
+      const response = await fetch('/api/parse-csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ csvContent: fileContent }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+        const errorMessage = 
+          typeof errorBody === 'object' && 
+          errorBody !== null && 
+          'error' in errorBody && 
+          typeof errorBody.error === 'string' 
+            ? errorBody.error 
+            : typeof errorBody === 'object' && 
+              errorBody !== null && 
+              'message' in errorBody && 
+              typeof errorBody.message === 'string' 
+            ? errorBody.message 
+            : response.statusText;
+        throw new Error(`API Error (${response.status}): ${errorMessage}`);
+      }
+
+      const result = (await response.json()) as { success?: boolean; data?: CsvParseResultItem[] };
+
+      if (!result.success || !Array.isArray(result.data)) {
+        throw new Error(`API returned unsuccessful or invalid data: ${JSON.stringify(result)}`);
+      }
+
+      aiResult = result.data;
+      console.log(`[API Response] Received ${aiResult.length} parsed items from backend.`);
+    } catch (error) {
+      console.error('调用 /api/parse-csv 失败:', error);
+      return; 
+    }
+    console.log('aiResult', aiResult);
+    if (aiResult.length === 0) {
+      console.warn('AI parsing (via API) resulted in no nodes.');
+      return;
+    }
+
+    console.log(`AI parsed ${aiResult.length} potential nodes. Attempting creation...`);
+    let createdNodeCount = 0;
+    let nodeCreationErrors = 0;
+
+    aiResult.forEach((item) => {
+      if (
+        !item ||
+        typeof item !== 'object' ||
+        !item.nodeType ||
+        typeof item.nodeType !== 'string' ||
+        !item.data ||
+        typeof item.data !== 'object'
+      ) {
+        console.warn(`Skipping invalid item structure from API response:`, item);
+        nodeCreationErrors++;
+        return; 
+      }
+
+      const nodeSpecificData = item.data as Record<string, any>;
+      nodeSpecificData.parse_from_file_name = fileNameFromAction;
+
+      try {
+        this._handleCreateNode({
+          type: 'carbonflow',
+          operation: 'create',
+          nodeType: item.nodeType,
+          data: JSON.stringify(nodeSpecificData), 
+          content: `Create node from file: ${nodeSpecificData.label || `Unnamed ${item.nodeType}`}`,
+        });
+        console.log('item.data with fileName:', nodeSpecificData);
+        createdNodeCount++;
+      } catch (createError) {
+        console.error(`Failed to create node for item: ${nodeSpecificData.label || item.nodeType}`, createError, item);
+        nodeCreationErrors++;
+      }
+    });
+
+    console.log(`文件解析和节点创建尝试完成。成功创建: ${createdNodeCount}, 失败: ${nodeCreationErrors}。`);
+
+    if (createdNodeCount > 0) {
+      this._handleLayout({ type: 'carbonflow', operation: 'layout', content: 'Layout after file parse' });
+      this._handleCalculate({ type: 'carbonflow', operation: 'calculate', content: 'Calculate after file parse' });
+    }
+  }
+
+  /**
+   * AI一键补全运输数据
+   * @param action CarbonFlowAction，需包含 nodeId（逗号分隔的id字符串）
+   */
+  /**
    * 更新边 (Ensures edges are valid after node changes)
    * This method is now an internal helper called by layout methods within their setNodes callback.
    * It directly triggers a functional update on edges.
@@ -1738,19 +1747,6 @@ export class CarbonFlowActionHandler {
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private _checkRequiredFields(node: Node<NodeData>): boolean {
-    /*
-     * Example placeholder check: ensure label and carbon factor exist
-     * if (!node.data.label || node.data.carbonFactor === undefined) {
-     *
-     *   return false;
-     *
-     * }
-     *
-     * // Add more checks based on node.type using type guards if possible
-     *
-     * // switch(node.type) { case 'product': if (!(node.data as ProductNodeData).weight) return false; ... }
-     *
-     */
     return true;
   }
 
@@ -1815,8 +1811,6 @@ export class CarbonFlowActionHandler {
       'us gallon': 'gal',
       'uk gallon': 'galUK', // Imperial gallon
       'imperial gallon': 'galUK',
-
-      // Add other units as needed
     };
 
     return unitMap[normalizedUnit] || normalizedUnit; // Return mapped or original if not in map
@@ -1856,9 +1850,7 @@ export class CarbonFlowActionHandler {
     }
 
     try {
-      // Ensure 'convert' is available in the scope (e.g., imported at the top of the file)
-      // import convert from 'convert-units'; // This line is now at the top of the file
-      const multiplier = convert(1).from(sUnit as any).to(tUnit as any); // Use 'as any' if types are tricky with convert-units
+      const multiplier = convert(1).from(sUnit as any).to(tUnit as any); 
       
       if (typeof multiplier === 'number' && !isNaN(multiplier)) {
         return multiplier;
@@ -1971,9 +1963,10 @@ export class CarbonFlowActionHandler {
     }
   }
 
-
-
-
+  /**
+   * AI一键补全转换数据
+   * @param action CarbonFlowAction，需包含 nodeId（逗号分隔的id字符串）
+   */
   private async _handleAIAutoFillConversionData(action: CarbonFlowAction): Promise<void> {
     if (!action.nodeId) {
       console.warn('AI AutoFill Conversion Data: 操作中缺少 nodeId。');
@@ -2122,51 +2115,9 @@ export class CarbonFlowActionHandler {
   } 
 
   private async _handlePlan(action: CarbonFlowAction) {
+    // TODO: 实现计划操作
     console.log('Handling Plan action:', action);
-
-    if (typeof action.data === 'string') {
-      try {
-        const parsedData = JSON.parse(action.data);
-
-        // Check if the parsed data is the expected Record<string, string> format
-        if (typeof parsedData === 'object' && parsedData !== null && !Array.isArray(parsedData)) {
-          const planDataForStore: Record<string, string> = {};
-          let isValidPlanData = true;
-          for (const key in parsedData) {
-            if (Object.prototype.hasOwnProperty.call(parsedData, key) && typeof parsedData[key] === 'string') {
-              planDataForStore[key] = parsedData[key];
-            } else {
-              console.warn(`[CarbonFlowActions._handlePlan] Plan data for key "${key}" is not a string:`, parsedData[key]);
-              // Optionally, mark as invalid or skip this entry
-              // isValidPlanData = false;
-              // break;
-            }
-          }
-
-          if (isValidPlanData && Object.keys(planDataForStore).length > 0) {
-            this._carbonFlowStore.getState().updateTasksFromPlan(planDataForStore);
-            console.log('[CarbonFlowActions._handlePlan] Successfully called updateTasksFromPlan with:', planDataForStore);
-          } else if (!isValidPlanData) {
-            console.error('[CarbonFlowActions._handlePlan] Parsed plan data values are not all strings, cannot call updateTasksFromPlan:', parsedData);
-          } else {
-            console.warn('[CarbonFlowActions._handlePlan] Parsed plan data is empty or not in the expected Record<string, string> format after filtering:', parsedData);
-            // Optionally clear tasks or log an error
-            // this._carbonFlowStore.getState().setTasks([]); 
-          }
-
-        } else {
-          console.error('[CarbonFlowActions._handlePlan] Parsed plan data is not a Record<string, string> object:', parsedData);
-          // this._carbonFlowStore.getState().setTasks([]); 
-        }
-      } catch (error) {
-        console.error('[CarbonFlowActions._handlePlan] Failed to parse plan data string:', error, "Data string was:", action.data);
-        // this._carbonFlowStore.getState().setTasks([]);
-      }
-    } else {
-      console.error('[CarbonFlowActions._handlePlan] Plan data is not a string (unexpected):', action.data);
-      // this._carbonFlowStore.getState().setTasks([]);
-    }
-    // The original 'return;' is not strictly necessary for an async void function if it's the last statement.
+    return;
   } 
 
 }

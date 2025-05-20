@@ -145,6 +145,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.485.0",
     "mime": "^4.0.4",
+    "moment": "^2.29.4",
     "nanostores": "^0.10.3",
     "node-fetch": "^3.3.2",
     "ollama-ai-provider": "^0.15.2",
@@ -175,10 +176,10 @@
     "shiki": "^1.24.0",
     "tailwind-merge": "^2.6.0",
     "unist-util-visit": "^5.0.0",
+    "uuid": "^11.1.0",
     "xlsx": "^0.18.5",
     "zod": "^3.24.3",
-    "zustand": "^5.0.3",
-    "moment": "^2.29.4"
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@blitz/eslint-plugin": "0.1.0",

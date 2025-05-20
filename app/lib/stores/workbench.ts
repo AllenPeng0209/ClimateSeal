@@ -18,6 +18,9 @@ import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
 import { createSampler } from '~/utils/sampler';
 import type { ActionAlert, SupabaseAlert } from '~/types/actions';
+import { createScopedLogger } from '~/utils/logger';
+
+const logger = createScopedLogger('WorkbenchStore');
 
 const { saveAs } = fileSaver;
 
@@ -454,6 +457,10 @@ export class WorkbenchStore {
   }
 
   runAction(data: ActionCallbackData, isStreaming: boolean = false) {
+    logger.debug(`[WorkbenchStore] runAction called. Action Type: ${data.action.type}, Action ID: ${data.actionId}, Streaming: ${isStreaming}`);
+    if (data.action.type === 'carbonflow') {
+      logger.debug(`[WorkbenchStore] CarbonFlow action received in runAction. Details:`, data);
+    }
     if (isStreaming) {
       this.actionStreamSampler(data, isStreaming);
     } else {
@@ -461,6 +468,13 @@ export class WorkbenchStore {
     }
   }
   async _runAction(data: ActionCallbackData, isStreaming: boolean = false) {
+    logger.debug(`[WorkbenchStore] _runAction called. Action Type: ${data.action.type}, Action ID: ${data.actionId}, Streaming: ${isStreaming}`);
+    if (data.action.type === 'carbonflow') {
+      logger.debug(`[WorkbenchStore] CarbonFlow action being processed in _runAction. Details:`, data);
+    }
+    console.log('CarbonFlow action being processed in _runAction. Details:', data);
+
+
     const { messageId } = data;
 
     const artifact = this.#getArtifact(messageId);
@@ -500,6 +514,7 @@ export class WorkbenchStore {
         this.resetAllFileModifications();
       }
     } else {
+      console.log('Running non-file action:', data);
       await artifact.runner.runAction(data);
     }
   }

@@ -2,6 +2,7 @@
 // 用于连接大模型输出的CarbonFlow操作与CarbonFlow组件
 
 import type { CarbonFlowAction } from '~/types/actions';
+import type { ActionCallbackData } from '~/lib/runtime/message-parser';
 import { ActionRunner } from '~/lib/runtime/action-runner';
 
 /**
@@ -14,8 +15,8 @@ import { ActionRunner } from '~/lib/runtime/action-runner';
  */
 export class CarbonFlowBridge {
   private static instance: CarbonFlowBridge;
-  private actionRunner: ActionRunner | null = null;
   private initialized: boolean = false;
+  private static extendedActionRunnerPrototype = false; // 防止重复修改原型
 
   /**
    * 获取单例实例
@@ -30,49 +31,63 @@ export class CarbonFlowBridge {
   /**
    * 初始化桥接器
    */
-  public initialize(actionRunner: ActionRunner): void {
+  public initialize(): void { // 不再需要 actionRunnerInstance 参数
+    console.log('[CarbonFlowBridge.initialize] Attempting to initialize...');
     if (this.initialized) {
-      console.warn('CarbonFlow桥接器已经初始化');
+      console.warn('CarbonFlow桥接器实例已经初始化，跳过。');
       return;
     }
 
-    this.actionRunner = actionRunner;
+    this.extendActionRunnerPrototype(); // 修改原型
+    this.setupEventListeners(); // 设置事件监听器
+
     this.initialized = true;
-
-    // 修改ActionRunner的runAction方法，增加对CarbonFlow操作的支持
-    this.extendActionRunner();
-
-    // 添加全局事件监听
-    this.setupEventListeners();
-
-    console.log('[CarbonFlowBridge] 初始化完成');
+    console.log('[CarbonFlowBridge.initialize] Initialization complete, ActionRunner.prototype extended, event listeners set up.');
   }
 
   /**
-   * 扩展ActionRunner，添加对CarbonFlow操作的处理
+   * 扩展ActionRunner.prototype，添加对CarbonFlow操作的处理
    */
-  private extendActionRunner(): void {
-    if (!this.actionRunner) {
-      console.error('ActionRunner未初始化');
+  private extendActionRunnerPrototype(): void {
+    if (CarbonFlowBridge.extendedActionRunnerPrototype) {
+      console.log('[CarbonFlowBridge.extendActionRunnerPrototype] ActionRunner.prototype 已经扩展过，跳过。');
       return;
     }
+    console.log('[CarbonFlowBridge.extendActionRunnerPrototype] Extending ActionRunner.prototype...');
 
-    // 保存原始runAction方法的引用
-    const originalRunAction = this.actionRunner.runAction.bind(this.actionRunner);
+    const originalRunAction = ActionRunner.prototype.runAction;
 
-    // 重写runAction方法，添加对CarbonFlow操作的支持
-    this.actionRunner.runAction = async (data, isStreaming = false) => {
-      const { action } = data;
+    ActionRunner.prototype.runAction = async function(
+        this: ActionRunner, // 确保 this 指向 ActionRunner 实例
+        data: ActionCallbackData, // 修改参数类型
+        isStreaming = false
+    ) {
+      // 尝试从 data.action 获取，如果不存在，则从 ActionRunner 的内部存储中获取
+      // this.actions 是 ActionRunner 实例的属性
+      const actionToProcess = data.action ?? this.actions.get()[data.actionId]; 
+      const actionId = data.actionId;
 
-      // 如果是CarbonFlow操作，分发到CarbonFlow组件
-      if (action.type === 'carbonflow') {
-        this.dispatchCarbonFlowAction(action as CarbonFlowAction);
-        return;
+      console.log(`[CarbonFlowBridge - Patched runAction] 处理 Action ID: ${actionId}, Type: ${actionToProcess?.type}, Streaming: ${isStreaming}`, actionToProcess);
+
+      if (!actionToProcess) {
+        console.error(`[CarbonFlowBridge - Patched runAction] Action not found in data or store for actionId: ${actionId}. Calling original ActionRunner.runAction.`);
+        return originalRunAction.call(this, data, isStreaming); 
       }
 
-      // 其他类型的操作，使用原始方法处理
-      return originalRunAction(data, isStreaming);
+      if (actionToProcess.type === 'carbonflow') {
+        console.log('[CarbonFlowBridge - Patched runAction] 检测到 CarbonFlow action:', actionToProcess);
+        // 调用 CarbonFlowBridge 实例的方法来分发事件
+        CarbonFlowBridge.getInstance().dispatchCarbonFlowAction(actionToProcess as CarbonFlowAction);
+        // CarbonFlow action 分发后，仍然继续调用原始的 runAction 以处理通用逻辑 (如状态更新)
+      }
+
+      // 调用原始的 runAction 逻辑
+      // 这里的 this 已经是 ActionRunner 实例
+      return originalRunAction.call(this, data, isStreaming);
     };
+
+    CarbonFlowBridge.extendedActionRunnerPrototype = true;
+    console.log('[CarbonFlowBridge.extendActionRunnerPrototype] ActionRunner.prototype.runAction 已被覆盖');
   }
 
   /**
@@ -92,9 +107,13 @@ export class CarbonFlowBridge {
       traceId: `cf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     };
 
-    // 创建自定义事件并分发
-    const event = new CustomEvent('carbonflow-action', { detail: enrichedAction });
-    window.dispatchEvent(event);
+    // 创建自定义事件并分发到 window，或者特定组件
+    // 如果你的 CarbonFlow 组件直接监听 window 事件，则 window.dispatchEvent(event) 是可以的
+    // 如果 CarbonFlow 组件是 DOM 中的一个特定元素，并且你想更精确地定位事件，可以考虑：
+    // const component = document.querySelector('carbon-flow-component'); // 假设这是你的组件的选择器
+    // if (component) { component.dispatchEvent(event); } else { console.error('CarbonFlow component not found for event dispatch'); }
+    const event = new CustomEvent('carbonflow-action', { detail: enrichedAction, bubbles: true, composed: true });
+    window.dispatchEvent(event); // 继续使用 window dispatch，假设组件能监听到
   }
 
   /**

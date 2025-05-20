@@ -74,6 +74,7 @@ import type {
 } from '~/types/nodes';
 import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlow/CarbonFlowStore';
 import { supabase } from '~/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 // import { CarbonCalculatorPanelClient } from './CarbonFlow/panel';
 import { CarbonCalculatorPanelClient } from './CarbonFlow/carbonpanel';
 import { CarbonFlowAISummary } from './CarbonFlow/score/AISummary';
@@ -215,26 +216,46 @@ const CarbonFlowInner = () => {
       edges,
       setNodes,
       setEdges,
+      carbonFlowStore: useCarbonFlowStore,
     });
     setActionHandler(handler);
-  }, [nodes, edges, setNodes, setEdges]);
+  }, [nodes, edges, setNodes, setEdges, useCarbonFlowStore]);
 
   useEffect(() => {
+    console.log('[CarbonFlow.tsx] Setting up event listeners for carbonflow-action events');
     if (!actionHandler) {
       return;
     }
 
     const handleActionEvent = (event: Event) => {
       const customEvent = event as CustomEvent;
-      const actualAction = customEvent.detail.action as CarbonFlowAction & { traceId?: string };
+      const actualAction = customEvent.detail as CarbonFlowAction & { traceId?: string };
 
-      if (actualAction && typeof actualAction === 'object' && actualAction.type) {
-        actionHandler.handleAction(actualAction);
+      console.log('[CarbonFlow.tsx] Received carbonflow-action event:', JSON.stringify(actualAction, null, 2));
+
+      if (actualAction && actualAction.type === 'carbonflow') {
+        console.log('[CarbonFlow.tsx] Processing CarbonFlowAction:', JSON.stringify(actualAction, null, 2));
+        if (actualAction.data) {
+          try {
+            const parsedData = JSON.parse(actualAction.data);
+            console.log('[CarbonFlow.tsx] Parsed data from CarbonFlowAction:', JSON.stringify(parsedData, null, 2));
+          } catch (e) {
+            console.error('[CarbonFlow.tsx] Failed to parse data from CarbonFlowAction:', actualAction.data, e);
+          }
+        }
+
+        if (actionHandler) {
+          console.log('[CarbonFlow.tsx] Calling actionHandler.handle for operation:', actualAction.operation);
+          actionHandler.handleAction(actualAction);
+          console.log('[CarbonFlow.tsx] Returned from actionHandler.handle for operation:', actualAction.operation);
+        } else {
+          console.warn('[CarbonFlow.tsx] actionHandler is not initialized.');
+        }
 
         window.dispatchEvent(
           new CustomEvent('carbonflow-action-result', {
             detail: { success: true, traceId: actualAction.traceId, nodeId: actualAction.nodeId },
-          }),
+          })
         );
       }
     };
@@ -265,7 +286,7 @@ const CarbonFlowInner = () => {
         (window as any).carbonFlowInitialized = false;
       }
     };
-  }, [actionHandler]);
+  }, [actionHandler, useCarbonFlowStore]);
 
   const onConnect: OnConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
 
@@ -299,9 +320,12 @@ const CarbonFlowInner = () => {
       });
 
       const newNodeId = `${type}-${Date.now()}`;
+      const dbNodeId = uuidv4(); // Generate a UUID for the database ID
+      const currentWorkflowId = useCarbonFlowStore.getState().workflowId || '';
       const baseData: Partial<NodeData> &
         Pick<
           NodeData,
+          // id, workflowId, nodeId are directly initialized below, not part of this Pick
           | 'label'
           | 'nodeName'
           | 'lifecycleStage'
@@ -311,16 +335,14 @@ const CarbonFlowInner = () => {
           | 'activitydataSource'
           | 'carbonFootprint'
           | 'unitConversion'
-          | 'emissionFactor'
-          | 'calculationMethod'
           | 'verificationStatus'
-          | 'applicableStandard'
-          | 'completionStatus'
           | 'carbonFactorName'
           | 'activityScorelevel'
           | 'carbonFactordataSource'
-          | 'certificationMaterials'
         > = {
+        id: dbNodeId, // Database primary key
+        workflowId: currentWorkflowId, // Foreign key to workflow
+        nodeId: newNodeId, // React Flow node ID
         label: `新 ${nodeTypeLabels[type]} 节点`,
         nodeName: `${type}_${Date.now()}`,
         lifecycleStage: type,
@@ -330,15 +352,10 @@ const CarbonFlowInner = () => {
         activitydataSource: 'default',
         carbonFootprint: '0',
         unitConversion: '1',
-        emissionFactor: '',
-        calculationMethod: '',
         verificationStatus: '未验证',
-        applicableStandard: '',
-        completionStatus: '未完成',
         carbonFactorName: '',
         activityScorelevel: '',
         carbonFactordataSource: '',
-        certificationMaterials: '',
       };
 
       let specificData: NodeData;
@@ -369,10 +386,21 @@ const CarbonFlowInner = () => {
         specificData = {
           ...baseData,
           nodeType: 'distribution',
-          distribution_start_point: '',
-          distribution_end_point: '',
-          transportation_mode: '',
-          transportation_distance: '0',
+          transportationMode: '', // Corrected name
+          transportationDistance: 0, // Corrected type to number
+          // Removed distribution_start_point, distribution_end_point as they don't exist in DistributionNodeData
+          // Add other valid DistributionNodeData fields as needed with default values
+          vehicleType: '',
+          fuelType: '',
+          fuelEfficiency: 0,
+          loadFactor: 0,
+          refrigeration: false,
+          packagingMaterial: '',
+          packagingWeight: 0,
+          warehouseEnergy: 0,
+          storageTime: 0,
+          storageConditions: '',
+          distributionNetwork: ''
         } as DistributionNodeData;
       } else if (type === 'usage') {
         specificData = {
@@ -386,24 +414,21 @@ const CarbonFlowInner = () => {
         specificData = {
           ...baseData,
           nodeType: 'disposal',
-          disposal_method: '',
-          recycling_rate: 0,
-          landfill_gas_recovery_rate: 0,
-          incineration_with_energy_recovery_rate: 0,
-          compostingRate: 0,
-          otherDisposalRate: 0,
-          disposalEmissionFactor: 0,
-          disposalQuantity: 0,
-          disposalCarbonFootprint: 0,
-          disposalVerificationStatus: '未验证',
-          disposalApplicableStandard: '',
-          disposalCompletionStatus: '未完成',
-          disposalEmissionFactorName: '',
-          disposalCalculationMethod: '',
-          disposalActivitydataSource: '',
-          disposalActivityScorelevel: '',
-          disposalUnitConversion: 1,
-          disposalEmissionFactorQuality: 0,
+          disposalMethod: '', // Corrected name
+          recyclingRate: 0, // Corrected name and type
+          // Corrected fields based on DisposalNodeData definition in nodes.ts
+          landfillPercentage: 0,
+          incinerationPercentage: 0,
+          compostPercentage: 0,
+          reusePercentage: 0,
+          hazardousWasteContent: 0,
+          biodegradability: 0,
+          disposalEnergyRecovery: 0,
+          transportToDisposal: 0,
+          endOfLifeTreatment: '',
+          recyclingEfficiency: 0,
+          dismantlingDifficulty: ''
+          // Removed fields not present in DisposalNodeData like landfill_gas_recovery_rate, incineration_with_energy_recovery_rate etc.
         } as DisposalNodeData;
       } else if (type === 'finalProduct') {
         specificData = {

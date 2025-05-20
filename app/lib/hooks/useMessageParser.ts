@@ -30,11 +30,15 @@ const messageParser = new StreamingMessageParser({
     onActionClose: (data) => {
       logger.trace('onActionClose', data.action);
 
-      if (data.action.type !== 'file') {
+      if (data.action.type === 'carbonflow') {
+        logger.debug('[useMessageParser] CarbonFlow action received in onActionClose. Adding to store:', data);
         workbenchStore.addAction(data);
+        logger.debug('[useMessageParser] Running CarbonFlow action via workbenchStore.runAction:', data);
+        workbenchStore.runAction(data);
+      } else if (data.action.type !== 'file') {
+        workbenchStore.addAction(data);
+        workbenchStore.runAction(data);
       }
-
-      workbenchStore.runAction(data);
     },
     onActionStream: (data) => {
       logger.trace('onActionStream', data.action);

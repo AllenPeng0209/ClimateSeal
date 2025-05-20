@@ -115,6 +115,7 @@ export class ActionRunner {
   }
 
   async runAction(data: ActionCallbackData, isStreaming: boolean = false) {
+    logger.info(`[ActionRunner.runAction] Called with actionId: ${data.actionId}, isStreaming: ${isStreaming}`);
     const { actionId } = data;
     const action = this.actions.get()[actionId];
 
@@ -145,8 +146,14 @@ export class ActionRunner {
     return;
   }
 
-  async #executeAction(actionId: string, isStreaming: boolean = false) {
-    const action = this.actions.get()[actionId];
+  async #executeAction(actionId: string, isStreaming: boolean) {
+    const action = this.actions.get()[actionId]; // Get the action details
+    if (action) {
+      logger.info(`[ActionRunner.#executeAction] Executing actionId: ${actionId}, type: ${action.type}`);
+    } else {
+      logger.warn(`[ActionRunner.#executeAction] Action not found for actionId: ${actionId} when trying to log.`);
+      return; // or handle error appropriately
+    }
 
     this.#updateAction(actionId, { status: 'running' });
 
@@ -176,6 +183,8 @@ export class ActionRunner {
           break;
         }
         case 'carbonflow': {
+          logger.info(`[ActionRunner.#executeAction] Processing carbonflow action: ${actionId}`, action);
+          // Existing CarbonFlow logic follows
           try {
             // 直接处理CarbonFlow操作，无需更新action状态
             if (typeof window !== 'undefined') {
@@ -363,9 +372,36 @@ export class ActionRunner {
   }
 
   #updateAction(id: string, newState: ActionStateUpdate) {
-    const actions = this.actions.get();
+    const currentAction = this.actions.get()[id];
+    if (!currentAction) {
+      logger.error(`[ActionRunner.#updateAction] Action with id ${id} not found.`);
+      return;
+    }
 
-    this.actions.setKey(id, { ...actions[id], ...newState });
+    // Start with the current action, then overlay the new state.
+    let updatedActionProperties: any = { ...currentAction, ...newState };
+
+    // Ensure the 'error' property is correctly handled based on the status.
+    if (updatedActionProperties.status === 'failed') {
+      // If status is 'failed', 'error' must be present.
+      // newState (if it set status to 'failed') should provide 'error'.
+      // If newState didn't set status to 'failed' but currentAction was already 'failed',
+      // and newState doesn't change 'error', currentAction.error is preserved.
+      if (typeof updatedActionProperties.error !== 'string') {
+        logger.warn(`[ActionRunner.#updateAction] Action ${id} has status 'failed' but 'error' is not a string. Assigning default error.`);
+        updatedActionProperties.error = (newState as any).error || 'Unknown error during failed state update';
+      }
+    } else {
+      // If status is not 'failed', 'error' property should not be present.
+      if ('error' in updatedActionProperties) {
+        delete updatedActionProperties.error;
+      }
+    }
+
+    // Now, explicitly cast to ActionState. This assumes that BoltAction specific properties
+    // (like those from CarbonFlowAction) are correctly preserved by the spread and are
+    // compatible with the ActionState's BoltAction part.
+    this.actions.setKey(id, updatedActionProperties as ActionState);
   }
 
   async getFileHistory(filePath: string): Promise<FileHistory | null> {

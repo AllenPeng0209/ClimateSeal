@@ -142,17 +142,22 @@ export const Workbench = memo(
 
     // 初始化CarbonFlowBridge
     useEffect(() => {
-      if (actionRunner && !carbonFlowBridgeInitialized) {
+      // CarbonFlowBridge 初始化不再依赖 actionRunner 实例
+      // 只需要确保它在 ActionRunner 实例被创建和使用之前被调用一次以修改原型
+      if (!carbonFlowBridgeInitialized) { // 使用现有的状态变量来确保只初始化一次
         try {
           const bridge = CarbonFlowBridge.getInstance();
-          bridge.initialize(actionRunner);
+          bridge.initialize(); // 不再传递 actionRunner
           setCarbonFlowBridgeInitialized(true);
-          console.log('[Workbench] CarbonFlowBridge 初始化成功');
+          console.log('[Workbench] CarbonFlowBridge 初始化成功 (ActionRunner.prototype 已修改)');
         } catch (error) {
           console.error('[Workbench] CarbonFlowBridge 初始化失败:', error);
         }
       }
-    }, [actionRunner, carbonFlowBridgeInitialized]);
+      // 对于CarbonFlowBridge的初始化，actionRunner不再是直接依赖。
+      // 如果actionRunner仍用于此useEffect的其他目的，可以保留在依赖中，否则可以移除。
+      // 假设此useEffect主要用于桥接器初始化，并且其他部分不依赖actionRunner的频繁变化。
+    }, [carbonFlowBridgeInitialized]); // 仅依赖 carbonFlowBridgeInitialized 确保初始化一次
 
     return (
       chatStarted && (
