@@ -1906,41 +1906,6 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     // 所有其他状态（上传中、上传完成等）- 这里不再添加文件
     // 因为 beforeUpload 已经处理了所有上传逻辑并添加了文件到 drawerEvidenceFiles
     console.log('[Upload] onChange status', info.file.status, info.file);
-    
-    // 不再执行以下代码，避免重复添加文件:
-    /*
-    if (info.file.status !== 'removed') {
-      const newFile: UploadedFile = {
-        id: info.file.uid,
-        name: info.file.name,
-        type: info.file.type || '证据文件',
-        uploadTime: new Date().toISOString(),
-        status: 'completed',
-        size: info.file.size,
-        mimeType: info.file.type,
-      };
-      console.log('[Upload] 新文件完成上传', newFile);
-      setDrawerEvidenceFiles(prev => {
-        if (prev.find(f => f.id === newFile.id)) return prev; // 去重
-        const updated = [...prev, newFile];
-        console.log('[Upload] 更新 drawerEvidenceFiles', updated);
-        return updated;
-      });
-      // 更新节点 evidenceFiles 并刷新
-      if (editingNodeId) {
-        const targetNode = nodes.find(node => node.id === editingNodeId);
-        if (targetNode) {
-          (targetNode.data as any).evidenceFiles = [
-            ...((targetNode.data as any).evidenceFiles ?? []),
-            newFile,
-          ];
-          console.log('[Upload] 写回 node.data.evidenceFiles', (targetNode.data as any).evidenceFiles);
-          setStoreNodes([...nodes]);
-        }
-      }
-      refreshEmissionSourcesForStage(selectedStage);
-    }
-    */
   };
 
   // 抽取方法: beforeUpload (用于 Upload 组件的 beforeUpload 属性)
