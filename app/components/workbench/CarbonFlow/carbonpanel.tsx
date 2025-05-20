@@ -72,6 +72,7 @@ import type { Workflow } from '~/types/workflow';
 import moment from 'moment';
 import { convertKeysToSnakeCase } from '~/utils/caseConverter';
 import { CarbonFlowAISummary } from './score/AISummary';
+import { TaskProgressCard } from './panel/components/TaskProgressCard';
 
 // File types enum based on PRD
 const RawFileTypes = [
@@ -212,14 +213,8 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const [selectedFileForParse, setSelectedFileForParse] = useState<UploadedFile | null>(null); // <-- New state for selected file in AI Parse Modal
 
   // ===== State for Current Task Progress =====
-  interface TaskItem {
-    key: string; // Unique key for each task
-    name: 'AI文件解析' | 'AI因子匹配' | 'AI转换参数补充' | 'AI运输数据补充';
-    status: '进行中' | '已完成';
-    startTime: string; // ISO string or formatted date string
-    completionTime?: string; // ISO string or formatted date string, optional
-  }
-  const [currentTasks, setCurrentTasks] = useState<TaskItem[]>([]);
+  // Removed local task state and table definitions
+
   // ===== End State for Current Task Progress =====
 
   // ===== State for dynamic card height =====
@@ -918,6 +913,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                     // Ensure all required fields from FinalProductNodeData are present
                     totalCarbonFootprint: (finalNodeData as FinalProductNodeData)?.totalCarbonFootprint ?? 0,
                     certificationStatus: (finalNodeData as FinalProductNodeData)?.certificationStatus ?? '未認證',
+                    // Add optional fields if needed
                     environmentalImpact: (finalNodeData as FinalProductNodeData)?.environmentalImpact ?? '',
                     sustainabilityScore: (finalNodeData as FinalProductNodeData)?.sustainabilityScore ?? 0,
                     productCategory: values.category,
@@ -925,7 +921,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                     targetRegion: (finalNodeData as FinalProductNodeData)?.targetRegion ?? '',
                     complianceStatus: (finalNodeData as FinalProductNodeData)?.complianceStatus ?? '',
                     carbonLabel: (finalNodeData as FinalProductNodeData)?.carbonLabel ?? ''
-                  } as FinalProductNodeData; // Assert specific type
+                  } as FinalProductNodeData; // Assert the final type
                   break;
               }
             }
@@ -1478,7 +1474,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       case '解析失败':
         return '解析失败';
       default:
-        return status; // Fallback
+        return status; // Fallback, though should not happen
     }
   };
 
@@ -2234,7 +2230,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     // 因为 beforeUpload 已经处理了所有上传逻辑并添加了文件到 drawerEvidenceFiles
     console.log('[Upload] onChange status', info.file.status, info.file);
 
-    // 不再执行以下代码，避免重复添加文件:
+    // 不再执行以下代码，避免重复添加文件：
     /*
     if (info.file.status !== 'removed') {
       const newFile: UploadedFile = {
@@ -2370,37 +2366,8 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   }, [nodes, selectedFileForParse]);
 
   // --- Columns for Current Task Progress Table ---
-  const taskTableColumns: TableProps<TaskItem>['columns'] = [
-    {
-      title: '任务名称',
-      dataIndex: 'name',
-      key: 'name',
-      width: 150,
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      width: 80,
-      render: (status: TaskItem['status']) => {
-        let color = status === '已完成' ? 'green' : 'blue';
-        return <Tag color={color}>{status}</Tag>;
-      },
-    },
-    {
-      title: '开始时间',
-      dataIndex: 'startTime',
-      key: 'startTime',
-      width: 150,
-    },
-    {
-      title: '完成时间',
-      dataIndex: 'completionTime',
-      key: 'completionTime',
-      width: 150,
-      render: (time?: string) => time || '-',
-    },
-  ];
+  // Removed local task state and table definitions
+
   // --- End Columns for Current Task Progress Table ---
 
   return (
@@ -2560,22 +2527,8 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                 </Col>
               </Row>
             </Card>
-            {/* New Current Task Progress Card */}
-            <Card
-              title="当前任务进程"
-              size="small"
-              className="flex-grow min-h-0 bg-bolt-elements-background-depth-1 border border-bolt-primary/30 flex flex-col"
-              bodyStyle={{ flexGrow: 1, overflow: 'auto', padding: '8px' }}
-            >
-              <Table
-                columns={taskTableColumns}
-                dataSource={currentTasks}
-                size="small"
-                pagination={false}
-                locale={{ emptyText: <Empty description="暂无进行中的任务" /> }}
-                scroll={{ y: 'calc(100% - 30px)' }}
-              />
-            </Card>
+            <TaskProgressCard />
+
           </Col>
         </Row>
 

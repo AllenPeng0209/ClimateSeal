@@ -11,6 +11,7 @@ import type { User } from './users'; // Import the new products type
 import type { ConversationThread } from './conversations'; // Import the new ConversationThread type
 import type { KnowledgeUnit } from './knowledgeUnit'; // ADDED: Import for the new unified knowledge type
 import type { AISummaryReport } from './aiSummary'; // Import the new AISummaryReport type
+import type { Task } from './task'; // Import the Task type
 /*
  * The WorkflowActionLog type from './workflowActions.ts' is now used for the actionLogs field.
  * This provides a detailed structure for logging actions, consistent with database schema.
@@ -48,4 +49,5 @@ export interface Workflow {
   aiTodoSummary?: string; // 新增字段：用于存储AI的当前todo总表
   aiRiskAssessmentResults?: AIRiskItem[]; // New field for AI risk assessment results
   selectedNodeId?: string | null; // Optional: ID of the currently selected node in the UI
+  tasks?: Task[]; // ADDED: For the new todo list feature
 }

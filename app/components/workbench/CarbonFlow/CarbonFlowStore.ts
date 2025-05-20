@@ -4,6 +4,7 @@ import type { NodeData } from '~/types/nodes';
 import type { Workflow as WorkflowState } from '~/types/workflow';
 import type { SceneInfoType } from '~/types/scene';
 import type { AISummaryReport } from '~/types/aiSummary';
+import type { Task } from '~/types/task'; // Import Task type
 
 // Define Actions Interface
 interface WorkflowActions {
@@ -16,6 +17,12 @@ interface WorkflowActions {
   loadWorkflow: (workflow: WorkflowState) => void;
   setProductName: (productName: string) => void;
   saveCurrentWorkflow: () => Promise<void>; // Added saveCurrentWorkflow
+  // Task Actions
+  setTasks: (tasks: Task[]) => void;
+  addTask: (taskDescription: string) => void;
+  updateTask: (taskId: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>) => void;
+  toggleTaskStatus: (taskId: string) => void;
+  deleteTask: (taskId: string) => void;
   // getWorkflowState is excluded as getState() serves this purpose for the full store object
 }
 
@@ -81,6 +88,7 @@ const initialWorkflowState: WorkflowState = {
   aiTodoSummary: undefined,
   aiRiskAssessmentResults: [],
   selectedNodeId: null, // Added for selected node
+  tasks: [], // Initialize tasks
 };
 initialWorkflowState.sceneInfo.workflowId = initialWorkflowState.workflowId; // Sync workflowId to sceneInfo
 
@@ -109,11 +117,49 @@ export const useCarbonFlowStore = create<CarbonFlowStore>((set, get) => ({
   setWorkflowStatus: (status: string) => set((state) => ({ ...state, status, updatedAt: new Date().toISOString() })),
 
   // Action to replace the entire workflow state, useful for loading a workflow
-  loadWorkflow: (workflow: WorkflowState) => set(() => ({ ...workflow, updatedAt: new Date().toISOString() })),
+  loadWorkflow: (workflow: WorkflowState) => set(() => ({ ...workflow, tasks: workflow.tasks || [], updatedAt: new Date().toISOString() })),
 
   // Get the current entire workflow state
   // getWorkflowState is removed from actions; use useCarbonFlowStore.getState() directly
   // Or, if a specific getter for only state is needed, it would be more complex to implement dynamically.
+
+  // Task Management Actions
+  setTasks: (tasks: Task[]) => set((state) => ({ ...state, tasks, updatedAt: new Date().toISOString() })),
+  addTask: (taskDescription: string) =>
+    set((state) => {
+      const newTask: Task = {
+        id: generateUUID(), // Reuse your UUID generator
+        description: taskDescription,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      return { ...state, tasks: [...(state.tasks || []), newTask], updatedAt: new Date().toISOString() };
+    }),
+  updateTask: (taskId: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>) =>
+    set((state) => ({
+      ...state,
+      tasks: (state.tasks || []).map((task) =>
+        task.id === taskId ? { ...task, ...updates, updatedAt: new Date().toISOString() } : task
+      ),
+      updatedAt: new Date().toISOString(),
+    })),
+  toggleTaskStatus: (taskId: string) =>
+    set((state) => ({
+      ...state,
+      tasks: (state.tasks || []).map((task) =>
+        task.id === taskId
+          ? { ...task, status: task.status === 'pending' ? 'completed' : 'pending', updatedAt: new Date().toISOString() }
+          : task
+      ),
+      updatedAt: new Date().toISOString(),
+    })),
+  deleteTask: (taskId: string) =>
+    set((state) => ({
+      ...state,
+      tasks: (state.tasks || []).filter((task) => task.id !== taskId),
+      updatedAt: new Date().toISOString(),
+    })),
 
   // Example of an action that modifies a nested property within sceneInfo
   setProductName: (productName: string) =>
