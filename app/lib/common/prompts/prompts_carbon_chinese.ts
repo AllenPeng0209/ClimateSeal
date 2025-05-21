@@ -217,7 +217,8 @@ export const getSystemPromptCarbonChinese = (
 
 
 
-
+# 【完成建模】
+如果用户满足既定条件的【模型要求】，则可以引导用户进行结果的可视化分析以及报告生成。
 
 
 

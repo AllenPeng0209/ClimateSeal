@@ -762,8 +762,15 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     try {
       await saveWorkflowSceneInfo(_sceneInfo);
 
-      message.success('目标与范围已保存');
-      handleCloseSettings();
+    message.success('目标与范围已保存');
+
+    // Dispatch event to trigger chat response for scene info saved
+    const sceneInfoEvent = new CustomEvent('carbonflow-sceneinfo-saved-trigger-chat', {
+      detail: { sceneInfo: _sceneInfo }
+    });
+    window.dispatchEvent(sceneInfoEvent);
+
+    handleCloseSettings();
 
       logWorkflowAction({
         action_type: 'USER_SETTINGS_SAVE',
@@ -2294,16 +2301,21 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
 
       // If this is the file currently selected in the AI Parse Modal, update modal-specific states
       if (selectedFileForParse?.id === fileId) {
+        let chatTriggerPayload: any = { fileName: selectedFileForParse.name, status, error }; // Ensure selectedFileForParse is not null
         if (status === 'completed') {
           setParsedEmissionSources(sources || []);
-          // parseResultSummary state is becoming less central, summary is in selectedFileForParse.content
-          // setParseResultSummary(summary || '解析完成，请查看下方数据。');
-          message.success(`文件 ${selectedFileForParse.name} 解析成功。`);
+          message.success(`文件 ${selectedFileForParse.name} 解析成功。`); // Ensure selectedFileForParse is not null
+          chatTriggerPayload.sourceCount = (sources || []).length;
         } else if (status === 'failed') {
           setParsedEmissionSources([]);
-          // setParseResultSummary(summary || `解析失败: ${error || '未知错误'}`);
-          message.error(`文件 ${selectedFileForParse.name} 解析失败: ${error || '未知错误'}`);
+          message.error(`文件 ${selectedFileForParse.name} 解析失败: ${error || '未知错误'}`); // Ensure selectedFileForParse is not null
         }
+
+        // Dispatch event to trigger chat response for file parsing
+        const fileParseEvent = new CustomEvent('carbonflow-fileparsed-trigger-chat', {
+          detail: chatTriggerPayload
+        });
+        window.dispatchEvent(fileParseEvent);
       }
     };
 
@@ -2782,8 +2794,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               >
                 <Select placeholder="选择产品" allowClear>
                   {/* Replace with actual product list from your data source */}
-                  <Select.Option value="产品1">产品1</Select.Option>
-                  <Select.Option value="产品2">产品2</Select.Option>
+                  <Select.Option value="电冰箱">电冰箱</Select.Option>
                 </Select>
               </Form.Item>
             </Col>
