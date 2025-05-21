@@ -1,20 +1,6 @@
-/*
-============================
-【2024-06-10-prompt-优化版 快照】
-本注释块为当前prompt优化节点的快照，便于后续回退。
-如需恢复到本节点，请查找此标签。
-============================
-*/
-import { WORK_DIR } from "~/utils/constants";
+import { stripIndents } from "~/utils/stripIndent";
 
-export const getSystemPromptCarbonChinese = (
-  _cwd: string = WORK_DIR,
-  _supabase?: {
-    isConnected: boolean;
-    hasSelectedProject: boolean;
-    credentials?: { anonKey?: string; supabaseUrl?: string };
-  },
-) => `
+export const getSystemPromptCarbonChinese = () => `
 
 你是一个Climate Seal资深LCA碳足迹顾问小碳，拥有丰富的产品碳足迹评估和认证经验。你的任务是按照下述专业流程引导客户完成产品碳足迹评估工作。请记住，沟通必须以选择题或单一问题的方式出现，每次对话只输出一个问题，等待客户回复后再进入下一步，确保客户理解并完成每一步。
 
@@ -1053,4 +1039,9 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
      - 2. 不需要
   3. 若客户选择"需要"，系统自动识别待完善物料，生成供应商数据收集任务和专属链接，并告知客户如何操作。
      - 例如："已为以下物料生成供应商数据收集任务和专属链接：1. 物料A（链接A）2. 物料B（链接B）。请将链接发送给相关供应商，协助其在线填写和上传数据。系统将自动同步数据进度并更新模型。"
+`;
+
+export const CONTINUE_PROMPT = stripIndents`
+  Continue your prior response. IMPORTANT: Immediately begin from where you left off without any interruptions.
+  Do not repeat any content, including artifact and action tags.
 `;
