@@ -3395,37 +3395,37 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
         ]}
       >
         <div className="mb-4"> {/* Parent of "匹配结果摘要" */}
-          <div className="font-bold text-lg mb-2 text-gray-900">匹配结果摘要</div> {/* 修改在这里 */}
-          <div className="flex space-x-4">
-            <div className="border p-3 rounded flex-1 bg-green-40 text-center">
-              <div className="text-2xl text-gray-900">{matchResults.success.length}</div>
-              <div className="text-gray-900">匹配成功</div>
+          <div className="font-bold text-lg mb-3 text-white">匹配结果摘要</div> {/* 修改在这里 */}
+          <div className="flex space-x-4 text-white">
+            <div className="border p-3 rounded flex-1 bg-green-40 text-center text-white">
+              <div className="text-2xl text-white">{matchResults.success.length}</div>
+              <div className="text-white">匹配成功</div>
             </div>
-            <div className="border p-3 rounded flex-1 bg-red-40 text-center">
-              <div className="text-2xl text-gray-900">{matchResults.failed.length}</div>
-              <div className="text-gray-900">匹配失败</div>
+            <div className="border p-3 rounded flex-1 bg-red-40 text-center text-white">
+              <div className="text-2xl text-white">{matchResults.failed.length}</div>
+              <div className="text-white">匹配失败</div>
             </div>
           </div>
         </div>
 
         <div className="mb-4"> {/* Parent of "API匹配日志" */}
-          <div className="font-bold text-lg mb-2 text-gray-900">API匹配日志</div> {/* 修改在这里 */}
-          <div className="border rounded p-2 bg-gray-30 h-40 overflow-auto">
+          <div className="font-bold text-lg mb-2 text-white">API匹配日志</div> {/* 修改在这里 */}
+          <div className="border rounded p-2 bg-gray-30 h-40 overflow-auto text-white">
             {matchResults.logs.length > 0 ? (
               <ul className="list-disc pl-5">
                 {matchResults.logs.map((log, index) => (
-                  <li key={index} className="text-sm text-gray-900 mb-1">{log}</li>
+                  <li key={index} className="text-sm text-white mb-1">{log}</li>
                 ))}
               </ul>
             ) : (
-              <div className="text-center text-gray-900 py-4">无匹配日志信息</div>
+              <div className="text-center text-white py-4">无匹配日志信息</div>
             )}
           </div>
         </div>
 
         <div>
-          <div className="font-bold text-lg mb-2">详细匹配结果</div>
-          <Tabs defaultActiveKey="success">
+          <div className="font-bold text-lg mb-2 text-white">详细匹配结果</div>
+          <Tabs defaultActiveKey="success" className="text-white">
             <Tabs.TabPane tab="成功匹配" key="success">
               {matchResults.success.length > 0 ? (
                 <ul className="list-disc pl-5">
@@ -3433,7 +3433,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                     const node = nodes.find(n => n.id === id); // Find node by ID
                     const data = node?.data as any;
                     return (
-                      <li key={id} className="mb-1 text-gray-900">
+                      <li key={id} className="mb-1 text-white">
                         <span className="font-semibold">{node?.data?.label || id}</span>:
                         {data ? ` 碳因子值=${data.carbonFactor || '未知'}` : ' 匹配成功'}
                       </li>
@@ -3441,7 +3441,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                   })}
                 </ul>
               ) : (
-                <div className="text-center text-gray-500 py-4">无成功匹配的排放源</div>
+                <div className="text-center text-white py-4">无成功匹配的排放源</div>
               )}
             </Tabs.TabPane>
             <Tabs.TabPane tab="失败匹配" key="failed">
@@ -3449,11 +3449,11 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                 <ul className="list-disc pl-5">
                   {matchResults.failed.map(id => {
                     const node = nodes.find(n => n.id === id); // Find node by ID
-                    return <li key={id} className="mb-1 text-gray-900">{node?.data?.label || id}</li>;
+                    return <li key={id} className="mb-1 text-white">{node?.data?.label || id}</li>;
                   })}
                 </ul>
               ) : (
-                <div className="text-center text-gray-500 py-4">无失败匹配的排放源</div>
+                <div className="text-center text-white py-4">无失败匹配的排放源</div>
               )}
             </Tabs.TabPane>
           </Tabs>
