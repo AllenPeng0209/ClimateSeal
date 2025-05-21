@@ -19,6 +19,7 @@ import Cookies from 'js-cookie';
 import { createSampler } from '~/utils/sampler';
 import type { ActionAlert, SupabaseAlert } from '~/types/actions';
 import { createScopedLogger } from '~/utils/logger';
+import { useCarbonFlowStore } from '~/components/workbench/CarbonFlow/CarbonFlowStore';
 
 const logger = createScopedLogger('WorkbenchStore');
 
@@ -468,12 +469,28 @@ export class WorkbenchStore {
     }
   }
   async _runAction(data: ActionCallbackData, isStreaming: boolean = false) {
-    logger.debug(`[WorkbenchStore] _runAction called. Action Type: ${data.action.type}, Action ID: ${data.actionId}, Streaming: ${isStreaming}`);
+    logger.debug('_runAction called. Action Type:', data.action.type, 'Action ID:', data.actionId, 'Streaming:', isStreaming);
     if (data.action.type === 'carbonflow') {
-      logger.debug(`[WorkbenchStore] CarbonFlow action being processed in _runAction. Details:`, data);
+      logger.debug('CarbonFlow action received in _runAction. Details:', data.action);
+      // Add specific handling for CarbonFlow actions if needed beyond just logging
+      // For example, if it's a 'plan' operation, update tasks
+      if (data.action.operation === 'plan' && data.action.data) {
+        try {
+          const planData = typeof data.action.data === 'string' ? JSON.parse(data.action.data) : data.action.data;
+          logger.info('[WorkbenchStore] Processing carbonflow "plan" operation. Parsed Data:', planData);
+          useCarbonFlowStore.getState().updateTasksFromPlan(planData);
+          logger.info('[WorkbenchStore] Called updateTasksFromPlan with the plan data.');
+        } catch (e: any) {
+          logger.error('[WorkbenchStore] Error processing carbonflow "plan" operation:', e.message, 'Raw data:', data.action.data);
+          // Optionally, dispatch an error to UI or a notification
+        }
+      } else {
+        // Handle other carbonflow operations or log them
+        console.log('CarbonFlow action being processed in _runAction. Details:', data.action);
+      }
+      // Potentially return or do other specific logic for carbonflow actions
+      return; // Exit early if it's a carbonflow action that's fully handled here
     }
-    console.log('CarbonFlow action being processed in _runAction. Details:', data);
-
 
     const { messageId } = data;
 

@@ -2749,8 +2749,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               >
                 <Select placeholder="选择产品" allowClear>
                   {/* Replace with actual product list from your data source */}
-                  <Select.Option value="产品1">产品1</Select.Option>
-                  <Select.Option value="产品2">产品2</Select.Option>
+                  <Select.Option value="电冰箱">电冰箱</Select.Option>
                 </Select>
               </Form.Item>
             </Col>
