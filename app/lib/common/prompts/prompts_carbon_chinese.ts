@@ -67,25 +67,30 @@ export const getSystemPromptCarbonChinese = (
       }
     }
 
-3. 关于排放源数据，需要从carbonFlowData.nodes中读取，具体字段及其内容的映射关系如下：
-- nodeName：排放源名称
-- lifecycleStage：生命周期阶段
-- emissionType：排放类型
-- supplementaryInfo：补充信息
-- hasEvidenceFiles：证据文件状态
-- evidenceVerificationStatus：证据文件验证状态
-- carbonFootprint：排放结果
-- quantity：活动数据数值
-- activityUnit：活动数据单位
-- CarbonFactorSource：碳排放因子（背景数据）来源
-- carbonFactor：碳排放因子（背景数据）值
-- carbonFactorName：碳排放因子（背景数据）名称
-- carbonFactorUnit：碳排放因子（背景数据）单位
-- unitConversion：单位转换因子
-- carbonFactordataSource：碳排放因子数据来源
-- emissionFactorGeographicalRepresentativeness：排放因子（背景数据）地理代表性
-- emissionFactorTemporalRepresentativeness：排放因子（背景数据）时间代表性
-- activityUUID：排放因子（背景数据）UUID
+3. 关于排放源数据，需要从 'carbonFlowData.nodes' （每个 'node' 代表一个排放源）中读取，具体字段及其内容的映射关系如下：
+- 'node_name'：排放源名称 (通常从 'node.data.label' 或 'node.data.nodeName' 读取)
+- 'lifecycle_stage' (生命周期阶段)：**此字段应根据每个 'node' 的 'type' 属性 (即 'node.type') 通过以下映射关系确定：**
+    - 若 'node.type' 为 'product', 则生命周期阶段为 '原材料获取阶段'
+    - 若 'node.type' 为 'manufacturing', 则生命周期阶段为 '生产阶段'
+    - 若 'node.type' 为 'distribution', 则生命周期阶段为 '分销运输阶段'
+    - 若 'node.type' 为 'usage', 则生命周期阶段为 '使用阶段'
+    - 若 'node.type' 为 'disposal', 则生命周期阶段为 '寿命终止阶段'
+    - **如果 'node.type' 为空、未定义，或不在上述明确映射的类型中，则生命周期阶段统一视为 '未分类'。请严格遵循此 'node.type' 到生命周期阶段的映射规则，而不是直接读取节点数据中可能存在的其他名为 'lifecycleStage' 的旧字段。**
+- 'emission_type'：排放类型 (通常从 'node.data.emissionType' 读取)
+- 'supplementary_info'：补充信息 (通常从 'node.data.supplementaryInfo' 读取)
+- 'has_evidence_files'：证据文件状态 (判断 'node.data.evidence_files' 或类似字段是否为空/有内容，或从 'node.data.has_evidence_files' 读取)
+- 'evidence_verification_status'：证据文件验证状态 (通常从 'node.data.evidence_verification_status' 读取)
+- 'carbon_footprint'：排放结果 (通常从 'node.data.carbonFootprint' 读取)
+- 'quantity'：活动数据数值 (通常从 'node.data.quantity' 读取)
+- 'activity_unit'：活动数据单位 (通常从 'node.data.activityUnit' 读取)
+- 'factor'：碳排放因子（背景数据）值 (通常从 'node.data.carbonFactor' 读取)
+- 'activityName'：碳排放因子（背景数据）名称 (通常从 'node.data.carbonFactorName' 或 'node.data.activityName' 读取)
+- 'unit'：碳排放因子（背景数据）单位 (通常从 'node.data.carbonFactorUnit' 读取)
+- 'unitConversion'：单位转换因子 (通常从 'node.data.unitConversion' 读取)
+- 'dataSource'：碳排放因子数据库 (通常从 'node.data.carbonFactorDataSource' 或 'node.data.dataSource' 读取)
+- 'geography'：排放因子（背景数据）地理代表性 (通常从 'node.data.emissionFactorGeographicalRepresentativeness' 或 'node.data.geography' 读取)
+- 'importDate'：排放因子（背景数据）时间代表性 (通常从 'node.data.emissionFactorTemporalRepresentativeness' 或 'node.data.importDate' 读取)
+- 'activityUUID'：排放因子（背景数据）UUID (通常从 'node.data.carbonFactorUUID' 或 'node.data.activityUUID' 读取)
 
 4. 当收到因子匹配完成的系统消息时，应根据结果提供专业指导，引导用户进一步完善模型；
 - 对于匹配成功的情况，应汇报匹配结果，并执行【告诉用户应该干什么】；
@@ -500,7 +505,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
        <boltAction type="carbonflow" operation="create" nodetype="product" position="{"x":200,"y":100}" data="{
          "label": "铝材",
          "nodeName": "铝材",
-         "lifecycleStage": "原材料获取",
+         "nodetype": "product",
          "emissionType": "直接排放",
          "carbonFactor": 0.7,
          "activitydataSource": "供应商数据",
@@ -530,7 +535,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
        <boltAction type="carbonflow" operation="create" nodetype="manufacturing" position="{"x":300,"y":100}" data="{
          "label": "注塑成型",
          "nodeName": "注塑成型",
-         "lifecycleStage": "生产制造",
+         "nodetype": "manufacturing",
          "emissionType": "直接排放",
          "carbonFactor": 0.6,
          "activitydataSource": "工厂数据",
@@ -578,7 +583,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
        <boltAction type="carbonflow" operation="create" nodetype="distribution" position="{"x":400,"y":100}" data="{
          "label": "产品运输",
          "nodeName": "产品运输",
-         "lifecycleStage": "分销和储存",
+         "nodetype": "distribution",
          "emissionType": "间接排放",
          "carbonFactor": 0.4,
          "activitydataSource": "物流数据",
@@ -618,7 +623,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
        <boltAction type="carbonflow" operation="create" nodetype="usage" position="{"x":500,"y":100}" data="{
          "label": "产品使用",
          "nodeName": "日常使用",
-         "lifecycleStage": "产品使用",
+         "nodetype": "usage",
          "emissionType": "间接排放",
          "carbonFactor": 0.3,
          "activitydataSource": "用户数据",
@@ -649,7 +654,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
        <boltAction type="carbonflow" operation="create" nodetype="disposal" position="{"x":600,"y":100}" data="{
          "label": "产品废弃",
          "nodeName": "产品废弃",
-         "lifecycleStage": "废弃处置",
+         "nodetype": "disposal",
          "emissionType": "间接排放",
          "carbonFactor": 0.4,
          "activitydataSource": "回收数据",
@@ -680,7 +685,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
        <boltAction type="carbonflow" operation="create" nodetype="product" position="{"x":700,"y":100}" data="{
          "label": "最终产品",
          "nodeName": "最终产品",
-         "lifecycleStage": "全生命周期",
+         "nodetype": "product",
          "emissionType": "综合排放",
          "carbonFactor": 0,
          "activitydataSource": "系统计算",
@@ -715,7 +720,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
              <boltAction type="carbonflow" operation="create" nodetype="product" position="{"x":100,"y":100}" data="{
                "label": "铝材外壳",
                "nodeName": "铝材外壳",
-               "lifecycleStage": "原材料获取",
+               "nodetype": "product",
                "emissionType": "原材料",
                "carbonFactor": 0.7,
                "activitydataSource": "供应商数据",
@@ -742,7 +747,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
              <boltAction type="carbonflow" operation="create" nodetype="product" position="{"x":100,"y":200}" data="{
                "label": "PCB电路板",
                "nodeName": "PCB电路板",
-               "lifecycleStage": "原材料获取",
+               "nodetype": "product",
                "emissionType": "原材料",
                "carbonFactor": 0.8,
                "activitydataSource": "供应商数据",
@@ -769,7 +774,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
              <boltAction type="carbonflow" operation="create" nodetype="product" position="{"x":100,"y":300}" data="{
                "label": "锂电池",
                "nodeName": "锂电池",
-               "lifecycleStage": "原材料获取",
+               "nodetype": "product",
                "emissionType": "原材料",
                "carbonFactor": 0.9,
                "activitydataSource": "供应商数据",
@@ -796,7 +801,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
              <boltAction type="carbonflow" operation="create" nodetype="product" position="{"x":100,"y":400}" data="{
                "label": "塑料按键",
                "nodeName": "塑料按键",
-               "lifecycleStage": "原材料获取",
+               "nodetype": "product",
                "emissionType": "原材料",
                "carbonFactor": 0.6,
                "activitydataSource": "供应商数据",
@@ -838,7 +843,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
              <boltAction type="carbonflow" operation="create" nodetype="manufacturing" position="{"x":300,"y":250}" data="{
                "label": "智能控制器生产",
                "nodeName": "智能控制器生产",
-               "lifecycleStage": "生产制造",
+               "nodetype": "manufacturing",
                "emissionType": "直接排放",
                "carbonFactor": 0.6,
                "activitydataSource": "工厂数据",
@@ -899,7 +904,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
              <boltAction type="carbonflow" operation="create" nodetype="distribution" position="{"x":500,"y":250}" data="{
                "label": "产品运输",
                "nodeName": "产品运输",
-               "lifecycleStage": "分销和储存",
+               "nodetype": "distribution",
                "emissionType": "间接排放",
                "carbonFactor": 0.4,
                "activitydataSource": "物流数据",
@@ -948,7 +953,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
              <boltAction type="carbonflow" operation="create" nodetype="usage" position="{"x":700,"y":250}" data="{
                "label": "产品使用",
                "nodeName": "产品使用",
-               "lifecycleStage": "产品使用",
+               "nodetype": "usage",
                "emissionType": "间接排放",
                "carbonFactor": 0.3,
                "activitydataSource": "用户数据",
@@ -989,7 +994,7 @@ CarbonFlow模型支持多种节点类型，每种类型都有其特定的字段�
              <boltAction type="carbonflow" operation="create" nodetype="disposal"  position="{"x":900,"y":250}" data="{
                "label": "产品废弃",
                "nodeName": "产品废弃",
-               "lifecycleStage": "废弃处置",
+               "nodetype": "disposal",
                "emissionType": "间接排放",
                "carbonFactor": 0.4,
                "activitydataSource": "回收数据",
