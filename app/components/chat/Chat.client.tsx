@@ -556,19 +556,15 @@ export const ChatImpl = memo(
       };
     }, []);
 
-    // 监听右侧面板触发的事件，如因子匹配完成 - 移到append函数定义后
     useEffect(() => {
-      const handleCarbonFlowTriggerChat = (event: CustomEvent) => {
-        const { type, matchResults } = event.detail;
-        
-        console.log('[Chat] 收到CarbonFlow触发chat事件:', type, matchResults);
-        
+      const handleCarbonFlowEvents = (event: CustomEvent) => {
+        const { type, matchResults, sceneInfo, fileName, status, error, sourceCount } = event.detail;
+
+        console.log('[Chat] 收到CarbonFlow事件:', type, event.detail);
+
         if (type === 'factor_match_complete') {
-          // 构建一个系统消息，显示因子匹配结果
           const { totalMatched, successCount, failedCount, updated } = matchResults;
-          
           let responseMessage = '';
-          
           if (updated && successCount > 0) {
             responseMessage = `因子匹配已完成，共匹配${totalMatched}个节点，其中${successCount}个成功，${failedCount}个失败。请继续补充必要数据并查看可信分数，确保模型完整性。如需调整匹配结果，可在操作台右侧重新匹配。`;
           } else if (failedCount > 0 && successCount === 0) {
@@ -576,23 +572,54 @@ export const ChatImpl = memo(
           } else {
             responseMessage = `因子匹配操作已完成，但未发现需要更新的因子数据。可能是因为所有节点已有因子数据，或没有选择节点进行匹配。请检查排放源列表，确认是否需要进行因子匹配。`;
           }
-          
-          // 使用append方法添加一条助手消息，类似于chat收到用户消息后的自动回复
+          append({
+            role: 'assistant',
+            content: responseMessage,
+          });
+        } else if (type === 'scene_info_saved') {
+          let responseMessage = '目标与范围信息已更新。现在我们可以继续进行下一步操作了。';
+          // Optionally use sceneInfo: `目标与范围信息已更新，核算产品为: ${sceneInfo?.productName}。`
+          append({
+            role: 'assistant',
+            content: responseMessage,
+          });
+        } else if (type === 'file_parse_complete') {
+          let responseMessage = '';
+          if (status === 'completed') {
+            responseMessage = `文件 '${fileName}' 解析成功，识别到 ${sourceCount} 个排放源。您可以开始将这些排放源添加到您的碳足迹模型中，或继续上传和解析其他数据文件。`;
+          } else if (status === 'failed') {
+            responseMessage = `文件 '${fileName}' 解析失败。错误信息：${error || '未知错误'}。请检查文件格式和内容是否符合要求，修正后重新尝试上传和解析。`;
+          } else {
+            responseMessage = `文件 '${fileName}' 解析状态未知 (${status})。请检查控制台日志获取更多信息。`;
+          }
           append({
             role: 'assistant',
             content: responseMessage,
           });
         }
       };
-      
-      // 注册事件监听
-      window.addEventListener('carbonflow-trigger-chat', handleCarbonFlowTriggerChat as EventListener);
-      
-      // 清理函数
-      return () => {
-        window.removeEventListener('carbonflow-trigger-chat', handleCarbonFlowTriggerChat as EventListener);
+
+      // Listener for existing factor match event (assuming it still uses 'carbonflow-trigger-chat')
+      window.addEventListener('carbonflow-trigger-chat', handleCarbonFlowEvents as EventListener);
+
+      // Listener for scene info saved event
+      const handleSceneInfoSavedEvent = (event: CustomEvent) => {
+        handleCarbonFlowEvents({ detail: { type: 'scene_info_saved', ...event.detail } } as CustomEvent);
       };
-    }, [append]); // 依赖append函数
+      window.addEventListener('carbonflow-sceneinfo-saved-trigger-chat', handleSceneInfoSavedEvent as EventListener);
+
+      // Listener for file parsed event
+      const handleFileParsedEvent = (event: CustomEvent) => {
+        handleCarbonFlowEvents({ detail: { type: 'file_parse_complete', ...event.detail } } as CustomEvent);
+      };
+      window.addEventListener('carbonflow-fileparsed-trigger-chat', handleFileParsedEvent as EventListener);
+
+      return () => {
+        window.removeEventListener('carbonflow-trigger-chat', handleCarbonFlowEvents as EventListener);
+        window.removeEventListener('carbonflow-sceneinfo-saved-trigger-chat', handleSceneInfoSavedEvent as EventListener);
+        window.removeEventListener('carbonflow-fileparsed-trigger-chat', handleFileParsedEvent as EventListener);
+      };
+    }, [append]);
 
     return (
       <BaseChat
