@@ -49,6 +49,18 @@ import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps, RcFile } from 'antd/es/upload/interface'; // Added RcFile here
 import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlowStore';
 import type { Node, Edge as ReactFlowEdge } from 'reactflow'; // Edge is kept for now, aliased to avoid conflict
+
+// Helper function to dispatch chat trigger events
+const dispatchChatTriggerEvent = (type: string, payload: any) => {
+  const event = new CustomEvent('carbonflow-trigger-chat', {
+    detail: {
+      type,
+      payload,
+    },
+  });
+  window.dispatchEvent(event);
+  console.log(`[CarbonPanel] Dispatched event: ${type}`, payload);
+};
 import type { NodeData, ProductNodeData, FinalProductNodeData, DistributionNodeData } from '~/types/nodes';
 import type { TableProps, ColumnType } from 'antd/es/table';
 import type { FilterDropdownProps } from 'antd/es/table/interface';
@@ -730,46 +742,79 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     } else if (values.lifecycleType === 'full') {
       finalFullStages = fullLifecycleSelectedStages;
     }
-    const _scenceInfo: SceneInfoType = {
-      ...values, // Includes other form fields like taskName, productName etc.
-      lifecycleType: values.lifecycleType, // Save the radio choice
+    const _sceneInfo: SceneInfoType = { // Renamed to avoid conflict with global sceneInfo if any
+      ...values, 
+      lifecycleType: values.lifecycleType, 
       calculationBoundaryHalfLifecycle: finalHalfStages,
       calculationBoundaryFullLifecycle: finalFullStages,
-      // Ensure fields not directly in the form but part of sceneInfo are preserved if necessary
-      productSpecs: sceneInfo.productSpecs,
-      productDesc: sceneInfo.productDesc,
-      // dataCollectionStartDate: values.dataCollectionStartDate.toISOString(),
-      // dataCollectionEndDate: values.dataCollectionEndDate.toISOString()
-    }
-    setSceneInfo(_scenceInfo);
+      productSpecs: sceneInfo.productSpecs, // Preserve existing values from component's state
+      productDesc: sceneInfo.productDesc,   // Preserve existing values from component's state
+    };
+    setSceneInfo(_sceneInfo); // Update local state for immediate UI reflection if needed
 
+    // This updates a Zustand store, ensure it's what you intend.
     setStoreSceneInfo({
       verificationLevel: values.verificationLevel,
       standard: values.standard,
       productName: values.productName,
-      // boundary: values.boundary, // Removed as it's not in SceneInfoType here
     });
 
-    await saveWorkflowSceneInfo(_scenceInfo);
+    try {
+      await saveWorkflowSceneInfo(_sceneInfo);
 
-    message.success('目标与范围已保存');
-    handleCloseSettings();
+      message.success('目标与范围已保存');
+      handleCloseSettings();
 
-    // Log this action
-    logWorkflowAction({
-      action_type: 'USER_SETTINGS_SAVE',
-      operation_name: 'save_scene_info',
-      parameters: {
-        // Redact or summarize sensitive/large values if necessary
-        savedValues: {
-          ...values,
-          calculationBoundaryHalfLifecycle: finalHalfStages, // Log calculated stages
-          calculationBoundaryFullLifecycle: finalFullStages
+      logWorkflowAction({
+        action_type: 'USER_SETTINGS_SAVE',
+        operation_name: 'save_scene_info',
+        parameters: {
+          savedValues: {
+            ...values,
+            calculationBoundaryHalfLifecycle: finalHalfStages,
+            calculationBoundaryFullLifecycle: finalFullStages
+          }
+        },
+        status: 'COMPLETED_SUCCESS',
+        results_summary: { message: 'Scene info saved successfully' }
+      });
+
+      dispatchChatTriggerEvent('goal_scope_saved', {
+        status: 'success',
+        message: '“目标与范围”设置已成功保存。',
+        data: {
+          productName: _sceneInfo.productName,
+          standard: _sceneInfo.standard,
+          lifecycleType: _sceneInfo.lifecycleType,
+          taskName: _sceneInfo.taskName,
+          verificationLevel: _sceneInfo.verificationLevel,
+          // Add other relevant summary fields from _sceneInfo as needed
         }
-      },
-      status: 'COMPLETED_SUCCESS',
-      results_summary: { message: 'Scene info saved successfully' }
-    });
+      });
+
+    } catch (error: any) {
+      console.error('保存目标与范围失败:', error);
+      message.error(`保存目标与范围失败: ${error.message}`);
+      
+      dispatchChatTriggerEvent('goal_scope_saved', {
+        status: 'failure',
+        message: `“目标与范围”设置保存失败: ${error.message}`,
+      });
+
+      logWorkflowAction({
+        action_type: 'USER_SETTINGS_SAVE',
+        operation_name: 'save_scene_info',
+        parameters: {
+            originalValues: values // Log original values on failure for debugging
+        },
+        status: 'COMPLETED_FAILURE',
+        results_summary: { 
+          message: 'Scene info save failed',
+          error: error.message,
+          stack: error.stack // Storing stack might be too verbose for some logging systems, consider if needed
+        }
+      });
+    }
   };
 
 

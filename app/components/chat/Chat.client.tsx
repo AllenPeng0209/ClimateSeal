@@ -556,44 +556,73 @@ export const ChatImpl = memo(
       };
     }, []);
 
-    // 监听右侧面板触发的事件，如因子匹配完成 - 移到append函数定义后
+    // 监听右侧面板触发的事件
     useEffect(() => {
       const handleCarbonFlowTriggerChat = (event: CustomEvent) => {
-        const { type, matchResults } = event.detail;
+        const { type, payload, matchResults: oldMatchResults } = event.detail; // matchResults for backward compatibility
         
-        console.log('[Chat] 收到CarbonFlow触发chat事件:', type, matchResults);
+        console.log('[Chat] 收到CarbonFlow触发chat事件:', type, event.detail);
         
-        if (type === 'factor_match_complete') {
-          // 构建一个系统消息，显示因子匹配结果
-          const { totalMatched, successCount, failedCount, updated } = matchResults;
-          
-          let responseMessage = '';
-          
-          if (updated && successCount > 0) {
-            responseMessage = `因子匹配已完成，共匹配${totalMatched}个节点，其中${successCount}个成功，${failedCount}个失败。请继续补充必要数据并查看可信分数，确保模型完整性。如需调整匹配结果，可在操作台右侧重新匹配。`;
-          } else if (failedCount > 0 && successCount === 0) {
-            responseMessage = `因子匹配未成功，所有${failedCount}个节点均匹配失败。建议检查节点数据完整性，特别是活动数据和单位信息，然后再次尝试匹配。如有必要，可手动配置碳因子。`;
-          } else {
-            responseMessage = `因子匹配操作已完成，但未发现需要更新的因子数据。可能是因为所有节点已有因子数据，或没有选择节点进行匹配。请检查排放源列表，确认是否需要进行因子匹配。`;
+        let userAnalysisPrompt = '';
+        const fakeEvent = {} as React.UIEvent; // 用于 sendMessage
+
+        if (type === 'factor_match_complete' && sendMessage) {
+          // 优先使用 payload?.matchResults，然后是顶层的 matchResults (oldMatchResults)
+          const currentMatchResults = payload?.matchResults || oldMatchResults || {};
+          const { totalMatched, successCount, failedCount, updated } = currentMatchResults;
+
+          userAnalysisPrompt = `请分析以下碳因子匹配的详细结果：
+- 总共尝试匹配的节点数：${totalMatched}
+- 成功匹配并更新的节点数：${successCount}
+- 匹配失败的节点数：${failedCount}
+- 是否有节点数据因此次匹配而被实际更新：${(updated && successCount > 0) ? '是' : '否'}
+
+基于上述数据，请提供一份详细的分析报告和下一步操作建议。`;
+          sendMessage(fakeEvent, userAnalysisPrompt);
+
+        } else if (type === 'goal_scope_saved' && sendMessage) {
+          const { status, message, data } = payload || {};
+          let statusText = status === 'success' ? '成功' : '失败';
+          userAnalysisPrompt = `“目标与范围”已保存。
+状态：${statusText}。
+${message ? `信息：${message}` : ''}
+${data ? `详情摘要：${typeof data === 'string' ? data : JSON.stringify(data)}` : ''}
+
+请确认此操作或提供进一步的总结与分析。`;
+          sendMessage(fakeEvent, userAnalysisPrompt);
+
+        } else if (type === 'file_parse_complete' && sendMessage) {
+          const { status, fileName, itemsParsed, errors } = payload || {};
+          let statusText = status === 'success' ? '成功' : '失败';
+          userAnalysisPrompt = `文件“${fileName || '未知文件'}”解析完成。
+状态：${statusText}。
+${itemsParsed !== undefined ? `成功解析条目数：${itemsParsed}` : ''}
+${errors && errors.length > 0 ? `遇到的错误：${errors.join(', ')}` : ''}
+
+请对解析结果进行总结或提示用户下一步操作。`;
+          sendMessage(fakeEvent, userAnalysisPrompt);
+        
+        } else if (type === 'generic_panel_action_complete' && sendMessage) {
+          const { title, summary, status } = payload || {};
+          let statusText = status === 'success' ? '成功' : (status === 'failure' ? '失败' : (status || '已完成'));
+
+          if (title && summary) {
+            userAnalysisPrompt = `操作“${title}”已${statusText}。
+摘要：${summary}
+
+请提供进一步的分析或确认。`;
+            sendMessage(fakeEvent, userAnalysisPrompt);
           }
-          
-          // 使用append方法添加一条助手消息，类似于chat收到用户消息后的自动回复
-          append({
-            role: 'assistant',
-            content: responseMessage,
-          });
         }
+        // 可以根据需要添加更多的 else if 来处理其他事件类型
       };
       
-      // 注册事件监听
       window.addEventListener('carbonflow-trigger-chat', handleCarbonFlowTriggerChat as EventListener);
       
-      // 清理函数
       return () => {
         window.removeEventListener('carbonflow-trigger-chat', handleCarbonFlowTriggerChat as EventListener);
       };
-    }, [append]); // 依赖append函数
-
+    }, [append]); // 依赖 sendMessage 函数
     return (
       <BaseChat
         ref={animationScope}
