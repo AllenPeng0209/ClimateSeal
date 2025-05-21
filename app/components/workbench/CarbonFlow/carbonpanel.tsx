@@ -1392,7 +1392,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       console.log('[carbonpanel.tsx] Dispatching carbonflow-action for file parsing:', fileActionForEvent);
       window.dispatchEvent(
         new CustomEvent('carbonflow-action', {
-          detail: { action: fileActionForEvent },
+          detail: fileActionForEvent, 
         }),
       );
 
