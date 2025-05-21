@@ -229,37 +229,51 @@ const CarbonFlowInner = () => {
 
     const handleActionEvent = (event: Event) => {
       const customEvent = event as CustomEvent;
-      const actualAction = customEvent.detail as CarbonFlowAction & { traceId?: string };
+      const eventDetail = customEvent.detail; // Store for clarity and checking
 
-      console.log('[CarbonFlow.tsx] Received carbonflow-action event:', JSON.stringify(actualAction, null, 2));
+      // Log the raw detail to confirm its structure
+      console.log('[CarbonFlow.tsx] Received raw event.detail:', JSON.stringify(eventDetail, null, 2));
 
-      if (actualAction && actualAction.type === 'carbonflow') {
-        console.log('[CarbonFlow.tsx] Processing CarbonFlowAction:', JSON.stringify(actualAction, null, 2));
-        if (actualAction.data) {
-          try {
-            const parsedData = JSON.parse(actualAction.data);
-            console.log('[CarbonFlow.tsx] Parsed data from CarbonFlowAction:', JSON.stringify(parsedData, null, 2));
-          } catch (e) {
-            console.error('[CarbonFlow.tsx] Failed to parse data from CarbonFlowAction:', actualAction.data, e);
+      // Check if eventDetail and eventDetail.action exist
+      if (eventDetail && typeof eventDetail === 'object' && 'action' in eventDetail) {
+        const actualAction = eventDetail.action as CarbonFlowAction & { traceId?: string };
+        
+        console.log('[CarbonFlow.tsx] Extracted actualAction:', JSON.stringify(actualAction, null, 2));
+        console.log('[CarbonFlow.tsx] actualAction.type:', actualAction.type); // Should now be "carbonflow"
+
+        if (actualAction && actualAction.type === 'carbonflow') {
+          console.log('[CarbonFlow.tsx] Processing CarbonFlowAction:', JSON.stringify(actualAction, null, 2));
+          if (actualAction.data) {
+            try {
+              const parsedData = JSON.parse(actualAction.data);
+              console.log('[CarbonFlow.tsx] Parsed data from CarbonFlowAction:', JSON.stringify(parsedData, null, 2));
+            } catch (e) {
+              console.error('[CarbonFlow.tsx] Failed to parse data from CarbonFlowAction:', actualAction.data, e);
+            }
           }
-        }
 
-        if (actionHandler) {
-          console.log('[CarbonFlow.tsx] Calling actionHandler.handle for operation:', actualAction.operation);
-          actionHandler.handleAction(actualAction);
-          console.log('[CarbonFlow.tsx] Returned from actionHandler.handle for operation:', actualAction.operation);
+          if (actionHandler) {
+            console.log('[CarbonFlow.tsx] Calling actionHandler.handleAction for operation:', actualAction.operation);
+            actionHandler.handleAction(actualAction);
+            console.log('[CarbonFlow.tsx] Returned from actionHandler.handleAction for operation:', actualAction.operation);
+          } else {
+            console.warn('[CarbonFlow.tsx] actionHandler is not initialized.');
+          }
+
+          window.dispatchEvent(
+            new CustomEvent('carbonflow-action-result', {
+              detail: { success: true, traceId: actualAction.traceId, nodeId: actualAction.nodeId },
+            })
+          );
         } else {
-          console.warn('[CarbonFlow.tsx] actionHandler is not initialized.');
+          // This case would catch if actualAction is null/undefined or if actualAction.type is not 'carbonflow'
+          console.warn(`[CarbonFlow.tsx] actualAction is invalid or type is not 'carbonflow'. actualAction.type: ${actualAction?.type}, actualAction: ${JSON.stringify(actualAction, null, 2)}`);
         }
-
-        window.dispatchEvent(
-          new CustomEvent('carbonflow-action-result', {
-            detail: { success: true, traceId: actualAction.traceId, nodeId: actualAction.nodeId },
-          })
-        );
+      } else {
+        // This case means the event.detail was not structured as { action: ... }
+        console.error('[CarbonFlow.tsx] Event detail is missing the "action" property or is not an object. Received detail:', JSON.stringify(eventDetail, null, 2));
       }
     };
-
     window.addEventListener('carbonflow-action', handleActionEvent);
 
     const handlePanelDataUpdated = (event: Event) => {
