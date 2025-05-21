@@ -49,7 +49,7 @@ import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps, RcFile } from 'antd/es/upload/interface'; // Added RcFile here
 import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlowStore';
 import type { Node, Edge as ReactFlowEdge } from 'reactflow'; // Edge is kept for now, aliased to avoid conflict
-import type { NodeData, ProductNodeData, FinalProductNodeData } from '~/types/nodes';
+import type { NodeData, ProductNodeData, FinalProductNodeData, DistributionNodeData } from '~/types/nodes';
 import type { TableProps, ColumnType } from 'antd/es/table';
 import type { FilterDropdownProps } from 'antd/es/table/interface';
 import { data, useLoaderData } from '@remix-run/react';
@@ -245,10 +245,24 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     ai_response_summary?: string;
   }) => {
     try {
+      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+      let validTriggeredByNodeIds: string[] | undefined = undefined;
+
+      if (actionDetails.triggered_by_node_ids && Array.isArray(actionDetails.triggered_by_node_ids)) {
+        const allValid = actionDetails.triggered_by_node_ids.every(id => uuidRegex.test(id));
+        if (allValid) {
+          validTriggeredByNodeIds = actionDetails.triggered_by_node_ids;
+        } else {
+          console.warn('Some triggered_by_node_ids are not valid UUIDs. Omitting from log.');
+          // Optionally, you could log the non-UUIDs to a different field or handle them differently.
+        }
+      }
+
       const { error } = await supabase.from('workflow_action_logs').insert([
         {
           workflow_id: workflowId, // Assumes workflowId is available in this scope
           ...actionDetails,
+          triggered_by_node_ids: validTriggeredByNodeIds, // Use validated or undefined IDs
         },
       ]);
       if (error) {
@@ -269,11 +283,27 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   }
 
   const saveWorkflowNodes = async (nodeDataList: NodeData[]) => {
-    await Promise.all(nodeDataList.map(node => {
-      // 根据workflowId和nodId删除旧的节点数据
-      supabase.from('workflow_nodes').delete()
-        .eq('workflow_id', node.workflowId).eq('node_id', node.nodeId);
-    }))
+    // First, delete all nodes that are about to be updated/inserted to avoid conflicts
+    // This assumes nodeDataList contains all nodes for the current save operation that might already exist.
+    // If it only contains new nodes, this delete operation might be too broad or unnecessary for those.
+    // If it contains a mix, we need to be careful.
+    // For an upsert-like behavior, deleting first is common.
+    const deletePromises = nodeDataList.map(node => {
+      return supabase.from('workflow_nodes').delete()
+        .eq('workflow_id', node.workflowId)
+        .eq('node_id', node.nodeId);
+    });
+
+    const deleteResults = await Promise.all(deletePromises);
+    deleteResults.forEach(result => {
+      if (result.error) {
+        // It's often okay if a delete fails because the node didn't exist, but log other errors.
+        // Supabase delete doesn't error if rows don't exist by default, but good to be aware.
+        console.warn('Warning during node deletion phase (might be ok if node was new):', result.error?.message);
+      }
+    });
+
+    // Now, prepare and insert the new node data
     const newNodeDataList = nodeDataList.map(node => {
       let newNode = convertKeysToSnakeCase(node)
       newNode['activity_data_source'] = newNode['activitydata_source'] || '';
@@ -283,9 +313,15 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       delete newNode['end_point'];
       delete newNode['start_point'];
       delete newNode['supplier'];
-      console.log('Saving node data:', node);
+      delete newNode['evidence_files']; // <-- Key fix for runtime error
+      console.log('Preparing to save node data:', newNode);
       return newNode;
     });
+
+    if (newNodeDataList.length === 0) {
+      console.log('No node data to save.');
+      return true; // Or false, depending on desired behavior for empty list
+    }
 
     const { data, error } = await supabase.from('workflow_nodes').insert(newNodeDataList);
     if (error) {
@@ -305,13 +341,13 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
 
   const convertDbRecordsToNodeData = (records: any[]): NodeData[] => {
     return records.map(record => {
-      // 基础字段映射
-      const nodeData: Partial<NodeData> = {
+      // Base object, assume it could be any NodeData type initially
+      const baseNodeData: Partial<NodeData> = {
         nodeId: record.node_id,
         nodeType: record.node_type,
         workflowId: record.workflow_id,
-        label: record.label || record.node_name, // 支持 label 或 node_name
-        quantity: String(record.quantity ?? ''), // 确保转为字符串
+        label: record.label || record.node_name,
+        quantity: String(record.quantity ?? ''),
         activityUnit: record.activity_unit || '',
         carbonFactor: String(record.carbon_factor ?? ''),
         carbonFactorName: record.carbon_factor_name || '',
@@ -326,31 +362,43 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
         unitConversion: String(record.unit_conversion ?? ''),
       };
 
-      // 处理证据文件
-      if (record.evidence_files) {
-        nodeData.hasEvidenceFiles = true;
-        nodeData.evidenceFiles = Array.isArray(record.evidence_files) ? record.evidence_files : [];
-        nodeData.evidenceVerificationStatus = record.evidence_verification_status || '未验证';
+      // Handle evidence files
+      if (record.evidence_files && Array.isArray(record.evidence_files) && record.evidence_files.length > 0) {
+        baseNodeData.hasEvidenceFiles = true;
+        baseNodeData.evidenceFiles = record.evidence_files;
+        baseNodeData.evidenceVerificationStatus = record.evidence_verification_status || '待解析';
       } else {
-        nodeData.hasEvidenceFiles = false;
-        nodeData.evidenceFiles = [];
-        nodeData.evidenceVerificationStatus = '未验证';
+        baseNodeData.hasEvidenceFiles = false;
+        baseNodeData.evidenceFiles = [];
+        baseNodeData.evidenceVerificationStatus = record.evidence_verification_status || '无需验证';
       }
 
-      // 处理运输相关字段
+      let finalNodeData: NodeData = baseNodeData as NodeData;
+
+      // Handle transport-specific fields only if nodeType is 'distribution'
       if (record.node_type === 'distribution') {
-        nodeData.startPoint = record.start_point || '';
-        nodeData.endPoint = record.end_point || '';
-        nodeData.transportationType = record.transportation_mode || '';
-        nodeData.distance = record.transportation_distance || 0;
+        const distNodeSpecificData: Partial<DistributionNodeData> = {
+            ...baseNodeData, // Spread common fields
+            nodeType: 'distribution', // Set the literal type
+            startPoint: record.start_point || '',
+            endPoint: record.end_point || '',
+            transportationMode: record.transportation_mode || '',
+            transportationDistance: record.transportation_distance || 0,
+            // distributionDistance: record.transportation_distance || 0, // Already covered by transportationDistance conceptually
+        };
+        finalNodeData = distNodeSpecificData as DistributionNodeData;
+      } else if (record.node_type === 'product') {
+        finalNodeData = baseNodeData as ProductNodeData;
+      } else if (record.node_type === 'finalProduct') {
+        finalNodeData = baseNodeData as FinalProductNodeData;
       }
+      // Add other else if blocks for other specific node types if they have unique required fields beyond baseNodeData
 
-      // 确保所有必需字段都有默认值
-      return {
-        ...nodeData,
-        dataRisk: record.data_risk || undefined,
-        backgroundDataSourceTab: record.background_data_source_tab || 'database',
-      } as NodeData;
+      // Add common fields that might not have been set if not a specific type yet
+      finalNodeData.dataRisk = record.data_risk || undefined;
+      finalNodeData.backgroundDataSourceTab = record.background_data_source_tab || 'database';
+
+      return finalNodeData;
     });
   };
 
@@ -452,20 +500,21 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const currentWorkflowIdInStore = useCarbonFlowStore((state) => state.workflowId);
 
   useEffect(() => {
+    // Assuming workFlow prop uses snake_case for some fields as observed from errors
     if (workFlow && workFlow.id && workFlow.id !== currentWorkflowIdInStore) {
       console.log(
         `CarbonCalculatorPanel: Condition MET. Initializing/loading workflow ID: ${workFlow.id} into store. Previous store workflow ID: ${currentWorkflowIdInStore || 'none'}.`,
       );
 
-      // Create an object that matches the Workflow type for the store
+      // Map from the prop's snake_case to the store's expected camelCase Workflow type
       const workflowToLoad: Workflow = {
-        workflowId: workFlow.id, // Map from prop's id
+        workflowId: workFlow.id, // map from workFlow.id (snake_case from prop)
         name: workFlow.name || '',
         description: workFlow.description || '',
-        isPublic: workFlow.is_public || false,
-        userId: workFlow.user_id || '',
-        organizationId: workFlow.organization_id || null,
-        sceneInfo: workFlow.scene_info || {
+        isPublic: workFlow.is_public !== undefined ? workFlow.is_public : (workFlow.isPublic || false), // Prioritize snake_case, fallback to camelCase then default
+        userId: workFlow.user_id || workFlow.userId || '', // Prioritize snake_case
+        organizationId: workFlow.organization_id || workFlow.organizationId || null, // Prioritize snake_case
+        sceneInfo: workFlow.scene_info || workFlow.sceneInfo || { // Prioritize snake_case
           productName: '',
           productDesc: '',
           productSpecs: '',
@@ -479,31 +528,24 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           dataCollectionEndDate: new Date().toISOString(),
           boundary: ''
         },
-        nodes: [], // Nodes will be loaded by getWorkflowNodes
-        edges: [], // Edges might be part of workFlow.edges or loaded separately
-        modelScore: workFlow.model_score || undefined, // map from model_score
-        createdAt: workFlow.created_at || new Date().toISOString(),
-        updatedAt: workFlow.updated_at || new Date().toISOString(),
+        nodes: [], 
+        edges: workFlow.edges || [],
+        modelScore: workFlow.model_score || workFlow.modelScore || undefined, // Prioritize snake_case
+        createdAt: workFlow.created_at || workFlow.createdAt || new Date().toISOString(), // Prioritize snake_case
+        updatedAt: workFlow.updated_at || workFlow.updatedAt || new Date().toISOString(), // Prioritize snake_case
         tags: workFlow.tags || [],
         version: workFlow.version || 1,
-        // Add any other mandatory fields from Workflow type with defaults or from workFlow prop
       };
 
       loadWorkflowIntoStore(workflowToLoad);
-      // message.info(`正在加载工作流 ${workFlow.id} 的数据...`);
-
-      // this supose to be new version , all in one load , not load single, refactor later
-
 
       console.log('workFlow changed in CarbonCalculatorPanel:', workFlow);
-      const _sceneInfo = workFlow.sceneInfo || {};
-      setSceneInfo(_sceneInfo); // Initialize sceneInfo from workFlow
+      const _sceneInfo = workFlow.scene_info || workFlow.sceneInfo || {}; // Prioritize snake_case
+      setSceneInfo(_sceneInfo);
 
-      getWorkflowNodes(workFlow.id)
+      getWorkflowNodes(workFlow.id) 
         .then((fetchedNodes) => {
           console.log(`Fetched nodes from workFlow (useEffect initial load for ID ${workFlow.id}):`, fetchedNodes);
-          // Map fetched data to Node<NodeData> structure for the store
-
           const nodeList = fetchedNodes.map((node) => ({
             id: node.nodeId,
             type: node.nodeType,
@@ -705,7 +747,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       verificationLevel: values.verificationLevel,
       standard: values.standard,
       productName: values.productName,
-      boundary: values.boundary,
+      // boundary: values.boundary, // Removed as it's not in SceneInfoType here
     });
 
     await saveWorkflowSceneInfo(_scenceInfo);
@@ -1061,6 +1103,18 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               supplier: ''
               // Add other optional fields if needed, or let them be undefined
             } as ProductNodeData; // Assert the final type
+            break;
+          case 'distribution': // Added case for distribution
+            nodeData = {
+              ...commonData,
+              nodeType: 'distribution',
+              label: commonData.label || values.label,
+              startPoint: values.startPoint || '',
+              endPoint: values.endPoint || '',
+              transportationMode: values.transportType || '',
+              transportationDistance: values.distance ?? 0,
+              distributionDistance: values.distance ?? 0,
+            } as DistributionNodeData;
             break;
           // ... other cases need similar review ...
           default: // Example for finalProduct
