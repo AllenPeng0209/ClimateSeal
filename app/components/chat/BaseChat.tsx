@@ -266,7 +266,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             const fakeEvent = {} as React.UIEvent;
             sendMessage(fakeEvent, '正在初始化您的专属碳顾问');
           }
-        }, 500);
+        }, 2000);
         
         return () => clearTimeout(timer);
       }
