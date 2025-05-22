@@ -67,9 +67,9 @@ export const getSystemPromptCarbonChinese = (
       }
     }
 
-3. 关于排放源数据，需要从 'carbonFlowData.nodes' （每个 'node' 代表一个排放源）中读取，具体字段及其内容的映射关系如下：
+3. 关于排放源数据，需要从 'carbonFlowData.nodes' （每个 'node' 代表一个排放源）中读取，具体字段及其内容的映射关系如下，除以下字段之外，不允许读取其他任何排放源字段：
 - 'node_name'：排放源名称 (通常从 'node.data.label' 或 'node.data.nodeName' 读取)
-- 'lifecycle_stage' (生命周期阶段)：**此字段应根据每个 'node' 的 'type' 属性 (即 'node.type') 通过以下映射关系确定：**
+- 生命周期阶段：此字段应严格根据每个 'node' 的 'type' 属性 (即 'node.type') 通过以下映射关系确定：**
     - 若 'node.type' 为 'product', 则生命周期阶段为 '原材料获取阶段'
     - 若 'node.type' 为 'manufacturing', 则生命周期阶段为 '生产阶段'
     - 若 'node.type' 为 'distribution', 则生命周期阶段为 '分销运输阶段'
@@ -91,6 +91,14 @@ export const getSystemPromptCarbonChinese = (
 - 'geography'：排放因子（背景数据）地理代表性 (通常从 'node.data.emissionFactorGeographicalRepresentativeness' 或 'node.data.geography' 读取)
 - 'importDate'：排放因子（背景数据）时间代表性 (通常从 'node.data.emissionFactorTemporalRepresentativeness' 或 'node.data.importDate' 读取)
 - 'activityUUID'：排放因子（背景数据）UUID (通常从 'node.data.carbonFactorUUID' 或 'node.data.activityUUID' 读取)
+- 'transportationMode'：运输方式
+- 'transportationDistance'：运输距离
+- 'startPoint'：起点
+- 'endPoint'：终点
+
+
+
+
 
 '''
 # 【目标与范围的保存】
