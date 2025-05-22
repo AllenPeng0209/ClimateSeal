@@ -112,7 +112,7 @@ export class CarbonFlowBridge {
     // 如果 CarbonFlow 组件是 DOM 中的一个特定元素，并且你想更精确地定位事件，可以考虑：
     // const component = document.querySelector('carbon-flow-component'); // 假设这是你的组件的选择器
     // if (component) { component.dispatchEvent(event); } else { console.error('CarbonFlow component not found for event dispatch'); }
-    const event = new CustomEvent('carbonflow-action', { detail: enrichedAction, bubbles: true, composed: true });
+    const event = new CustomEvent('carbonflow-action', { detail: { action: enrichedAction }, bubbles: true, composed: true });
     window.dispatchEvent(event); // 继续使用 window dispatch，假设组件能监听到
   }
 

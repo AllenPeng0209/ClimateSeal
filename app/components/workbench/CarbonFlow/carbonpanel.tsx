@@ -49,7 +49,19 @@ import { ClientOnly } from 'remix-utils/client-only';
 import type { UploadFile, UploadProps, RcFile } from 'antd/es/upload/interface'; // Added RcFile here
 import { useCarbonFlowStore, emitCarbonFlowData } from './CarbonFlowStore';
 import type { Node, Edge as ReactFlowEdge } from 'reactflow'; // Edge is kept for now, aliased to avoid conflict
-import type { NodeData, ProductNodeData, FinalProductNodeData } from '~/types/nodes';
+
+// Helper function to dispatch chat trigger events
+const dispatchChatTriggerEvent = (type: string, payload: any) => {
+  const event = new CustomEvent('carbonflow-trigger-chat', {
+    detail: {
+      type,
+      payload,
+    },
+  });
+  window.dispatchEvent(event);
+  console.log(`[CarbonPanel] Dispatched event: ${type}`, payload);
+};
+import type { NodeData, ProductNodeData, FinalProductNodeData, DistributionNodeData } from '~/types/nodes';
 import type { TableProps, ColumnType } from 'antd/es/table';
 import type { FilterDropdownProps } from 'antd/es/table/interface';
 import { data, useLoaderData } from '@remix-run/react';
@@ -245,10 +257,24 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     ai_response_summary?: string;
   }) => {
     try {
+      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+      let validTriggeredByNodeIds: string[] | undefined = undefined;
+
+      if (actionDetails.triggered_by_node_ids && Array.isArray(actionDetails.triggered_by_node_ids)) {
+        const allValid = actionDetails.triggered_by_node_ids.every(id => uuidRegex.test(id));
+        if (allValid) {
+          validTriggeredByNodeIds = actionDetails.triggered_by_node_ids;
+        } else {
+          console.warn('Some triggered_by_node_ids are not valid UUIDs. Omitting from log.');
+          // Optionally, you could log the non-UUIDs to a different field or handle them differently.
+        }
+      }
+
       const { error } = await supabase.from('workflow_action_logs').insert([
         {
           workflow_id: workflowId, // Assumes workflowId is available in this scope
           ...actionDetails,
+          triggered_by_node_ids: validTriggeredByNodeIds, // Use validated or undefined IDs
         },
       ]);
       if (error) {
@@ -269,11 +295,27 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   }
 
   const saveWorkflowNodes = async (nodeDataList: NodeData[]) => {
-    await Promise.all(nodeDataList.map(node => {
-      // 根据workflowId和nodId删除旧的节点数据
-      supabase.from('workflow_nodes').delete()
-        .eq('workflow_id', node.workflowId).eq('node_id', node.nodeId);
-    }))
+    // First, delete all nodes that are about to be updated/inserted to avoid conflicts
+    // This assumes nodeDataList contains all nodes for the current save operation that might already exist.
+    // If it only contains new nodes, this delete operation might be too broad or unnecessary for those.
+    // If it contains a mix, we need to be careful.
+    // For an upsert-like behavior, deleting first is common.
+    const deletePromises = nodeDataList.map(node => {
+      return supabase.from('workflow_nodes').delete()
+        .eq('workflow_id', node.workflowId)
+        .eq('node_id', node.nodeId);
+    });
+
+    const deleteResults = await Promise.all(deletePromises);
+    deleteResults.forEach(result => {
+      if (result.error) {
+        // It's often okay if a delete fails because the node didn't exist, but log other errors.
+        // Supabase delete doesn't error if rows don't exist by default, but good to be aware.
+        console.warn('Warning during node deletion phase (might be ok if node was new):', result.error?.message);
+      }
+    });
+
+    // Now, prepare and insert the new node data
     const newNodeDataList = nodeDataList.map(node => {
       let newNode = convertKeysToSnakeCase(node)
       newNode['activity_data_source'] = newNode['activitydata_source'] || '';
@@ -283,9 +325,15 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       delete newNode['end_point'];
       delete newNode['start_point'];
       delete newNode['supplier'];
-      console.log('Saving node data:', node);
+      delete newNode['evidence_files']; // <-- Key fix for runtime error
+      console.log('Preparing to save node data:', newNode);
       return newNode;
     });
+
+    if (newNodeDataList.length === 0) {
+      console.log('No node data to save.');
+      return true; // Or false, depending on desired behavior for empty list
+    }
 
     const { data, error } = await supabase.from('workflow_nodes').insert(newNodeDataList);
     if (error) {
@@ -305,13 +353,13 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
 
   const convertDbRecordsToNodeData = (records: any[]): NodeData[] => {
     return records.map(record => {
-      // 基础字段映射
-      const nodeData: Partial<NodeData> = {
+      // Base object, assume it could be any NodeData type initially
+      const baseNodeData: Partial<NodeData> = {
         nodeId: record.node_id,
         nodeType: record.node_type,
         workflowId: record.workflow_id,
-        label: record.label || record.node_name, // 支持 label 或 node_name
-        quantity: String(record.quantity ?? ''), // 确保转为字符串
+        label: record.label || record.node_name,
+        quantity: String(record.quantity ?? ''),
         activityUnit: record.activity_unit || '',
         carbonFactor: String(record.carbon_factor ?? ''),
         carbonFactorName: record.carbon_factor_name || '',
@@ -326,31 +374,43 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
         unitConversion: String(record.unit_conversion ?? ''),
       };
 
-      // 处理证据文件
-      if (record.evidence_files) {
-        nodeData.hasEvidenceFiles = true;
-        nodeData.evidenceFiles = Array.isArray(record.evidence_files) ? record.evidence_files : [];
-        nodeData.evidenceVerificationStatus = record.evidence_verification_status || '未验证';
+      // Handle evidence files
+      if (record.evidence_files && Array.isArray(record.evidence_files) && record.evidence_files.length > 0) {
+        baseNodeData.hasEvidenceFiles = true;
+        baseNodeData.evidenceFiles = record.evidence_files;
+        baseNodeData.evidenceVerificationStatus = record.evidence_verification_status || '待解析';
       } else {
-        nodeData.hasEvidenceFiles = false;
-        nodeData.evidenceFiles = [];
-        nodeData.evidenceVerificationStatus = '未验证';
+        baseNodeData.hasEvidenceFiles = false;
+        baseNodeData.evidenceFiles = [];
+        baseNodeData.evidenceVerificationStatus = record.evidence_verification_status || '无需验证';
       }
 
-      // 处理运输相关字段
+      let finalNodeData: NodeData = baseNodeData as NodeData;
+
+      // Handle transport-specific fields only if nodeType is 'distribution'
       if (record.node_type === 'distribution') {
-        nodeData.startPoint = record.start_point || '';
-        nodeData.endPoint = record.end_point || '';
-        nodeData.transportationType = record.transportation_mode || '';
-        nodeData.distance = record.transportation_distance || 0;
+        const distNodeSpecificData: Partial<DistributionNodeData> = {
+            ...baseNodeData, // Spread common fields
+            nodeType: 'distribution', // Set the literal type
+            startPoint: record.start_point || '',
+            endPoint: record.end_point || '',
+            transportationMode: record.transportation_mode || '',
+            transportationDistance: record.transportation_distance || 0,
+            // distributionDistance: record.transportation_distance || 0, // Already covered by transportationDistance conceptually
+        };
+        finalNodeData = distNodeSpecificData as DistributionNodeData;
+      } else if (record.node_type === 'product') {
+        finalNodeData = baseNodeData as ProductNodeData;
+      } else if (record.node_type === 'finalProduct') {
+        finalNodeData = baseNodeData as FinalProductNodeData;
       }
+      // Add other else if blocks for other specific node types if they have unique required fields beyond baseNodeData
 
-      // 确保所有必需字段都有默认值
-      return {
-        ...nodeData,
-        dataRisk: record.data_risk || undefined,
-        backgroundDataSourceTab: record.background_data_source_tab || 'database',
-      } as NodeData;
+      // Add common fields that might not have been set if not a specific type yet
+      finalNodeData.dataRisk = record.data_risk || undefined;
+      finalNodeData.backgroundDataSourceTab = record.background_data_source_tab || 'database';
+
+      return finalNodeData;
     });
   };
 
@@ -452,20 +512,21 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   const currentWorkflowIdInStore = useCarbonFlowStore((state) => state.workflowId);
 
   useEffect(() => {
+    // Assuming workFlow prop uses snake_case for some fields as observed from errors
     if (workFlow && workFlow.id && workFlow.id !== currentWorkflowIdInStore) {
       console.log(
         `CarbonCalculatorPanel: Condition MET. Initializing/loading workflow ID: ${workFlow.id} into store. Previous store workflow ID: ${currentWorkflowIdInStore || 'none'}.`,
       );
 
-      // Create an object that matches the Workflow type for the store
+      // Map from the prop's snake_case to the store's expected camelCase Workflow type
       const workflowToLoad: Workflow = {
-        workflowId: workFlow.id, // Map from prop's id
+        workflowId: workFlow.id, // map from workFlow.id (snake_case from prop)
         name: workFlow.name || '',
         description: workFlow.description || '',
-        isPublic: workFlow.is_public || false,
-        userId: workFlow.user_id || '',
-        organizationId: workFlow.organization_id || null,
-        sceneInfo: workFlow.scene_info || {
+        isPublic: workFlow.is_public !== undefined ? workFlow.is_public : (workFlow.isPublic || false), // Prioritize snake_case, fallback to camelCase then default
+        userId: workFlow.user_id || workFlow.userId || '', // Prioritize snake_case
+        organizationId: workFlow.organization_id || workFlow.organizationId || null, // Prioritize snake_case
+        sceneInfo: workFlow.scene_info || workFlow.sceneInfo || { // Prioritize snake_case
           productName: '',
           productDesc: '',
           productSpecs: '',
@@ -479,31 +540,24 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           dataCollectionEndDate: new Date().toISOString(),
           boundary: ''
         },
-        nodes: [], // Nodes will be loaded by getWorkflowNodes
-        edges: [], // Edges might be part of workFlow.edges or loaded separately
-        modelScore: workFlow.model_score || undefined, // map from model_score
-        createdAt: workFlow.created_at || new Date().toISOString(),
-        updatedAt: workFlow.updated_at || new Date().toISOString(),
+        nodes: [], 
+        edges: workFlow.edges || [],
+        modelScore: workFlow.model_score || workFlow.modelScore || undefined, // Prioritize snake_case
+        createdAt: workFlow.created_at || workFlow.createdAt || new Date().toISOString(), // Prioritize snake_case
+        updatedAt: workFlow.updated_at || workFlow.updatedAt || new Date().toISOString(), // Prioritize snake_case
         tags: workFlow.tags || [],
         version: workFlow.version || 1,
-        // Add any other mandatory fields from Workflow type with defaults or from workFlow prop
       };
 
       loadWorkflowIntoStore(workflowToLoad);
-      // message.info(`正在加载工作流 ${workFlow.id} 的数据...`);
-
-      // this supose to be new version , all in one load , not load single, refactor later
-
 
       console.log('workFlow changed in CarbonCalculatorPanel:', workFlow);
-      const _sceneInfo = workFlow.sceneInfo || {};
-      setSceneInfo(_sceneInfo); // Initialize sceneInfo from workFlow
+      const _sceneInfo = workFlow.scene_info || workFlow.sceneInfo || {}; // Prioritize snake_case
+      setSceneInfo(_sceneInfo);
 
-      getWorkflowNodes(workFlow.id)
+      getWorkflowNodes(workFlow.id) 
         .then((fetchedNodes) => {
           console.log(`Fetched nodes from workFlow (useEffect initial load for ID ${workFlow.id}):`, fetchedNodes);
-          // Map fetched data to Node<NodeData> structure for the store
-
           const nodeList = fetchedNodes.map((node) => ({
             id: node.nodeId,
             type: node.nodeType,
@@ -688,46 +742,86 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
     } else if (values.lifecycleType === 'full') {
       finalFullStages = fullLifecycleSelectedStages;
     }
-    const _scenceInfo: SceneInfoType = {
-      ...values, // Includes other form fields like taskName, productName etc.
-      lifecycleType: values.lifecycleType, // Save the radio choice
+    const _sceneInfo: SceneInfoType = { // Renamed to avoid conflict with global sceneInfo if any
+      ...values, 
+      lifecycleType: values.lifecycleType, 
       calculationBoundaryHalfLifecycle: finalHalfStages,
       calculationBoundaryFullLifecycle: finalFullStages,
-      // Ensure fields not directly in the form but part of sceneInfo are preserved if necessary
-      productSpecs: sceneInfo.productSpecs,
-      productDesc: sceneInfo.productDesc,
-      // dataCollectionStartDate: values.dataCollectionStartDate.toISOString(),
-      // dataCollectionEndDate: values.dataCollectionEndDate.toISOString()
-    }
-    setSceneInfo(_scenceInfo);
+      productSpecs: sceneInfo.productSpecs, // Preserve existing values from component's state
+      productDesc: sceneInfo.productDesc,   // Preserve existing values from component's state
+    };
+    setSceneInfo(_sceneInfo); // Update local state for immediate UI reflection if needed
 
+    // This updates a Zustand store, ensure it's what you intend.
     setStoreSceneInfo({
       verificationLevel: values.verificationLevel,
       standard: values.standard,
       productName: values.productName,
-      boundary: values.boundary,
     });
 
-    await saveWorkflowSceneInfo(_scenceInfo);
+    try {
+      await saveWorkflowSceneInfo(_sceneInfo);
 
     message.success('目标与范围已保存');
+
+    // Dispatch event to trigger chat response for scene info saved
+    const sceneInfoEvent = new CustomEvent('carbonflow-sceneinfo-saved-trigger-chat', {
+      detail: { sceneInfo: _sceneInfo }
+    });
+    window.dispatchEvent(sceneInfoEvent);
+
     handleCloseSettings();
 
-    // Log this action
-    logWorkflowAction({
-      action_type: 'USER_SETTINGS_SAVE',
-      operation_name: 'save_scene_info',
-      parameters: {
-        // Redact or summarize sensitive/large values if necessary
-        savedValues: {
-          ...values,
-          calculationBoundaryHalfLifecycle: finalHalfStages, // Log calculated stages
-          calculationBoundaryFullLifecycle: finalFullStages
+      logWorkflowAction({
+        action_type: 'USER_SETTINGS_SAVE',
+        operation_name: 'save_scene_info',
+        parameters: {
+          savedValues: {
+            ...values,
+            calculationBoundaryHalfLifecycle: finalHalfStages,
+            calculationBoundaryFullLifecycle: finalFullStages
+          }
+        },
+        status: 'COMPLETED_SUCCESS',
+        results_summary: { message: 'Scene info saved successfully' }
+      });
+
+      dispatchChatTriggerEvent('goal_scope_saved', {
+        status: 'success',
+        message: '“目标与范围”设置已成功保存。',
+        data: {
+          productName: _sceneInfo.productName,
+          standard: _sceneInfo.standard,
+          lifecycleType: _sceneInfo.lifecycleType,
+          taskName: _sceneInfo.taskName,
+          verificationLevel: _sceneInfo.verificationLevel,
+          // Add other relevant summary fields from _sceneInfo as needed
         }
-      },
-      status: 'COMPLETED_SUCCESS',
-      results_summary: { message: 'Scene info saved successfully' }
-    });
+      });
+
+    } catch (error: any) {
+      console.error('保存目标与范围失败:', error);
+      message.error(`保存目标与范围失败: ${error.message}`);
+      
+      dispatchChatTriggerEvent('goal_scope_saved', {
+        status: 'failure',
+        message: `"目标与范围"设置保存失败: ${error.message}`,
+      });
+
+      logWorkflowAction({
+        action_type: 'USER_SETTINGS_SAVE',
+        operation_name: 'save_scene_info',
+        parameters: {
+            originalValues: values // Log original values on failure for debugging
+        },
+        status: 'COMPLETED_FAILURE',
+        results_summary: { 
+          message: 'Scene info save failed',
+          error: error.message,
+          stack: error.stack // Storing stack might be too verbose for some logging systems, consider if needed
+        }
+      });
+    }
   };
 
 
@@ -859,7 +953,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               // Transport fields - Add if they exist in NodeData, otherwise remove
               startPoint: values.startPoint || '',
               endPoint: values.endPoint || '',
-              transportationMode: values.transportType || '',  // 修改为transportationMode
+              transportationMode: values.transportationMode || '', // 直接使用 values.transportationMode
               transportationDistance: values.distance ?? 0,    // 修改为transportationDistance
               distributionDistance: values.distance ?? 0,      // 同时添加distributionDistance
             };
@@ -1009,6 +1103,9 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           // 运输字段 - 只使用基础结构
           startPoint: values.startPoint || '',
           endPoint: values.endPoint || '',
+          transportationMode: values.transportationMode || '', // 直接使用 values.transportationMode
+          transportationDistance: values.distance ?? 0,
+          distributionDistance: values.distance ?? 0,
         };
 
         // 如果有待处理的证据文件，将状态设置为待解析
@@ -1061,6 +1158,18 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               supplier: ''
               // Add other optional fields if needed, or let them be undefined
             } as ProductNodeData; // Assert the final type
+            break;
+          case 'distribution': // Added case for distribution
+            nodeData = {
+              ...commonData,
+              nodeType: 'distribution',
+              label: commonData.label || values.label,
+              startPoint: values.startPoint || '',
+              endPoint: values.endPoint || '',
+              transportationMode: values.transportationMode || '', // 直接使用 values.transportationMode
+              transportationDistance: values.distance ?? 0,
+              distributionDistance: values.distance ?? 0,
+            } as DistributionNodeData;
             break;
           // ... other cases need similar review ...
           default: // Example for finalProduct
@@ -1392,7 +1501,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       console.log('[carbonpanel.tsx] Dispatching carbonflow-action for file parsing:', fileActionForEvent);
       window.dispatchEvent(
         new CustomEvent('carbonflow-action', {
-          detail: { action: fileActionForEvent },
+          detail: { action: fileActionForEvent }, 
         }),
       );
 
@@ -2195,16 +2304,21 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
 
       // If this is the file currently selected in the AI Parse Modal, update modal-specific states
       if (selectedFileForParse?.id === fileId) {
+        let chatTriggerPayload: any = { fileName: selectedFileForParse.name, status, error }; // Ensure selectedFileForParse is not null
         if (status === 'completed') {
           setParsedEmissionSources(sources || []);
-          // parseResultSummary state is becoming less central, summary is in selectedFileForParse.content
-          // setParseResultSummary(summary || '解析完成，请查看下方数据。');
-          message.success(`文件 ${selectedFileForParse.name} 解析成功。`);
+          message.success(`文件 ${selectedFileForParse.name} 解析成功。`); // Ensure selectedFileForParse is not null
+          chatTriggerPayload.sourceCount = (sources || []).length;
         } else if (status === 'failed') {
           setParsedEmissionSources([]);
-          // setParseResultSummary(summary || `解析失败: ${error || '未知错误'}`);
-          message.error(`文件 ${selectedFileForParse.name} 解析失败: ${error || '未知错误'}`);
+          message.error(`文件 ${selectedFileForParse.name} 解析失败: ${error || '未知错误'}`); // Ensure selectedFileForParse is not null
         }
+
+        // Dispatch event to trigger chat response for file parsing
+        const fileParseEvent = new CustomEvent('carbonflow-fileparsed-trigger-chat', {
+          detail: chatTriggerPayload
+        });
+        window.dispatchEvent(fileParseEvent);
       }
     };
 
@@ -2683,8 +2797,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               >
                 <Select placeholder="选择产品" allowClear>
                   {/* Replace with actual product list from your data source */}
-                  <Select.Option value="产品1">产品1</Select.Option>
-                  <Select.Option value="产品2">产品2</Select.Option>
+                  <Select.Option value="电冰箱">电冰箱</Select.Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -2949,6 +3062,29 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               </Form.Item>
             </Col>
           </Row>
+
+          {/* 新增运输相关字段 */}
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="startPoint" label="运输-起点">
+                <Input placeholder="请输入运输起点" className="panel-sider-input" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="endPoint" label="运输-终点">
+                <Input placeholder="请输入运输终点" className="panel-sider-input" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="transportationMode" label="运输方式">
+                <Input placeholder="请输入运输方式" className="panel-sider-input" />
+              </Form.Item>
+            </Col>
+            {/* 可以在这里为另一半 Col 添加其他相关字段，如果需要的话 */}
+          </Row>
+
           <Form.Item label="关联证据文件">
             <Upload
               name="evidenceFiles"
@@ -3341,37 +3477,37 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
         ]}
       >
         <div className="mb-4"> {/* Parent of "匹配结果摘要" */}
-          <div className="font-bold text-lg mb-2 text-gray-900">匹配结果摘要</div> {/* 修改在这里 */}
-          <div className="flex space-x-4">
-            <div className="border p-3 rounded flex-1 bg-green-40 text-center">
-              <div className="text-2xl text-gray-900">{matchResults.success.length}</div>
-              <div className="text-gray-900">匹配成功</div>
+          <div className="font-bold text-lg mb-3 text-white">匹配结果摘要</div> {/* 修改在这里 */}
+          <div className="flex space-x-4 text-white">
+            <div className="border p-3 rounded flex-1 bg-green-40 text-center text-white">
+              <div className="text-2xl text-white">{matchResults.success.length}</div>
+              <div className="text-white">匹配成功</div>
             </div>
-            <div className="border p-3 rounded flex-1 bg-red-40 text-center">
-              <div className="text-2xl text-gray-900">{matchResults.failed.length}</div>
-              <div className="text-gray-900">匹配失败</div>
+            <div className="border p-3 rounded flex-1 bg-red-40 text-center text-white">
+              <div className="text-2xl text-white">{matchResults.failed.length}</div>
+              <div className="text-white">匹配失败</div>
             </div>
           </div>
         </div>
 
         <div className="mb-4"> {/* Parent of "API匹配日志" */}
-          <div className="font-bold text-lg mb-2 text-gray-900">API匹配日志</div> {/* 修改在这里 */}
-          <div className="border rounded p-2 bg-gray-30 h-40 overflow-auto">
+          <div className="font-bold text-lg mb-2 text-white">API匹配日志</div> {/* 修改在这里 */}
+          <div className="border rounded p-2 bg-gray-30 h-40 overflow-auto text-white">
             {matchResults.logs.length > 0 ? (
               <ul className="list-disc pl-5">
                 {matchResults.logs.map((log, index) => (
-                  <li key={index} className="text-sm text-gray-900 mb-1">{log}</li>
+                  <li key={index} className="text-sm text-white mb-1">{log}</li>
                 ))}
               </ul>
             ) : (
-              <div className="text-center text-gray-900 py-4">无匹配日志信息</div>
+              <div className="text-center text-white py-4">无匹配日志信息</div>
             )}
           </div>
         </div>
 
         <div>
-          <div className="font-bold text-lg mb-2">详细匹配结果</div>
-          <Tabs defaultActiveKey="success">
+          <div className="font-bold text-lg mb-2 text-white">详细匹配结果</div>
+          <Tabs defaultActiveKey="success" className="text-white">
             <Tabs.TabPane tab="成功匹配" key="success">
               {matchResults.success.length > 0 ? (
                 <ul className="list-disc pl-5">
@@ -3379,7 +3515,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                     const node = nodes.find(n => n.id === id); // Find node by ID
                     const data = node?.data as any;
                     return (
-                      <li key={id} className="mb-1 text-gray-900">
+                      <li key={id} className="mb-1 text-white">
                         <span className="font-semibold">{node?.data?.label || id}</span>:
                         {data ? ` 碳因子值=${data.carbonFactor || '未知'}` : ' 匹配成功'}
                       </li>
@@ -3387,7 +3523,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                   })}
                 </ul>
               ) : (
-                <div className="text-center text-gray-500 py-4">无成功匹配的排放源</div>
+                <div className="text-center text-white py-4">无成功匹配的排放源</div>
               )}
             </Tabs.TabPane>
             <Tabs.TabPane tab="失败匹配" key="failed">
@@ -3395,11 +3531,11 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
                 <ul className="list-disc pl-5">
                   {matchResults.failed.map(id => {
                     const node = nodes.find(n => n.id === id); // Find node by ID
-                    return <li key={id} className="mb-1 text-gray-900">{node?.data?.label || id}</li>;
+                    return <li key={id} className="mb-1 text-white">{node?.data?.label || id}</li>;
                   })}
                 </ul>
               ) : (
-                <div className="text-center text-gray-500 py-4">无失败匹配的排放源</div>
+                <div className="text-center text-white py-4">无失败匹配的排放源</div>
               )}
             </Tabs.TabPane>
           </Tabs>

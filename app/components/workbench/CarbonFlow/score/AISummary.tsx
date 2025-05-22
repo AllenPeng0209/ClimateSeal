@@ -11,6 +11,7 @@ import type {
   ProductNodeData,
   ManufacturingNodeData,
   DistributionNodeData,
+  FinalProductNodeData,
 } from '~/types/nodes';
 
 
@@ -25,14 +26,14 @@ export const CarbonFlowAISummary = ({ setSelectedNode }: CarbonFlowAISummaryProp
   const { setAiSummary: setStoreAiSummary } = useCarbonFlowStore();
 
   const calculateAiSummaryInternal = useCallback((currentNodes: Node<NodeData>[]): AISummaryReport => {
-    // Define mapping from English stage keys (used in node data) to Chinese names (used in this calculation logic)
-    const stageNameMapping: Record<string, string> = {
-      'product': '原材料获取',
-      'manufacturing': '生产制造',
-      'distribution': '分销和储存',
-      'usage': '产品使用',
-      'disposal': '废弃处置',
-      // 'finalProduct' is not typically part of this specific lifecycle completeness check
+    // Define mapping from node.type to Chinese lifecycle stage names
+    const nodeTypeToLifecycleStageMap: Record<string, string> = {
+      'product': '原材料获取阶段',
+      'manufacturing': '生产阶段',
+      'distribution': '分销运输阶段',
+      'usage': '使用阶段',
+      'disposal': '寿命终止阶段',
+      // Other types will result in undefined, and filtered out
     };
 
     if (!currentNodes || currentNodes.length === 0) {
@@ -42,10 +43,10 @@ export const CarbonFlowAISummary = ({ setSelectedNode }: CarbonFlowAISummaryProp
       };
     }
 
-    const lifecycle = ['原材料获取', '生产制造', '分销和储存', '产品使用', '废弃处置'];
-    // Use mapped stage names for calculating existing stages
+    const lifecycle = ['原材料获取阶段', '生产阶段', '分销运输阶段', '使用阶段', '寿命终止阶段'];
+    // Use node.type and mapped stage names for calculating existing stages
     const existingStages = new Set(
-      currentNodes.map(node => node.data?.lifecycleStage ? stageNameMapping[node.data.lifecycleStage] : undefined).filter(Boolean)
+      currentNodes.map(node => node.type ? nodeTypeToLifecycleStageMap[node.type] : undefined).filter(Boolean)
     );
     const missingLifecycleStages = lifecycle.filter((stage) => !existingStages.has(stage));
     let lifecycleCompletenessScore = 0;
@@ -62,11 +63,11 @@ export const CarbonFlowAISummary = ({ setSelectedNode }: CarbonFlowAISummaryProp
       const missingFields: string[] = [];
       if (!node.data) return;
 
-      // Use mapped stage name for the switch statement
-      const mappedStage = node.data?.lifecycleStage ? stageNameMapping[node.data.lifecycleStage] : undefined;
+      // Use mapped stage name for the switch statement, derived from node.type
+      const mappedStage = node.type ? nodeTypeToLifecycleStageMap[node.type] : undefined;
 
       switch (mappedStage) {
-        case '原材料获取': {
+        case '原材料获取阶段': {
           const productData = node.data as ProductNodeData;
           const quantity =
             productData.quantity !== undefined && !Number.isNaN(Number(productData.quantity))
@@ -106,7 +107,7 @@ export const CarbonFlowAISummary = ({ setSelectedNode }: CarbonFlowAISummaryProp
           }
           break;
         }
-        case '生产制造': {
+        case '生产阶段': {
           const manufacturingData = node.data as ManufacturingNodeData;
           if (
             typeof node.data.carbonFactor === 'undefined' ||
@@ -139,7 +140,7 @@ export const CarbonFlowAISummary = ({ setSelectedNode }: CarbonFlowAISummaryProp
           }
           break;
         }
-        case '分销和储存': {
+        case '分销运输阶段': {
           const distributionData = node.data as DistributionNodeData;
           if (
             typeof node.data.carbonFactor === 'undefined' ||
@@ -154,14 +155,14 @@ export const CarbonFlowAISummary = ({ setSelectedNode }: CarbonFlowAISummaryProp
           }
           if (typeof distributionData.startPoint === 'undefined' || distributionData.startPoint === '') {
             totalFields++;
-            missingFields.push('起点');
+            missingFields.push('分销起点');
           } else {
             completedFields++;
             totalFields++;
           }
           if (typeof distributionData.endPoint === 'undefined' || distributionData.endPoint === '') {
             totalFields++;
-            missingFields.push('终点');
+            missingFields.push('分销终点');
           } else {
             completedFields++;
             totalFields++;
@@ -199,39 +200,44 @@ export const CarbonFlowAISummary = ({ setSelectedNode }: CarbonFlowAISummaryProp
 
     currentNodes.forEach((node) => {
       if (!node.data) return;
-      if (node.data.lifecycleStage === '原材料获取') {
-        const productData = node.data as ProductNodeData;
+
+      // Mass balance logic based on node.type and specific fields to identify final products
+      if (node.type === 'product') {
+        const productData = node.data as ProductNodeData; 
+        const finalProductData = node.data as Partial<FinalProductNodeData>;
+
         const quantity =
           productData.quantity !== undefined && !Number.isNaN(Number(productData.quantity))
             ? Number(productData.quantity)
             : 0;
-        if (quantity === 0) {
-          massIncompleteNodes.push({
-            id: node.id,
-            label: node.data.label || `Node ${node.id}`,
-            missingFields: ['数量'],
-          });
-        } else {
-          totalInputMass += quantity;
-        }
-      }
 
-      if (node.data.lifecycleStage === '最终节点') { 
-        const finalProductData = node.data; 
-        const quantity =
-          (finalProductData as ProductNodeData).quantity !== undefined && !Number.isNaN(Number((finalProductData as ProductNodeData).quantity))
-            ? Number((finalProductData as ProductNodeData).quantity)
-            : 0;
-        if (quantity === 0) {
-          massIncompleteNodes.push({
-            id: node.id,
-            label: node.data.label || `Node ${node.id}`,
-            missingFields: ['数量'],
-          });
-        } else {
-          totalOutputMass += quantity;
+        // Check for a field specific to FinalProductNodeData to distinguish, e.g., finalProductName
+        // Adjust this condition if a more robust flag (e.g., isFinalProduct) is available
+        if (typeof finalProductData.finalProductName === 'string' && finalProductData.finalProductName !== '') { // This node is a Final Product (Output)
+          if (quantity === 0) {
+            massIncompleteNodes.push({
+              id: node.id,
+              label: node.data.label || `Node ${node.id}`,
+              missingFields: ['数量'],
+            });
+          } else {
+            totalOutputMass += quantity;
+          }
+        } else { // This node is a Raw Material (Input)
+          if (quantity === 0) {
+            massIncompleteNodes.push({
+              id: node.id,
+              label: node.data.label || `Node ${node.id}`,
+              missingFields: ['数量'],
+            });
+          } else {
+            totalInputMass += quantity;
+          }
         }
       }
+      // Note: The original mass balance logic only considered '原材料获取' and '最终节点'.
+      // Other node types (manufacturing, distribution, etc.) were not part of that specific mass balance calculation.
+      // This revised logic focuses on product type nodes for inputs and outputs.
     });
 
     const errorPercentage = totalInputMass > 0 ? (Math.abs(totalInputMass - totalOutputMass) / totalInputMass) * 100 : (totalOutputMass > 0 ? 100 : 0) ;
