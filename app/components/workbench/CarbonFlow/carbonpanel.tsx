@@ -805,7 +805,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
       
       dispatchChatTriggerEvent('goal_scope_saved', {
         status: 'failure',
-        message: `“目标与范围”设置保存失败: ${error.message}`,
+        message: `"目标与范围"设置保存失败: ${error.message}`,
       });
 
       logWorkflowAction({
@@ -953,7 +953,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               // Transport fields - Add if they exist in NodeData, otherwise remove
               startPoint: values.startPoint || '',
               endPoint: values.endPoint || '',
-              transportationMode: values.transportType || '',  // 修改为transportationMode
+              transportationMode: values.transportationMode || '', // 直接使用 values.transportationMode
               transportationDistance: values.distance ?? 0,    // 修改为transportationDistance
               distributionDistance: values.distance ?? 0,      // 同时添加distributionDistance
             };
@@ -1103,6 +1103,9 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
           // 运输字段 - 只使用基础结构
           startPoint: values.startPoint || '',
           endPoint: values.endPoint || '',
+          transportationMode: values.transportationMode || '', // 直接使用 values.transportationMode
+          transportationDistance: values.distance ?? 0,
+          distributionDistance: values.distance ?? 0,
         };
 
         // 如果有待处理的证据文件，将状态设置为待解析
@@ -1163,7 +1166,7 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               label: commonData.label || values.label,
               startPoint: values.startPoint || '',
               endPoint: values.endPoint || '',
-              transportationMode: values.transportType || '',
+              transportationMode: values.transportationMode || '', // 直接使用 values.transportationMode
               transportationDistance: values.distance ?? 0,
               distributionDistance: values.distance ?? 0,
             } as DistributionNodeData;
@@ -3059,6 +3062,29 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
               </Form.Item>
             </Col>
           </Row>
+
+          {/* 新增运输相关字段 */}
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="startPoint" label="运输-起点">
+                <Input placeholder="请输入运输起点" className="panel-sider-input" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="endPoint" label="运输-终点">
+                <Input placeholder="请输入运输终点" className="panel-sider-input" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="transportationMode" label="运输方式">
+                <Input placeholder="请输入运输方式" className="panel-sider-input" />
+              </Form.Item>
+            </Col>
+            {/* 可以在这里为另一半 Col 添加其他相关字段，如果需要的话 */}
+          </Row>
+
           <Form.Item label="关联证据文件">
             <Upload
               name="evidenceFiles"
