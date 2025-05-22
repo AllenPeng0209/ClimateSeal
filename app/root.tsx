@@ -83,18 +83,20 @@ function Document({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" data-theme={theme}>
       <Head />
       <body>
-        {isClient ? (
-          <DndProvider backend={HTML5Backend}>
-            <AuthProvider>
-              {children}
-            </AuthProvider>
-          </DndProvider>
-        ) : (
-          <div>Loading...</div>
-        )}
+        <div id="root" className="w-full h-full">
+          {isClient ? (
+            <DndProvider backend={HTML5Backend}>
+              <AuthProvider>
+                {children}
+              </AuthProvider>
+            </DndProvider>
+          ) : (
+            <div>Loading...</div>
+          )}
+        </div>
         <ScrollRestoration />
         <Scripts />
       </body>

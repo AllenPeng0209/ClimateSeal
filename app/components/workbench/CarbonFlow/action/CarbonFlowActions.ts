@@ -355,6 +355,11 @@ export class CarbonFlowActionHandler {
     switch (nodeType) {
       case 'product':
         data = {
+          id: nodeId, // PK, from DB - Use generated nodeId
+          workflowId: this._carbonFlowStore.getState().workflowId || '', // FK to workflows.id
+          nodeId: nodeId, // React Flow node ID, unique within a workflow
+          nodeType: 'product',
+          productId: '', // Added default productId
           label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'product',
@@ -390,6 +395,10 @@ export class CarbonFlowActionHandler {
         break;
       case 'manufacturing':
         data = {
+          id: nodeId,
+          workflowId: this._carbonFlowStore.getState().workflowId || '',
+          nodeId: nodeId,
+          nodeType: 'manufacturing',
           label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'manufacturing',
@@ -440,6 +449,10 @@ export class CarbonFlowActionHandler {
         break;
       case 'distribution':
         data = {
+          id: nodeId,
+          workflowId: this._carbonFlowStore.getState().workflowId || '',
+          nodeId: nodeId,
+          nodeType: 'distribution',
           label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'distribution',
@@ -482,6 +495,10 @@ export class CarbonFlowActionHandler {
         break;
       case 'usage':
         data = {
+          id: nodeId,
+          workflowId: this._carbonFlowStore.getState().workflowId || '',
+          nodeId: nodeId,
+          nodeType: 'usage',
           label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'usage',
@@ -515,6 +532,10 @@ export class CarbonFlowActionHandler {
         break;
       case 'disposal':
         data = {
+          id: nodeId,
+          workflowId: this._carbonFlowStore.getState().workflowId || '',
+          nodeId: nodeId,
+          nodeType: 'disposal',
           label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'disposal',
@@ -548,6 +569,10 @@ export class CarbonFlowActionHandler {
         break;
       case 'finalProduct':
         data = {
+          id: nodeId,
+          workflowId: this._carbonFlowStore.getState().workflowId || '',
+          nodeId: nodeId,
+          nodeType: 'finalProduct',
           label: String(safeGet(inputData, 'label', `${nodeType}_${nodeId}`)),
           nodeName: String(safeGet(inputData, 'nodeName', nodeId)),
           lifecycleStage: 'finalProduct',
@@ -1938,14 +1963,16 @@ export class CarbonFlowActionHandler {
         // 更新节点数据
         const newData = {
           ...node.data,
-          transportType: ai.transportType,
-          distance: ai.distance,
-          distanceUnit: ai.distanceUnit,
-          notes: ai.notes,
+          transportationMode: ai.transportType, // 保留运输方式的更新
+          quantity: String(ai.distance), // 将AI返回的distance赋给quantity，并确保是字符串类型
+          activityUnit: 'km', // 将activityUnit固定为'km'
+          // distance: ai.distance, // 不再更新distance字段
+          // distanceUnit: ai.distanceUnit, // 不再更新distanceUnit字段
+          notes: ai.notes, // 保留备注信息的更新
         };
         success.push(node.id);
-        logs.push(`节点${node.id}补全成功: ${ai.transportType}, ${ai.distance}${ai.distanceUnit}`);
-        return { ...node, data: newData };
+        logs.push(`节点${node.id}补全成功: 运输方式=${ai.transportType}, 活动数据数值=${ai.distance}, 活动数据单位=km`);
+        return { ...node, data: newData as NodeData }; // Add type assertion
       } catch (e) {
         failed.push(node.id);
         logs.push(`节点${node.id}补全失败: ${(e as Error).message}`);
