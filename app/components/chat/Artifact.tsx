@@ -54,77 +54,105 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
     }
 
     if (actions.length !== 0 && artifact.type === 'bundled') {
-      const finished = !actions.find((action) => action.status !== 'complete');
+      const finished = !actions.find(
+        (action) => action.status !== 'complete' && !(action.type === 'start' && action.status === 'running'),
+      );
 
       if (allActionFinished !== finished) {
         setAllActionFinished(finished);
       }
     }
-  }, [actions]);
+  }, [actions, artifact.type, allActionFinished]);
+
+  // Determine the dynamic title based on state for bundled artifacts
+  const dynamicTitle =
+    artifact?.type === 'bundled'
+      ? allActionFinished
+        ? artifact.id === 'restored-project-setup'
+          ? 'Project Restored' // Title when restore is complete
+          : 'Project Created' // Title when initial creation is complete
+        : artifact.id === 'restored-project-setup'
+          ? 'Restoring Project...' // Title during restore
+          : 'Creating Project...' // Title during initial creation
+      : artifact?.title; // Fallback to original title for non-bundled or if artifact is missing
 
   return (
-    <div className="artifact border border-bolt-elements-borderColor flex flex-col overflow-hidden rounded-lg w-full transition-border duration-150">
-      <div className="flex">
-        <button
-          className="flex items-stretch bg-bolt-elements-artifacts-background hover:bg-bolt-elements-artifacts-backgroundHover w-full overflow-hidden"
-          onClick={() => {
-            const showWorkbench = workbenchStore.showWorkbench.get();
-            workbenchStore.showWorkbench.set(!showWorkbench);
-          }}
-        >
-          {artifact.type == 'bundled' && (
-            <>
-              <div className="p-4">
-                {allActionFinished ? (
-                  <div className={'i-ph:files-light'} style={{ fontSize: '2rem' }}></div>
-                ) : (
-                  <div className={'i-svg-spinners:90-ring-with-bg'} style={{ fontSize: '2rem' }}></div>
-                )}
+    <>
+      <div className="artifact border border-bolt-elements-borderColor flex flex-col overflow-hidden rounded-lg w-full transition-border duration-150">
+        <div className="flex">
+          <button
+            className="flex items-stretch bg-bolt-elements-artifacts-background hover:bg-bolt-elements-artifacts-backgroundHover w-full overflow-hidden"
+            onClick={() => {
+              const showWorkbench = workbenchStore.showWorkbench.get();
+              workbenchStore.showWorkbench.set(!showWorkbench);
+            }}
+          >
+            <div className="px-5 p-3.5 w-full text-left">
+              <div className="w-full text-bolt-elements-textPrimary font-medium leading-5 text-sm">
+                {/* Use the dynamic title here */}
+                {dynamicTitle}
               </div>
-              <div className="bg-bolt-elements-artifacts-borderColor w-[1px]" />
-            </>
-          )}
-          <div className="px-5 p-3.5 w-full text-left">
-            <div className="w-full text-bolt-elements-textPrimary font-medium leading-5 text-sm">{artifact?.title}</div>
-            <div className="w-full w-full text-bolt-elements-textSecondary text-xs mt-0.5">Click to open Workbench</div>
+              <div className="w-full w-full text-bolt-elements-textSecondary text-xs mt-0.5">
+                Click to open Workbench
+              </div>
+            </div>
+          </button>
+          {artifact.type !== 'bundled' && <div className="bg-bolt-elements-artifacts-borderColor w-[1px]" />}
+          <AnimatePresence>
+            {actions.length && artifact.type !== 'bundled' && (
+              <motion.button
+                initial={{ width: 0 }}
+                animate={{ width: 'auto' }}
+                exit={{ width: 0 }}
+                transition={{ duration: 0.15, ease: cubicEasingFn }}
+                className="bg-bolt-elements-artifacts-background hover:bg-bolt-elements-artifacts-backgroundHover"
+                onClick={toggleActions}
+              >
+                <div className="p-4">
+                  <div className={showActions ? 'i-ph:caret-up-bold' : 'i-ph:caret-down-bold'}></div>
+                </div>
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+        {artifact.type === 'bundled' && (
+          <div className="flex items-center gap-1.5 p-5 bg-bolt-elements-actions-background border-t border-bolt-elements-artifacts-borderColor">
+            <div className={classNames('text-lg', getIconColor(allActionFinished ? 'complete' : 'running'))}>
+              {allActionFinished ? (
+                <div className="i-ph:check"></div>
+              ) : (
+                <div className="i-svg-spinners:90-ring-with-bg"></div>
+              )}
+            </div>
+            <div className="text-bolt-elements-textPrimary font-medium leading-5 text-sm">
+              {/* This status text remains the same */}
+              {allActionFinished
+                ? artifact.id === 'restored-project-setup'
+                  ? 'Restore files from snapshot'
+                  : 'Initial files created'
+                : 'Creating initial files'}
+            </div>
           </div>
-        </button>
-        <div className="bg-bolt-elements-artifacts-borderColor w-[1px]" />
+        )}
         <AnimatePresence>
-          {actions.length && artifact.type !== 'bundled' && (
-            <motion.button
-              initial={{ width: 0 }}
-              animate={{ width: 'auto' }}
-              exit={{ width: 0 }}
-              transition={{ duration: 0.15, ease: cubicEasingFn }}
-              className="bg-bolt-elements-artifacts-background hover:bg-bolt-elements-artifacts-backgroundHover"
-              onClick={toggleActions}
+          {artifact.type !== 'bundled' && showActions && actions.length > 0 && (
+            <motion.div
+              className="actions"
+              initial={{ height: 0 }}
+              animate={{ height: 'auto' }}
+              exit={{ height: '0px' }}
+              transition={{ duration: 0.15 }}
             >
-              <div className="p-4">
-                <div className={showActions ? 'i-ph:caret-up-bold' : 'i-ph:caret-down-bold'}></div>
+              <div className="bg-bolt-elements-artifacts-borderColor h-[1px]" />
+
+              <div className="p-5 text-left bg-bolt-elements-actions-background">
+                <ActionList actions={actions} />
               </div>
-            </motion.button>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
-      <AnimatePresence>
-        {artifact.type !== 'bundled' && showActions && actions.length > 0 && (
-          <motion.div
-            className="actions"
-            initial={{ height: 0 }}
-            animate={{ height: 'auto' }}
-            exit={{ height: '0px' }}
-            transition={{ duration: 0.15 }}
-          >
-            <div className="bg-bolt-elements-artifacts-borderColor h-[1px]" />
-
-            <div className="p-5 text-left bg-bolt-elements-actions-background">
-              <ActionList actions={actions} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    </>
   );
 });
 
@@ -187,30 +215,16 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                 <div className={classNames('text-lg', getIconColor(action.status))}>
                   {status === 'running' ? (
                     <>
-                      {type === 'start' ? (
-                        <div className="i-ph:terminal-window-duotone"></div>
-                      ) : type === 'carbonflow' ? (
-                        <div className="i-svg-spinners:180-ring-with-bg text-emerald-500"></div>
-                      ) : (
+                      {type !== 'start' ? (
                         <div className="i-svg-spinners:90-ring-with-bg"></div>
+                      ) : (
+                        <div className="i-ph:terminal-window-duotone"></div>
                       )}
                     </>
                   ) : status === 'pending' ? (
-                    <>
-                      {type === 'carbonflow' ? (
-                        <div className="i-ph:flow-arrow text-emerald-400"></div>
-                      ) : (
-                        <div className="i-ph:circle-duotone"></div>
-                      )}
-                    </>
+                    <div className="i-ph:circle-duotone"></div>
                   ) : status === 'complete' ? (
-                    <>
-                      {type === 'carbonflow' ? (
-                        <div className="i-ph:graph text-emerald-500"></div>
-                      ) : (
-                        <div className="i-ph:check"></div>
-                      )}
-                    </>
+                    <div className="i-ph:check"></div>
                   ) : status === 'failed' || status === 'aborted' ? (
                     <div className="i-ph:x"></div>
                   ) : null}
@@ -239,29 +253,6 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   >
                     <span className="flex-1">Start Application</span>
                   </a>
-                ) : type === 'carbonflow' ? (
-                  <a
-                    onClick={(e) => {
-                      e.preventDefault();
-                      workbenchStore.currentView.set('carbonflow');
-                    }}
-                    className="flex items-center w-full min-h-[28px] text-emerald-600 hover:text-emerald-700 transition-colors"
-                  >
-                    <span className="flex-1">
-                      <span className="font-medium">CarbonFlow:</span>{' '}
-                      {
-                        // 显示简化的操作类型
-                        (action as any).operation === 'create'
-                          ? `添加生命週期节点`
-                          : (action as any).operation === 'connect'
-                            ? `连接节点`
-                            : (action as any).operation === 'calculate'
-                              ? `计算碳足迹`
-                              : (action as any).operation || '操作'
-                      }
-                    </span>
-                    <div className="i-ph:flow-arrow-duotone text-lg ml-2"></div>
-                  </a>
                 ) : null}
               </div>
               {(type === 'shell' || type === 'start') && (
@@ -271,235 +262,6 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   })}
                   code={content}
                 />
-              )}
-              {type === 'carbonflow' && (
-                <div
-                  className={classNames(
-                    'mt-1 px-3 py-1.5 rounded-md text-xs bg-gray-800 text-gray-200 border border-gray-700',
-                    { 'mb-3.5': !isLast },
-                  )}
-                >
-                  {content &&
-                    content.includes('{') &&
-                    (() => {
-                      try {
-                        const jsonData = JSON.parse(
-                          content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1),
-                        );
-
-                        if (jsonData.components && jsonData.components.length > 0) {
-                          const component = jsonData.components[0];
-                          return (
-                            <div className="mt-2 border-t border-gray-700 pt-2">
-                              {component.name && (
-                                <div className="ml-4 text-gray-300">
-                                  • 节点名称: <span className="font-medium text-gray-100">{component.name}</span>
-                                </div>
-                              )}
-
-                              {component.lifecycleStage && (
-                                <div className="ml-4 text-gray-300">
-                                  • 生命周期阶段:{' '}
-                                  <span className="font-medium text-gray-100">{component.lifecycleStage}</span>
-                                </div>
-                              )}
-
-                              {component.emissionType && (
-                                <div className="ml-4 text-gray-300">
-                                  • 排放类型:{' '}
-                                  <span className="font-medium text-gray-100">{component.emissionType}</span>
-                                </div>
-                              )}
-
-                              {component.quantity && (
-                                <div className="ml-4 text-gray-300">
-                                  • 数量: <span className="font-medium text-gray-100">{component.quantity}</span>
-                                </div>
-                              )}
-
-                              {component.carbonFactor && (
-                                <div className="ml-4 text-gray-300">
-                                  • 碳因子: <span className="font-medium text-gray-100">{component.carbonFactor}</span>
-                                </div>
-                              )}
-
-                              {component.activitydataSource && (
-                                <div className="ml-4 text-gray-300">
-                                  • 数据来源:{' '}
-                                  <span className="font-medium text-gray-100">{component.activitydataSource}</span>
-                                </div>
-                              )}
-
-                              {component.activityScore && (
-                                <div className="ml-4 text-gray-300">
-                                  • 活动评分:{' '}
-                                  <span className="font-medium text-gray-100">{component.activityScore}</span>
-                                </div>
-                              )}
-
-                              {component.carbonFootprint && (
-                                <div className="ml-4 text-gray-300">
-                                  • 碳足迹:{' '}
-                                  <span className="font-medium text-gray-100">{component.carbonFootprint}</span>
-                                </div>
-                              )}
-
-                              {/* 制造节点特有属性 */}
-                              {component.energyConsumption && (
-                                <div className="ml-4 text-gray-300">
-                                  • 能源消耗:{' '}
-                                  <span className="font-medium text-gray-100">{component.energyConsumption}</span>
-                                </div>
-                              )}
-
-                              {component.energyType && (
-                                <div className="ml-4 text-gray-300">
-                                  • 能源类型: <span className="font-medium text-gray-100">{component.energyType}</span>
-                                </div>
-                              )}
-
-                              {component.processEfficiency && (
-                                <div className="ml-4 text-gray-300">
-                                  • 工艺效率:{' '}
-                                  <span className="font-medium text-gray-100">{component.processEfficiency}</span>
-                                </div>
-                              )}
-
-                              {/* 运输节点特有属性 */}
-                              {component.transportationMode && (
-                                <div className="ml-4 text-gray-300">
-                                  • 运输方式:{' '}
-                                  <span className="font-medium text-gray-100">{component.transportationMode}</span>
-                                </div>
-                              )}
-
-                              {component.transportationDistance && (
-                                <div className="ml-4 text-gray-300">
-                                  • 运输距离:{' '}
-                                  <span className="font-medium text-gray-100">{component.transportationDistance}</span>
-                                </div>
-                              )}
-
-                              {component.vehicleType && (
-                                <div className="ml-4 text-gray-300">
-                                  • 车辆类型: <span className="font-medium text-gray-100">{component.vehicleType}</span>
-                                </div>
-                              )}
-
-                              {/* 使用节点特有属性 */}
-                              {component.lifespan && (
-                                <div className="ml-4 text-gray-300">
-                                  • 使用寿命: <span className="font-medium text-gray-100">{component.lifespan}</span>
-                                </div>
-                              )}
-
-                              {component.energyConsumptionPerUse && (
-                                <div className="ml-4 text-gray-300">
-                                  • 每次使用能耗:{' '}
-                                  <span className="font-medium text-gray-100">{component.energyConsumptionPerUse}</span>
-                                </div>
-                              )}
-
-                              {component.usageFrequency && (
-                                <div className="ml-4 text-gray-300">
-                                  • 使用频率:{' '}
-                                  <span className="font-medium text-gray-100">{component.usageFrequency}</span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        }
-                        return null;
-                      } catch (e) {
-                        return null;
-                      }
-                    })()}
-                  {(action as any).operation === 'create' && (action as any).data && (
-                    <div className="ml-4 text-gray-300">
-                      • 添加{' '}
-                      <span className="font-medium text-gray-100">
-                        {(() => {
-                          try {
-                            console.log('[CarbonFlow] 开始解析节点数据:', {
-                              data: (action as any).data,
-                              type: typeof (action as any).data
-                            });
-
-                            let dataObj;
-                            if (typeof (action as any).data === 'object') {
-                              dataObj = (action as any).data;
-                            } else {
-                              try {
-                                // Simple validation for JSON string
-                                const dataStr = (action as any).data;
-
-                                if (
-                                  typeof dataStr === 'string' &&
-                                  (dataStr.trim().startsWith('{') || dataStr.trim().startsWith('[')) &&
-                                  (dataStr.trim().endsWith('}') || dataStr.trim().endsWith(']'))
-                                ) {
-                                  dataObj = JSON.parse(dataStr);
-                                } else {
-                                  // If not a valid JSON string, create a simple object
-                                  dataObj = { label: dataStr || '节点' };
-                                }
-                              } catch (parseError) {
-                                console.error('[CarbonFlow] JSON解析失败:', parseError);
-                                // 尝试从 content 字段解析
-                                if ((action as any).content) {
-                                  try {
-                                    // Simple validation for JSON string
-                                    const contentStr = (action as any).content;
-
-                                    if (
-                                      typeof contentStr === 'string' &&
-                                      (contentStr.trim().startsWith('{') || contentStr.trim().startsWith('[')) &&
-                                      (contentStr.trim().endsWith('}') || contentStr.trim().endsWith(']'))
-                                    ) {
-                                      dataObj = JSON.parse(contentStr);
-                                    } else {
-                                      // If not a valid JSON string, create a simple object
-                                      dataObj = { label: contentStr || '节点' };
-                                    }
-                                  } catch (contentError) {
-                                    console.error('[CarbonFlow] Content字段解析也失败:', contentError);
-                                    return '节点';
-                                  }
-                                } else {
-                                  return '节点';
-                                }
-                              }
-                            }
-
-                            console.log('[CarbonFlow] 解析后的数据对象:', dataObj);
-                            return dataObj.label || '节点';
-                          } catch (e) {
-                            console.error('[CarbonFlow] 节点数据解析失败:', e);
-                            return '节点';
-                          }
-                        })()}
-                      </span>{' '}
-                      类型节点
-                    </div>
-                  )}
-                  {(action as any).operation === 'connect' && (action as any).source && (action as any).target && (
-                    <div className="ml-4 text-gray-300">
-                      • 连接 <span className="font-medium text-gray-100">{(action as any).source}</span> 到{' '}
-                      <span className="font-medium text-gray-100">{(action as any).target}</span>
-                    </div>
-                  )}
-                  {(action as any).operation === 'calculate' && <div className="ml-4 text-gray-300">• 计算碳足迹值</div>}
-                  {(action as any).operation === 'update' && <div className="ml-4 text-gray-300">• 更新节点信息</div>}
-                  {(action as any).operation === 'delete' && <div className="ml-4 text-gray-300">• 删除节点</div>}
-                  {(action as any).operation === 'query' && <div className="ml-4 text-gray-300">• 查询节点信息</div>}
-                  {(action as any).operation === 'layout' && <div className="ml-4 text-gray-300">• 调整节点布局</div>}
-
-                  {(action as any).description && (
-                    <div className="ml-4 text-gray-300">
-                      • 描述: <span className="font-medium text-gray-100">{(action as any).description}</span>
-                    </div>
-                  )}
-                </div>
               )}
             </motion.li>
           );

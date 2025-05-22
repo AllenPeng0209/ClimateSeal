@@ -47,25 +47,23 @@ export interface SupabaseAction extends BaseAction {
 export interface CarbonFlowAction extends BaseAction {
   type: 'carbonflow';
   operation:
-    | 'create'
-    | 'update'
-    | 'delete'
-    | 'query'
-    | 'connect'
-    | 'layout'
-    | 'calculate'
-    | 'file_parser'
-    | 'carbon_factor_match'
-    | 'ai_autofill_transport_data'
-    | 'ai_autofill_conversion_data'
-    | 'plan';
-  nodeId?: string;
-  nodeType?: string;
-  source?: string;
-  target?: string;
-  position?: string;
-  data?: string;
-  fileName?: string;
+  | 'plan'
+  | 'scene'
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'query'
+  | 'connect'
+  | 'layout'
+  | 'calculate'
+  | 'file_parser'
+  | 'carbon_factor_match'
+  | 'generate_supplier_task'
+  | 'ai_autofill'
+  | 'generate_data_validation_task'
+  | 'report'
+  workflowid: string;
+  filePath?: string;
 }
 
 export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | CarbonFlowAction;
