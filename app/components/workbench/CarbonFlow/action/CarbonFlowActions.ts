@@ -1964,8 +1964,10 @@ export class CarbonFlowActionHandler {
         const newData = {
           ...node.data,
           transportationMode: ai.transportType, // 保留运输方式的更新
-          transportationDistance: String(ai.distance), // 将AI返回的distance赋给quantity，并确保是字符串类型
-          transportationDistanceUnit: ai.distanceUnit, // 将activityUnit固定为'km'
+          transportationDistance: String(ai.distance), 
+          transportationDistanceUnit: ai.distanceUnit,
+          quantity: String(ai.distance), // 新增：将AI返回的distance赋给quantity
+          activityUnit: 'km', // 新增：将activityUnit固定为'km'
           notes: ai.notes, // 保留备注信息的更新
         };
         success.push(node.id);

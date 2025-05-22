@@ -295,56 +295,66 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
   }
 
   const saveWorkflowNodes = async (nodeDataList: NodeData[]) => {
-    // First, delete all nodes that are about to be updated/inserted to avoid conflicts
-    // This assumes nodeDataList contains all nodes for the current save operation that might already exist.
-    // If it only contains new nodes, this delete operation might be too broad or unnecessary for those.
-    // If it contains a mix, we need to be careful.
-    // For an upsert-like behavior, deleting first is common.
-    const deletePromises = nodeDataList.map(node => {
-      return supabase.from('workflow_nodes').delete()
-        .eq('workflow_id', node.workflowId)
-        .eq('node_id', node.nodeId);
-    });
-
-    const deleteResults = await Promise.all(deletePromises);
-    deleteResults.forEach(result => {
-      if (result.error) {
-        // It's often okay if a delete fails because the node didn't exist, but log other errors.
-        // Supabase delete doesn't error if rows don't exist by default, but good to be aware.
-        console.warn('Warning during node deletion phase (might be ok if node was new):', result.error?.message);
+    // Prepare the node data for upsert
+    const upsertDataList = nodeDataList.map(node => {
+      let processedNode = convertKeysToSnakeCase(node);
+      processedNode['activity_data_source'] = processedNode['activitydata_source'] || '';
+      delete processedNode['activitydata_source'];
+      processedNode['carbon_factor_data_source'] = processedNode['carbon_factordata_source'] || '';
+      delete processedNode['carbon_factordata_source'];
+      delete processedNode['end_point']; // These seem to be specific to certain node types or old fields
+      delete processedNode['start_point']; // and might not exist on all NodeData objects directly.
+      delete processedNode['supplier'];   // Ensure these deletions are safe for all node types.
+      delete processedNode['evidence_files']; // Key fix for runtime error
+      
+      // Ensure workflow_id and node_id are present, as they are used for conflict resolution
+      if (!processedNode.workflow_id || !processedNode.node_id) {
+        console.error('Node is missing workflow_id or node_id, cannot upsert:', processedNode);
+        // Potentially throw an error or filter out this node
+        // For now, we'll let it proceed and Supabase will likely error if these are part of the onConflict columns
       }
+      
+      console.log('Preparing to upsert node data:', processedNode);
+      return processedNode;
     });
 
-    // Now, prepare and insert the new node data
-    const newNodeDataList = nodeDataList.map(node => {
-      let newNode = convertKeysToSnakeCase(node)
-      newNode['activity_data_source'] = newNode['activitydata_source'] || '';
-      delete newNode['activitydata_source'];
-      newNode['carbon_factor_data_source'] = newNode['carbon_factordata_source'] || ''; // 确保 carbon_factor 有默认值
-      delete newNode['carbon_factordata_source'];
-      delete newNode['end_point'];
-      delete newNode['start_point'];
-      delete newNode['supplier'];
-      delete newNode['evidence_files']; // <-- Key fix for runtime error
-      console.log('Preparing to save node data:', newNode);
-      return newNode;
-    });
-
-    if (newNodeDataList.length === 0) {
+    if (upsertDataList.length === 0) {
       console.log('No node data to save.');
-      return true; // Or false, depending on desired behavior for empty list
-    }
-
-    const { data, error } = await supabase.from('workflow_nodes').insert(newNodeDataList);
-    if (error) {
-      console.error('Error saving workflow nodes:', error.message);
-      message.error(`保存节点失败: ${error.message}`);
-      return false;
-    } else {
-      console.log('Workflow nodes saved successfully:', data);
       return true;
     }
 
+    // Perform the upsert operation
+    // This assumes that 'workflow_id' and 'node_id' together form a unique constraint
+    // or are part of the primary key in the 'workflow_nodes' table.
+    const { data, error } = await supabase
+      .from('workflow_nodes')
+      .upsert(upsertDataList, { onConflict: 'workflow_id,node_id' });
+
+    if (error) {
+      console.error('Error upserting workflow nodes:', error.message);
+      message.error(`保存节点失败: ${error.message}`);
+      // Log detailed error for debugging
+      logWorkflowAction({
+        action_type: 'SYSTEM_NODE_SAVE',
+        operation_name: 'upsert_workflow_nodes',
+        parameters: { nodeCount: upsertDataList.length },
+        status: 'COMPLETED_FAILURE',
+        results_summary: { message: 'Node upsert failed', error: error.message },
+        detailed_logs: JSON.stringify(upsertDataList.map(n => n.node_id)) // Log IDs of nodes attempted
+      });
+      return false;
+    } else {
+      console.log('Workflow nodes upserted successfully:', data);
+      // Log successful upsert
+      logWorkflowAction({
+        action_type: 'SYSTEM_NODE_SAVE',
+        operation_name: 'upsert_workflow_nodes',
+        parameters: { nodeCount: upsertDataList.length },
+        status: 'COMPLETED_SUCCESS',
+        results_summary: { message: 'Nodes upserted successfully', count: (data || []).length }
+      });
+      return true;
+    }
   }
 
   const deleteWorkflowNodes = async (nodeIds: string[], workflowId: string) => {
