@@ -1882,8 +1882,10 @@ export function CarbonCalculatorPanel({ workflowId, workflowName: initialWorkflo
         { title: '单位', dataIndex: ['data', 'activityUnit'], key: 'activityUnit', width: 80, align: 'center', render: (v: any, r: Node<NodeData>) => v ? <span>{v}{(r.data as any).activityUnit_aiGenerated && <span style={{ color: '#1890ff', marginLeft: 4, fontSize: 12 }}>AI</span>}</span> : '-' },
         { title: '运输-起点', dataIndex: ['data', 'startPoint'], key: 'startPoint', width: 120, align: 'center', render: (text: any) => text || '-' },
         { title: '运输-终点', dataIndex: ['data', 'endPoint'], key: 'endPoint', width: 120, align: 'center', render: (text: any) => text || '-' },
-        { title: '运输方式', dataIndex: ['data', 'transportType'], key: 'transportType', width: 90, align: 'center', render: (text: any) => text || '-' },
-        { title: '运输距离', dataIndex: ['data', 'distance'], key: 'distance', width: 90, align: 'center', render: (text: any) => text || '-' },
+        { title: '运输方式', dataIndex: ['data', 'transportationMode'], key: 'transportationMode', width: 90, align: 'center', render: (text: any) => text || '-' },
+        { title: '运输距离', dataIndex: ['data', 'transportationDistance'], key: 'transportationDistance', width: 90, align: 'center', render: (text: any) => text || '-' },
+        { title: '运输距离单位', dataIndex: ['data', 'transportationDistanceUnit'], key: 'transportationDistanceUnit', width: 90, align: 'center', render: (text: any) => text || '-' },
+        { title: '运输备注', dataIndex: ['data', 'notes'], key: 'notes', width: 120, align: 'center', render: (text: any) => text || '-' },
         { title: '证据文件', key: 'evidenceFiles', width: 90, align: 'center', render: (_: any, r: Node<NodeData>) => (r.data as any).hasEvidenceFiles ? '有' : '无' },
       ]
     },

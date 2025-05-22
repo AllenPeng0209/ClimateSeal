@@ -68,10 +68,8 @@ export interface BaseNodeData {
 
 // 产品节点数据
 export interface ProductNodeData extends BaseNodeData {
-  nodeType: 'product'; // Literal type
   productId: string; // 关联的 products.id (设为必需)
   product?: Product | null; // (可选) 关联的产品对象 (用于前端)
-
   material?: string;
   weight_per_unit?: string;
   isRecycled?: boolean;
@@ -95,7 +93,6 @@ export interface ProductNodeData extends BaseNodeData {
 
 // 制造节点数据
 export interface ManufacturingNodeData extends BaseNodeData {
-  nodeType: 'manufacturing'; // Literal type
   ElectricityAccountingMethod: string;
   ElectricityAllocationMethod: string;
   EnergyConsumptionMethodology: string;
@@ -133,10 +130,10 @@ export interface ManufacturingNodeData extends BaseNodeData {
 
 // 分销节点数据
 export interface DistributionNodeData extends BaseNodeData {
-  nodeType: 'distribution'; // Literal type
+  
   transportationMode: string;
   transportationDistance: number;
-  // startPoint and endPoint are inherited from BaseNodeData if made common
+  transportationDistanceUnit: string;
   vehicleType: string;
   fuelType: string;
   fuelEfficiency: number;
@@ -152,16 +149,11 @@ export interface DistributionNodeData extends BaseNodeData {
   returnLogistics?: boolean;
   packagingRecyclability?: number;
   lastMileDelivery?: string;
-  distributionMode?: string; // Potentially redundant with transportationMode if used for same purpose
-  distributionDistance?: number; // Potentially redundant with transportationDistance
-  distributionDistanceUnit?: string; // Note: carbonpanel uses number for unit, check consistency. Original was number.
-  distributionTransportationMode?: string; // Potentially redundant
-  distributionTransportationDistance?: number; // Potentially redundant
+  notes?: string;
 }
 
 // 使用节点数据
 export interface UsageNodeData extends BaseNodeData {
-  nodeType: 'usage'; // Literal type
   lifespan: number;
   energyConsumptionPerUse: number;
   waterConsumptionPerUse: number;
@@ -182,7 +174,6 @@ export interface UsageNodeData extends BaseNodeData {
 
 // 处置节点数据
 export interface DisposalNodeData extends BaseNodeData {
-  nodeType: 'disposal'; // Literal type
   recyclingRate: number;
   landfillPercentage: number;
   incinerationPercentage: number;
@@ -203,7 +194,6 @@ export interface DisposalNodeData extends BaseNodeData {
 
 // 最终产品节点数据
 export interface FinalProductNodeData extends BaseNodeData {
-  nodeType: 'finalProduct'; // Literal type
   finalProductName: string; // This should be `label` or `name` from BaseNodeData ideally.
   totalCarbonFootprint: number;
   certificationStatus: string;

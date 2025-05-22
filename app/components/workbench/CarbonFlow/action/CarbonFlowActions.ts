@@ -1964,14 +1964,13 @@ export class CarbonFlowActionHandler {
         const newData = {
           ...node.data,
           transportationMode: ai.transportType, // 保留运输方式的更新
-          quantity: String(ai.distance), // 将AI返回的distance赋给quantity，并确保是字符串类型
-          activityUnit: 'km', // 将activityUnit固定为'km'
-          // distance: ai.distance, // 不再更新distance字段
-          // distanceUnit: ai.distanceUnit, // 不再更新distanceUnit字段
+          transportationDistance: String(ai.distance), // 将AI返回的distance赋给quantity，并确保是字符串类型
+          transportationDistanceUnit: ai.distanceUnit, // 将activityUnit固定为'km'
           notes: ai.notes, // 保留备注信息的更新
         };
         success.push(node.id);
         logs.push(`节点${node.id}补全成功: 运输方式=${ai.transportType}, 活动数据数值=${ai.distance}, 活动数据单位=km`);
+        console.log('更新节点111111', node.id, newData);
         return { ...node, data: newData as NodeData }; // Add type assertion
       } catch (e) {
         failed.push(node.id);
@@ -1987,6 +1986,7 @@ export class CarbonFlowActionHandler {
       }
     });
     // 更新节点
+    console.log('更新节点', updatedNodes);
     this._setNodes(updatedNodes);
     window.dispatchEvent(new CustomEvent('carbonflow-autofill-results', {
       detail: { success, failed, logs },
