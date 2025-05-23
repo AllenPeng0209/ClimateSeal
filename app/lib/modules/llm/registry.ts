@@ -17,6 +17,7 @@ import HyperbolicProvider from './providers/hyperbolic';
 import AmazonBedrockProvider from './providers/amazon-bedrock';
 import GithubProvider from './providers/github';
 import AliyunProvider from './providers/aliyun';
+import NuwaaProvider from './providers/nuwaa';
 
 export {
   AnthropicProvider,
@@ -38,4 +39,5 @@ export {
   AmazonBedrockProvider,
   GithubProvider,
   AliyunProvider,
+  NuwaaProvider,
 };
