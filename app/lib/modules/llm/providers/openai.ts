@@ -9,15 +9,18 @@ export default class OpenAIProvider extends BaseProvider {
   getApiKeyLink = 'https://platform.openai.com/api-keys';
 
   config = {
+    baseUrlKey: 'OPENAI_API_BASE_URL',
     apiTokenKey: 'OPENAI_API_KEY',
+    baseUrl: 'https://api.nuwaapi.com/v1',
   };
 
   staticModels: ModelInfo[] = [
+    { name: 'o3-mini', label: 'O3 Mini', provider: 'OpenAI', maxTokenAllowed: 8000 },
+    { name: 'o3', label: 'O3', provider: 'OpenAI', maxTokenAllowed: 8000 },
+    { name: 'o4-mini', label: 'O4 Mini', provider: 'OpenAI', maxTokenAllowed: 8000 },
+    { name: 'o4', label: 'O4', provider: 'OpenAI', maxTokenAllowed: 8000 },
     { name: 'gpt-4o', label: 'GPT-4o', provider: 'OpenAI', maxTokenAllowed: 8000 },
-    { name: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'OpenAI', maxTokenAllowed: 8000 },
-    { name: 'gpt-4-turbo', label: 'GPT-4 Turbo', provider: 'OpenAI', maxTokenAllowed: 8000 },
-    { name: 'gpt-4', label: 'GPT-4', provider: 'OpenAI', maxTokenAllowed: 8000 },
-    { name: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', provider: 'OpenAI', maxTokenAllowed: 8000 },
+    { name: 'gpt-4.1', label: 'GPT-4.1', provider: 'OpenAI', maxTokenAllowed: 8000 },
   ];
 
   async getDynamicModels(
@@ -25,11 +28,11 @@ export default class OpenAIProvider extends BaseProvider {
     settings?: IProviderSetting,
     serverEnv?: Record<string, string>,
   ): Promise<ModelInfo[]> {
-    const { apiKey } = this.getProviderBaseUrlAndKey({
+    const { baseUrl, apiKey } = this.getProviderBaseUrlAndKey({
       apiKeys,
       providerSettings: settings,
       serverEnv: serverEnv as any,
-      defaultBaseUrlKey: '',
+      defaultBaseUrlKey: 'OPENAI_API_BASE_URL',
       defaultApiTokenKey: 'OPENAI_API_KEY',
     });
 
@@ -37,7 +40,10 @@ export default class OpenAIProvider extends BaseProvider {
       throw `Missing Api Key configuration for ${this.name} provider`;
     }
 
-    const response = await fetch(`https://api.openai.com/v1/models`, {
+    // Use custom base URL if provided, otherwise use default
+    const modelsUrl = `${baseUrl || 'https://api.openai.com'}/v1/models`;
+
+    const response = await fetch(modelsUrl, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },
@@ -69,11 +75,11 @@ export default class OpenAIProvider extends BaseProvider {
   }): LanguageModelV1 {
     const { model, serverEnv, apiKeys, providerSettings } = options;
 
-    const { apiKey } = this.getProviderBaseUrlAndKey({
+    const { baseUrl, apiKey } = this.getProviderBaseUrlAndKey({
       apiKeys,
       providerSettings: providerSettings?.[this.name],
       serverEnv: serverEnv as any,
-      defaultBaseUrlKey: '',
+      defaultBaseUrlKey: 'OPENAI_API_BASE_URL',
       defaultApiTokenKey: 'OPENAI_API_KEY',
     });
 
@@ -83,6 +89,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     const openai = createOpenAI({
       apiKey,
+      baseURL: baseUrl,
     });
 
     return openai(model);
